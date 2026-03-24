@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="KuDE_Ticket" pageWidth="226" pageHeight="842" columnWidth="206" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" isIgnorePagination="true">
+	<parameter name="P_EMISOR_NOMBRE" class="java.lang.String"/>
+	<parameter name="P_EMISOR_RUC" class="java.lang.String"/>
+	<parameter name="P_EMISOR_DIRECCION" class="java.lang.String"/>
+	<parameter name="P_EMISOR_TELEFONO" class="java.lang.String"/>
+	<parameter name="P_EMISOR_ACTIVIDAD" class="java.lang.String"/>
+	<parameter name="P_TIMBRADO" class="java.lang.String"/>
+	<parameter name="P_NUMERO_DOCUMENTO" class="java.lang.String"/>
+	<parameter name="P_TIPO_DOCUMENTO_TEXTO" class="java.lang.String"/>
+	<parameter name="P_FECHA_EMISION" class="java.lang.String"/>
+	<parameter name="P_CONDICION_VENTA" class="java.lang.String"/>
+	<parameter name="P_CDC" class="java.lang.String"/>
+	<parameter name="P_RECEPTOR_NOMBRE" class="java.lang.String"/>
+	<parameter name="P_RECEPTOR_RUC" class="java.lang.String"/>
+	<parameter name="P_TOTAL_OPERACION" class="java.lang.Double"/>
+	<parameter name="P_TOTAL_GRAVADA_10" class="java.lang.Double"/>
+	<parameter name="P_TOTAL_IVA_10" class="java.lang.Double"/>
+	<parameter name="P_QR" class="java.lang.Object"/>
+	<field name="descripcion" class="java.lang.String"/>
+	<field name="cantidad" class="java.lang.Integer"/>
+	<field name="precioUnitario" class="java.lang.Double"/>
+	<field name="montoTotalItem" class="java.lang.Double"/>
+	<title>
+		<band height="140" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="206" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{P_EMISOR_NOMBRE}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="20" width="206" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{P_EMISOR_DIRECCION}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="35" width="206" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["RUC: " + $P{P_EMISOR_RUC}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="50" width="206" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Tel: " + $P{P_EMISOR_TELEFONO}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="0" y="70" width="206" height="1">
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<graphicElement>
+					<pen lineStyle="Dashed"/>
+				</graphicElement>
+			</line>
+			<textField>
+				<reportElement x="0" y="75" width="206" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="9" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{P_TIPO_DOCUMENTO_TEXTO}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="90" width="206" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="9" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{P_NUMERO_DOCUMENTO}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="105" width="206" height="12"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Fecha: " + $P{P_FECHA_EMISION}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="117" width="206" height="12"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Cliente: " + ($P{P_RECEPTOR_NOMBRE} != null ? $P{P_RECEPTOR_NOMBRE} : "-")]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="129" width="206" height="12"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["RUC: " + ($P{P_RECEPTOR_RUC} != null ? $P{P_RECEPTOR_RUC} : "-")]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="100" height="15"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DESCRIPCIÓN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="100" y="0" width="30" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CANT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="130" y="0" width="76" height="15"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="25" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="206" height="12"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{descripcion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="130" y="12" width="76" height="12"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{montoTotalItem}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="180" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="10" width="100" height="15"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif" size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL GS:]]></text>
+			</staticText>
+			<textField pattern="#,##0">
+				<reportElement x="100" y="10" width="106" height="15"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{P_TOTAL_OPERACION}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0">
+				<reportElement x="100" y="25" width="106" height="12"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["IVA 10%: " + $P{P_TOTAL_IVA_10}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="67" width="206" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Top">
+					<font fontName="SansSerif" size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["CDC: " + $P{P_CDC}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Center">
+				<reportElement x="53" y="90" width="100" height="80"/>
+				<imageExpression><![CDATA[$P{P_QR}]]></imageExpression>
+			</image>
+		</band>
+	</summary>
+</jasperReport>

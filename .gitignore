@@ -1,0 +1,24 @@
+﻿# Maven
+target/
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Spring Boot
+*.log

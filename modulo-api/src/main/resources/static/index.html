@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zentra - Middleware SIFEN</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="dark-theme">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar glass">
+            <div class="logo-container">
+                <div class="logo-icon">Z</div>
+                <span class="logo-text">ZENTRA</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" onclick="switchView('dashboard')"><i class="fas fa-th-large"></i>
+                    Dashboard</a>
+                <a href="#" class="nav-item" onclick="switchView('emision')"><i class="fas fa-file-invoice"></i> Nuevo
+                    DTE</a>
+                <a href="#" class="nav-item"><i class="fas fa-list-ul"></i> Documentos</a>
+                <a href="#" class="nav-item"><i class="fas fa-building"></i> Empresas</a>
+                <a href="#" class="nav-item"><i class="fas fa-cog"></i> Configuración</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff" alt="User">
+                    <div class="user-info">
+                        <span class="user-name">Admin</span>
+                        <span class="user-role">Super Admin</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-header glass">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button id="menuToggle" class="menu-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Buscar por CDC, RUC o Nro. Comprobante...">
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <div class="env-selector">
+                        <span class="env-label-text">ENTORNO:</span>
+                        <div class="switch-container">
+                            <input type="checkbox" id="envSwitch">
+                            <label for="envSwitch" class="switch-label">
+                                <span class="switch-ball"></span>
+                                <span class="switch-text-dev">DEV</span>
+                                <span class="switch-text-prod">PROD</span>
+                            </label>
+                        </div>
+                    </div>
+                    <button id="btnThemeToggle" class="btn-theme-toggle" title="Cambiar Tema">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <div class="notification-icon">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="content-view active">
+                <div class="view-header">
+                    <h2>Panel de Control</h2>
+                    <button class="btn btn-primary" onclick="switchView('emision')">
+                        <i class="fas fa-plus"></i> Emitir Comprobante
+                    </button>
+                </div>
+
+                <section class="dashboard-stats">
+                    <div class="stat-card glass slide-up">
+                        <div class="stat-icon success"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label">Aprobados</span>
+                            <span class="stat-value" id="statsAprobados">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass slide-up" style="animation-delay: 0.1s">
+                        <div class="stat-icon warning"><i class="fas fa-clock"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label">Pendientes</span>
+                            <span class="stat-value" id="statsPendientes">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass slide-up" style="animation-delay: 0.2s">
+                        <div class="stat-icon error"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label">Rechazados</span>
+                            <span class="stat-value" id="statsRechazados">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass slide-up" style="animation-delay: 0.3s">
+                        <div class="stat-icon primary"><i class="fas fa-file-invoice"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label">Total Emitidos</span>
+                            <span class="stat-value" id="statsTotal">0</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="content-table glass fade-in">
+                    <div class="table-header">
+                        <h3>Documentos Recientes</h3>
+                        <div class="filter-actions">
+                            <button class="btn btn-outline btn-sm"><i class="fas fa-filter"></i> Filtrar</button>
+                            <button id="btnRefresh" class="btn btn-outline btn-sm"><i
+                                    class="fas fa-sync-alt"></i></button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="tableDocumentos">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Comprobante</th>
+                                    <th>Receptor</th>
+                                    <th>Monto Total</th>
+                                    <th>Estado SIFEN</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyDocumentos">
+                                <tr>
+                                    <td colspan="7" class="text-center">Cargando documentos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Form Emission View (Inline Screen) -->
+            <div id="view-emision" class="content-view">
+                <div class="view-header">
+                    <div class="title-with-back">
+                        <button class="btn-icon-only" onclick="switchView('dashboard')">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h2>Emisión de Documento Electrónico</h2>
+                    </div>
+                    <div id="devToolsSection" class="dev-topbar hidden">
+                        <span class="dev-label">DEV TOOLS:</span>
+                        <button class="btn-dev" onclick="loadMockData('factura')">Factura</button>
+                        <button class="btn-dev" onclick="loadMockData('nc')">Nota Crédito</button>
+                        <button class="btn-dev" onclick="loadMockData('remision')">Remisión</button>
+                        <button class="btn-dev" data-mock="licitacion">Licitación (CP)</button>
+                    </div>
+                </div>
+
+                <div class="form-container glass fade-in">
+                    <form id="formDte" class="dte-form-grid">
+                        <!-- Configuración Base -->
+                        <div class="form-section full-width">
+                            <h4 class="section-title">Información General</h4>
+                            <div class="grid-row cols-3">
+                                <div class="form-group">
+                                    <label>Tipo de Documento</label>
+                                    <select id="tipoDocumento" name="tipoDocumento" class="form-control">
+                                        <option value="1">Factura Electrónica</option>
+                                        <option value="4">Nota de Crédito</option>
+                                        <option value="5">Nota de Débito</option>
+                                        <option value="7">Nota de Remisión</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Establecimiento - Punto Exp - Correlativo</label>
+                                    <div class="comprobante-group">
+                                        <input type="text" id="codEstablecimiento" value="001" maxlength="3"
+                                            class="form-control text-center" title="Establecimiento" placeholder="001"
+                                            onblur="this.value = this.value.padStart(3, '0')">
+                                        <input type="text" id="puntoExpedicion" value="001" maxlength="3"
+                                            class="form-control text-center" title="Punto de Expedición"
+                                            placeholder="001" onblur="this.value = this.value.padStart(3, '0')">
+                                        <input type="text" id="numeroComprobante" placeholder="0000001" maxlength="7"
+                                            class="form-control" title="Número de Comprobante"
+                                            onblur="this.value = this.value.padStart(7, '0')">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Timbrado Nro.</label>
+                                    <input type="text" id="timbrado" name="timbrado" value="12345678" maxlength="8"
+                                        class="form-control" placeholder="12345678">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Datos del Receptor -->
+                        <div class="form-section full-width">
+                            <h4 class="section-title">Datos del Receptor</h4>
+                            <div class="grid-row cols-3">
+                                <div class="form-group">
+                                    <label>RUC / Nro. Documento</label>
+                                    <div class="input-with-action">
+                                        <input type="text" id="ducReceptor" name="rucReceptor" placeholder="80000000-0"
+                                            class="form-control">
+                                        <button type="button" id="btnLookupRuc" class="btn-icon"><i
+                                                class="fas fa-search"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Razón Social / Nombre</label>
+                                    <input type="text" id="razonSocialReceptor" name="razonSocialReceptor"
+                                        class="form-control">
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Dirección</label>
+                                    <input type="text" id="direccionReceptor" name="direccionReceptor" class="form-control" placeholder="Ej: Avda. Principal 123">
+                                </div>
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" id="telefonoReceptor" name="telefonoReceptor" class="form-control" placeholder="09xx xxx xxx">
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" id="emailReceptor" name="emailReceptor" class="form-control" placeholder="receptor@ejemplo.com">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detalles de Operación (Dinámico) -->
+                        <div class="form-section full-width" id="sectionFactura">
+                            <h4 class="section-title">Detalles de Facturación</h4>
+                            <div class="grid-row cols-3">
+                                <div class="form-group">
+                                    <label>Condición de Operación</label>
+                                    <select id="condicionOperacion" name="condicionOperacion" class="form-control" onchange="toggleCuotas()">
+                                        <option value="1">Contado</option>
+                                        <option value="2">Crédito</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Moneda</label>
+                                    <select id="moneda" name="moneda" class="form-control">
+                                        <option value="PYG">Guaraníes (PYG)</option>
+                                        <option value="USD">Dólares (USD)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección de Cuotas (Solo para Crédito) -->
+                        <div class="form-section full-width hidden" id="sectionCuotas">
+                            <div class="section-header">
+                                <h4 class="section-title">Plan de Pagos (Cuotas)</h4>
+                                <div class="cuota-generator-bar">
+                                    <input type="number" id="cantCuotasGen" value="1" min="1" max="36" class="form-control" style="width: 60px;" title="Cantidad de cuotas">
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="generateAutoCuotas()">
+                                        <i class="fas fa-magic"></i> Generar
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline" onclick="addCuotaRow()">
+                                    <i class="fas fa-plus"></i> Agregar Manual
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table class="table-items" id="tableCuotas">
+                                    <thead>
+                                        <tr>
+                                            <th>Nro. Cuota</th>
+                                            <th>Vencimiento</th>
+                                            <th>Monto</th>
+                                            <th width="50"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbodyCuotas">
+                                        <!-- Cuotas dinámicas -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Documento Asociado -->
+                        <div class="form-section full-width hidden" id="sectionAsociado">
+                            <h4 class="section-title">Documento Asociado</h4>
+                            <div class="grid-row cols-2">
+                                <div class="form-group">
+                                    <label>CDC Original (44 dígitos)</label>
+                                    <input type="text" id="cdcAsociado" name="cdcAsociado" maxlength="44"
+                                        class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Motivo de Emisión</label>
+                                    <select id="motivoEmision" name="motivoEmision" class="form-control">
+                                        <option value="1">Devolución y ajuste de precios</option>
+                                        <option value="2">Devolución</option>
+                                        <option value="3">Descuento</option>
+                                        <option value="4">Bonificación</option>
+                                        <option value="5">Crédito por valor comercial</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Transporte -->
+                        <div class="form-section full-width hidden" id="sectionTransporte">
+                            <h4 class="section-title">Datos de Transporte</h4>
+                            <div class="grid-row cols-3">
+                                <div class="form-group">
+                                    <label>Nombre del Chofer</label>
+                                    <input type="text" id="nombreChofer" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Documento Chofer</label>
+                                    <input type="text" id="docChofer" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Matrícula Vehículo</label>
+                                    <input type="text" id="patente" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Motivo de Traslado</label>
+                                    <select id="motivoTraslado" class="form-control">
+                                        <option value="1">Traslado por venta</option>
+                                        <option value="2">Traslado por consignación</option>
+                                        <option value="3">Traslado por devolución</option>
+                                        <option value="4">Traslado por compra</option>
+                                        <option value="5">Traslado por exportación</option>
+                                        <option value="13">Otros</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Items -->
+                        <div class="form-section full-width">
+                            <div class="section-header">
+                                <h4 class="section-title">Ítems del Documento</h4>
+                                <span class="info-tag"><i class="fas fa-info-circle"></i> Precio IVA Incluido</span>
+                            </div>
+                            <div class="items-table-container">
+                                <table class="items-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Descripción</th>
+                                            <th width="80">Cant.</th>
+                                            <th width="120">Precio Unit.</th>
+                                            <th width="100">IVA (%)</th>
+                                            <th width="120">Subtotal</th>
+                                            <th width="40"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbodyItems"></tbody>
+                                </table>
+                                <button type="button" id="btnAddItem" class="btn btn-outline btn-xs mt-10">
+                                    <i class="fas fa-plus"></i> Agregar Ítem
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-footer full-width">
+                            <div class="total-summary">
+                                <div class="total-row"><span>Total EXENTA:</span> <span id="totalExenta">0</span></div>
+                                <div class="total-row"><span>Gravada 5%:</span> <span id="totalGravada5">0</span></div>
+                                <div class="total-row"><span>IVA 5%:</span> <span id="totalIva5">0</span></div>
+                                <div class="total-row"><span>Gravada 10%:</span> <span id="totalGravada10">0</span></div>
+                                <div class="total-row"><span>IVA 10%:</span> <span id="totalIva10">0</span></div>
+                                <div class="total-row highlight"><span>TOTAL GENERAL:</span> <span id="totalGral">0</span></div>
+                            </div>
+                            <div id="validationErrors" class="validation-errors-container"></div>
+                            <div class="action-buttons">
+                                <div class="kude-selector">
+                                    <label>Formato KuDE:</label>
+                                    <select id="kudeFormat" class="form-control btn-sm">
+                                        <option value="A4">Estándar A4</option>
+                                        <option value="TICKET">Ticket (Térmico)</option>
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-outline" onclick="switchView('dashboard')">Cancelar</button>
+                                <button type="submit" id="btnSubmitDte" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i> Emitir a SIFEN
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>

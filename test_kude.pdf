@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zentra | Dashboard SIFEN</title>
+    <!-- Trust UX: Tipografía clara y legible (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Iconografía simple y profesional -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <!-- Sidemenu con Glassmorphism sutil -->
+    <aside class="sidebar glass-panel">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="bi bi-hexagon-fill text-primary"></i>
+                <span>Zentra</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Documentos</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-building"></i>
+                <span>Empresa</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="bi bi-gear"></i>
+                <span>Configuración</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="avatar">AD</div>
+                <div class="user-info">
+                    <span class="user-name">Admin</span>
+                    <span class="user-role">Demo Emisor S.A.</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="topbar">
+            <div>
+                <h1 class="page-title">Panel de Control SIFEN</h1>
+                <p class="page-subtitle">Gestión de facturación electrónica y KuDE</p>
+            </div>
+            <div class="topbar-actions">
+                <button class="btn btn-secondary icon-btn" title="Recargar"><i class="bi bi-arrow-clockwise"></i></button>
+                <button class="btn btn-primary" id="btnNuevaFactura">
+                    <i class="bi bi-plus-lg"></i> Nueva Factura
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <section class="kpi-grid">
+            <div class="kpi-card glass-card">
+                <div class="kpi-icon bg-success-light text-success">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="kpi-data">
+                    <h3 class="kpi-value" id="kpiAprobados">--</h3>
+                    <span class="kpi-label">DTEs Aprobados</span>
+                </div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-icon bg-warning-light text-warning">
+                    <i class="bi bi-clock-fill"></i>
+                </div>
+                <div class="kpi-data">
+                    <h3 class="kpi-value" id="kpiPendientes">--</h3>
+                    <span class="kpi-label">Pendientes / Lote</span>
+                </div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-icon bg-danger-light text-danger">
+                    <i class="bi bi-x-circle-fill"></i>
+                </div>
+                <div class="kpi-data">
+                    <h3 class="kpi-value" id="kpiRechazados">--</h3>
+                    <span class="kpi-label">Rechazados</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Table Section -->
+        <section class="table-container glass-card mt-4">
+            <div class="table-header">
+                <h2>Documentos Recientes</h2>
+                <div class="table-filters">
+                    <div class="search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" placeholder="Buscar por RUC o Comprobante..." id="searchInput">
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="zentra-table" id="dteTable">
+                    <thead>
+                        <tr>
+                            <th>ID / CDC</th>
+                            <th>Comprobante</th>
+                            <th>Receptor (RUC)</th>
+                            <th>Fecha</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dteTableBody">
+                        <!-- Filled by JS -->
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <div class="spinner"></div>
+                                <p class="mt-2">Cargando documentos...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Emisión (Trust UX: Claro, directo, con acciones inequivocas) -->
+    <div class="modal-backdrop" id="modalEmision">
+        <div class="modal glass-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Emitir Nueva Factura Electrónica</h3>
+                <button class="close-btn" id="btnCloseModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEmision">
+                    <div class="form-group">
+                        <label for="rucEmisor">RUC Emisor (Demo)</label>
+                        <input type="text" id="rucEmisor" class="form-control" value="80000001" readonly>
+                        <small class="form-text">La empresa debe estar registrada en el sistema.</small>
+                    </div>
+                    <div class="form-divider"></div>
+                    <p class="section-title">Datos de Prueba (MVP)</p>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill"></i>
+                        Para esta versión de prueba, el sistema generará automáticamente los detalles de la factura y realizará el ciclo campleto de firma y comunicación con el simulador SIFEN.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCancelModal">Cancelar</button>
+                <button class="btn btn-primary btn-loading" id="btnSubmitEmision">
+                    <span class="btn-text">Generar y Enviar a SIFEN</span>
+                    <i class="bi bi-arrow-right-short btn-icon"></i>
+                    <div class="btn-spinner hidden"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
