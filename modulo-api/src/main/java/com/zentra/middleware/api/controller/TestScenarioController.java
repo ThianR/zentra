@@ -123,7 +123,7 @@ public class TestScenarioController {
             e.setPuntoExpedicion("001");
             e.setNumeroCasa("123");
             e.setCodDepartamento(1);
-            e.setDepartamendo("CAPITAL");
+            e.setDepartamento("CENTRAL");
             e.setCodCiudad(1);
             e.setCiudad("ASUNCION");
             return empresaRepository.save(e);

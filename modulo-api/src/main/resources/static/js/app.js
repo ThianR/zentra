@@ -1,15 +1,20 @@
-/**
- * Zentra - Dashboard Logic (Vanilla JS)
- */
+// --- Estado Global ---
+window.sifenRefData = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
-    initEnvironment(); // New
+    initEnvironment();
+    initReferencias(); // Nueva carga dinámica de SIFEN
     initDashboard();
     initNavigation();
     initSidebar();
     initForm();
 });
+
+// Alias para compatibilidad con flujos anteriores
+function loadDashboard() {
+    if (typeof switchView === 'function') switchView('dashboard');
+}
 
 // --- Environment Management ---
 function initEnvironment() {
@@ -110,6 +115,16 @@ function initNavigation() {
             if (viewId === 'dashboard') loadDocumentos();
         }
     };
+
+    window.toggleSection = function(id) {
+        const el = document.getElementById(id);
+        const parent = el.parentElement;
+        if (parent.classList.contains('active')) {
+            parent.classList.remove('active');
+        } else {
+            parent.classList.add('active');
+        }
+    };
 }
 
 // --- Initialization ---
@@ -157,6 +172,9 @@ async function loadDocumentos() {
                     <button class="btn btn-xs btn-outline" onclick="descargarTicket('${doc.id}')" title="Descargar Ticket">
                         <i class="fas fa-receipt"></i>
                     </button>
+                    <button class="btn btn-xs btn-outline" onclick="descargarXml('${doc.id}')" title="Descargar XML Original">
+                        <i class="fas fa-file-code"></i>
+                    </button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -186,7 +204,16 @@ async function descargarKude(id) {
 }
 
 async function descargarTicket(id) {
-    window.open(`/api/v1/emision/kude/${id}?formato=TICKET`, '_blank');
+    const win = window.open(`/api/v1/emision/kude/${id}?formato=TICKET`, '_blank');
+}
+
+window.descargarXml = function(id) {
+    const link = document.createElement('a');
+    link.href = `/api/v1/emision/xml/${id}`;
+    link.download = `dte_${id}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // --- Form Logic ---
@@ -219,20 +246,127 @@ function initForm() {
         e.preventDefault();
         await submitDte();
     };
+
+    // Vincular filtrado de ciudades
+    const deptoSelect = document.getElementById('emisorCodDepto');
+    if (deptoSelect) {
+        deptoSelect.onchange = (e) => loadCiudades(e.target.value);
+    }
+}
+
+// --- Tablas de Referencia Dinámicas ---
+
+async function initReferencias() {
+    console.log("Cargando tablas de referencia SIFEN...");
+    const dynamicSelects = document.querySelectorAll('.dynamic-ref');
+    
+    for (const select of dynamicSelects) {
+        const tipo = select.dataset.ref;
+        if (!tipo) continue;
+        
+        try {
+            const response = await fetch(`/api/v1/referencia/${tipo}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            
+            // Limpiar y cargar
+            const currentValue = select.value;
+            select.innerHTML = '';
+            
+            if (data.length === 0) {
+                select.innerHTML = '<option value="">Sin datos</option>';
+                continue;
+            }
+
+            data.forEach(ref => {
+                const opt = document.createElement('option');
+                opt.value = ref.codigo;
+                opt.text = `${ref.descripcion} (${ref.codigo})`;
+                // Si tiene valor auxiliar (abreviatura, %), mostrarlo
+                if (ref.valorAux) {
+                    opt.text = `${ref.descripcion} [${ref.valorAux}]`;
+                }
+                select.appendChild(opt);
+            });
+
+            // Guardar en caché global
+            window.sifenRefData[tipo] = data;
+
+            // Restaurar valor anterior si existía
+            if (currentValue) select.value = currentValue;
+            
+            // Si es departamento, disparar carga de ciudades
+            if (tipo === 'DEPARTAMENTO' && data.length > 0) {
+                loadCiudades(select.value);
+            }
+        } catch (error) {
+            console.error(`Error cargando referencia ${tipo}:`, error);
+            select.innerHTML = `<option value="">Error al cargar</option>`;
+        }
+    }
+}
+
+async function loadCiudades(codDepto) {
+    const ciudadSelect = document.getElementById('emisorCodCiudad');
+    if (!ciudadSelect) return;
+    
+    ciudadSelect.innerHTML = '<option value="">Cargando ciudades...</option>';
+    
+    try {
+        const response = await fetch(`/api/v1/referencia/ciudad/${codDepto}`);
+        const data = await response.json();
+        
+        ciudadSelect.innerHTML = '';
+        if (data.length === 0) {
+            ciudadSelect.innerHTML = '<option value="">No hay ciudades para este Depto.</option>';
+            return;
+        }
+
+        data.forEach(ref => {
+            const opt = document.createElement('option');
+            opt.value = ref.codigo;
+            opt.text = `${ref.descripcion} (${ref.codigo})`;
+            ciudadSelect.appendChild(opt);
+        });
+    } catch (error) {
+        console.error('Error cargando ciudades:', error);
+        ciudadSelect.innerHTML = '<option value="">Error ciudades</option>';
+    }
 }
 
 function toggleSections(type) {
     const sectionFactura = document.getElementById('sectionFactura');
     const sectionAsociado = document.getElementById('sectionAsociado');
     const sectionTransporte = document.getElementById('sectionTransporte');
+    const groupNatVen = document.getElementById('groupNatVen');
 
     sectionAsociado.classList.add('hidden');
     sectionTransporte.classList.add('hidden');
     sectionFactura.classList.remove('hidden');
+    if (groupNatVen) groupNatVen.classList.add('hidden');
 
-    if (type === '4' || type === '5') {
+    if (type === '4') { // Autofactura
+        if (groupNatVen) groupNatVen.classList.remove('hidden');
+    } else if (type === '5' || type === '6') { // NC / ND
         sectionAsociado.classList.remove('hidden');
-    } else if (type === '7') {
+        const motivoSelect = document.getElementById('motivoEmision');
+        if (type === '5') {
+            motivoSelect.innerHTML = `
+                <option value="1">1 - Devolución y ajuste de precios</option>
+                <option value="2">2 - Devolución</option>
+                <option value="3">3 - Descuento</option>
+                <option value="4">4 - Bonificación</option>
+                <option value="5">5 - Crédito incobrable</option>
+            `;
+        } else {
+            motivoSelect.innerHTML = `
+                <option value="1">1 - Intereses</option>
+                <option value="2">2 - Gastos de papelería</option>
+                <option value="3">3 - Gastos administrativos</option>
+                <option value="4">4 - Otros</option>
+            `;
+        }
+    } else if (type === '7') { // Remisión
         sectionTransporte.classList.remove('hidden');
         sectionFactura.classList.add('hidden');
     }
@@ -357,10 +491,16 @@ function addItemRow(codigo = '', descripcion = '', cantidad = 1, precio = 0, tas
         <td><input type="number" class="form-control item-cant" value="${cantidad}" onchange="calculateTotals()"></td>
         <td><input type="number" class="form-control item-precio" value="${precio}" onchange="calculateTotals()"></td>
         <td>
-            <select class="form-control item-tasa" onchange="calculateTotals()">
-                <option value="10" ${tasa === 10 ? 'selected' : ''}>10%</option>
-                <option value="5" ${tasa === 5 ? 'selected' : ''}>5%</option>
-                <option value="0" ${tasa === 0 ? 'selected' : ''}>Exenta</option>
+            <select class="form-select item-tasa" onchange="calculateTotals()">
+                ${(window.sifenRefData['TIPO_IMPUESTO'] || []).map(ref => `
+                    <option value="${ref.valorAux || 0}" ${parseFloat(ref.valorAux) === tasa ? 'selected' : ''}>
+                        ${ref.descripcion}
+                    </option>
+                `).join('') || `
+                    <option value="10" ${tasa === 10 ? 'selected' : ''}>10%</option>
+                    <option value="5" ${tasa === 5 ? 'selected' : ''}>5%</option>
+                    <option value="0" ${tasa === 0 ? 'selected' : ''}>Exenta</option>
+                `}
             </select>
         </td>
         <td class="item-subtotal text-right">${formatCurrency(cantidad * precio)}</td>
@@ -412,6 +552,10 @@ window.calculateTotals = function() {
 async function submitDte() {
     const btn = document.getElementById('btnSubmitDte');
     const oldHtml = btn.innerHTML;
+    
+    // 0. Limpiar errores previos
+    const contenedor = document.getElementById('validationErrors');
+    if (contenedor) contenedor.innerHTML = '';
     
     // 1. Recopilar datos generales
     const tipoDoc = document.getElementById('tipoDocumento').value;
@@ -485,9 +629,13 @@ async function submitDte() {
                 return showToast(`El plan de pagos (${formatCurrency(totalCuotasVal)}) no coincide con el total (${formatCurrency(totalGral)})`, 'warning');
             }
         }
-    } else if (tipoDoc === '4' || tipoDoc === '5') {
-        if (document.getElementById('cdcAsociado').value.length !== 44) {
-            return showToast('CDC asociado inválido (debe tener 44 dígitos)', 'error');
+    } else if (tipoDoc === '5' || tipoDoc === '6') {
+        const cdc = document.getElementById('cdcAsociado').value.trim();
+        if (cdc.length !== 44) {
+            return showToast('CDC asociado inválido (debe tener exactamente 44 dígitos)', 'error');
+        }
+        if (!/^\d+$/.test(cdc)) {
+            return showToast('El CDC solo puede contener números', 'error');
         }
     } else if (tipoDoc === '7') {
         if (!document.getElementById('nombreChofer').value || !document.getElementById('patente').value) {
@@ -508,14 +656,30 @@ async function submitDte() {
             timbrado: timbrado,
             ambiente: localStorage.getItem('zentra-env') === 'prod' ? 2 : 1,
             formatoKuDE: document.getElementById('kudeFormat') ? document.getElementById('kudeFormat').value : 'A4',
+            iTiOpe: parseInt(document.getElementById('iTiOpe').value) || 1,
+            iIndPres: parseInt(document.getElementById('iIndPres').value) || 1,
+            emisor: {
+                ruc: document.getElementById('emisorRuc').value,
+                dv: document.getElementById('emisorDv').value,
+                tipoContribuyente: parseInt(document.getElementById('emisorTipoContribuyente').value),
+                razonSocial: document.getElementById('emisorRazonSocial').value,
+                actividadEconomica: document.getElementById('emisorActividad').value,
+                direccion: document.getElementById('emisorDireccion').value,
+                telefono: document.getElementById('emisorTelefono').value,
+                email: document.getElementById('emisorEmail').value,
+                codDepartamento: parseInt(document.getElementById('emisorCodDepto').value),
+                codCiudad: parseInt(document.getElementById('emisorCodCiudad').value)
+            },
             receptor: {
-                ruc: rucRec,
+                ruc: rucRec ? rucRec.split('-')[0].replace(/\./g, '') : '',
                 razonSocial: razonRec,
                 direccion: direccionRec,
                 telefono: telefonoRec,
                 email: emailRec,
-                tipoReceptor: rucRec.includes('-') ? 1 : 2
+                tipoReceptor: rucRec.includes('-') ? 1 : 2,
+                cPaisReceptor: document.getElementById('cPaisReceptor').value || 'PRY'
             },
+            naturalezaVendedor: tipoDoc === '4' ? parseInt(document.getElementById('naturalezaVendedor').value) : null,
             condicionOperacion: document.getElementById('condicionOperacion') ? document.getElementById('condicionOperacion').value : '1',
             cuotas: Array.from(document.getElementById('tbodyCuotas').children).map(row => ({
                 numero: row.querySelector('.cuota-nro').value,
@@ -529,7 +693,9 @@ async function submitDte() {
                 nombreChofer: document.getElementById('nombreChofer').value,
                 numeroDocumentoChofer: document.getElementById('docChofer').value,
                 matriculaVehiculo: document.getElementById('patente').value,
-                motivoTraslado: document.getElementById('motivoTraslado').value
+                motivoTraslado: document.getElementById('motivoTraslado').value,
+                kmsRecorrido: parseInt(document.getElementById('kmsRecorrido').value) || 10,
+                descVehiculo: document.getElementById('descVehiculo').value
             }
         };
 
@@ -543,7 +709,7 @@ async function submitDte() {
             const res = await response.json();
             showToast(`DTE Emitido con éxito. CDC: ${res.cdc}`, 'success');
             switchView('dashboard');
-            loadDashboard();
+            loadDocumentos();
         } else {
             const err = await response.json();
             // Si el backend devuelve una lista de errores de validación SIFEN (HTTP 422)
@@ -583,6 +749,17 @@ function loadMockData(type) {
     document.getElementById('puntoExpedicion').value = '001';
     document.getElementById('timbrado').value = '12345678';
     
+    // Datos del Emisor (Auto-completar para evitar errores de validación)
+    document.getElementById('emisorDv').value = '7';
+    document.getElementById('emisorTipoContribuyente').value = '2';
+    document.getElementById('emisorRazonSocial').value = 'ZENTRA SOLUCIONES TECNOLÓGICAS S.A.';
+    document.getElementById('emisorActividad').value = 'SERVICIOS DE TECNOLOGÍA';
+    document.getElementById('emisorDireccion').value = 'AVDA. ARTIGAS 123, ASUNCION';
+    document.getElementById('emisorTelefono').value = '021000000';
+    document.getElementById('emisorEmail').value = 'sifen@zentra.com.py';
+    document.getElementById('emisorCodDepto').value = '1';
+    document.getElementById('emisorCodCiudad').value = '1';
+
     // Contribuyente real mock para pruebas de RUC
     document.getElementById('ducReceptor').value = '44444401-7';
     document.getElementById('razonSocialReceptor').value = 'CONTRIBUYENTE DE PRUEBA S.A.';
@@ -591,8 +768,8 @@ function loadMockData(type) {
         addItemRow('SERV01', 'SERVICIO DE SOPORTE TECNICO', 1, 150000, 10);
         addItemRow('PROD02', 'CABLE HDMI 2M', 2, 45000, 10);
     } else if (type === 'nc') {
-        document.getElementById('tipoDocumento').value = '4';
-        toggleSections('4');
+        document.getElementById('tipoDocumento').value = '5';
+        toggleSections('5');
         addItemRow('AJUSTE', 'AJUSTE DE PRECIO POR DEVOLUCION', 1, 250000, 10);
     } else if (type === 'remision') {
         document.getElementById('tipoDocumento').value = '7';
@@ -609,6 +786,8 @@ function loadMockData(type) {
 function resetForm() {
     document.getElementById('formDte').reset();
     document.getElementById('tbodyItems').innerHTML = '';
+    const contenedor = document.getElementById('validationErrors');
+    if (contenedor) contenedor.innerHTML = '';
     toggleSections('1');
     calculateTotals();
 }
@@ -626,7 +805,13 @@ function formatCurrency(val) {
 }
 
 function getTipoLabel(val) {
-    const labels = { '1': 'Factura', '4': 'Nota Crédito', '5': 'Nota Débito', '7': 'Remisión' };
+    const labels = { 
+        '1': 'Factura', 
+        '4': 'Autofactura',  // Corregido: 4 es Autofactura
+        '5': 'Nota de Crédito', // Corregido: 5 es NC
+        '6': 'Nota de Débito',  // Corregido: 6 es ND
+        '7': 'Remisión' 
+    };
     return labels[val] || 'DTE';
 }
 

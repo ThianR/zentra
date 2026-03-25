@@ -9,8 +9,11 @@ import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,14 +54,17 @@ public class KudeGenerator {
             parameters.put("P_RECEPTOR_DIRECCION", dte.getReceptorDireccion() != null ? dte.getReceptorDireccion() : "-");
             
             // Totales
-            parameters.put("P_TOTAL_OPERACION", dte.getTotalOperacion());
-            parameters.put("P_TOTAL_GRAVADA_10", dte.getTotalGravada10());
-            parameters.put("P_TOTAL_GRAVADA_5", dte.getTotalGravada5());
-            parameters.put("P_TOTAL_EXENTA", dte.getTotalExenta());
-            parameters.put("P_TOTAL_IVA_10", dte.getTotalIva10());
-            parameters.put("P_TOTAL_IVA_5", dte.getTotalIva5());
-            parameters.put("P_TOTAL_IVA", dte.getTotalIva());
+            parameters.put("P_TOTAL_OPERACION", dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0);
+            parameters.put("P_TOTAL_GRAVADA_10", dte.getTotalGravada10() != null ? dte.getTotalGravada10() : 0.0);
+            parameters.put("P_TOTAL_GRAVADA_5", dte.getTotalGravada5() != null ? dte.getTotalGravada5() : 0.0);
+            parameters.put("P_TOTAL_EXENTA", dte.getTotalExenta() != null ? dte.getTotalExenta() : 0.0);
+            parameters.put("P_TOTAL_IVA_10", dte.getTotalIva10() != null ? dte.getTotalIva10() : 0.0);
+            parameters.put("P_TOTAL_IVA_5", dte.getTotalIva5() != null ? dte.getTotalIva5() : 0.0);
+            parameters.put("P_TOTAL_IVA", dte.getTotalIva() != null ? dte.getTotalIva() : 0.0);
             
+            // Logo Dinámico
+            parameters.put("P_LOGO", loadLogo(dte));
+
             // Generar QR
             String qrUrl = "https://kuatia.set.gov.py/consultas/qr?nDe=" + dte.getCdc();
             parameters.put("P_QR", generateQrImage(qrUrl));
@@ -78,8 +84,9 @@ public class KudeGenerator {
 
     private String getTipoDocTexto(String tipo) {
         if ("1".equals(tipo)) return "FACTURA ELECTRÓNICA";
-        if ("4".equals(tipo)) return "NOTA DE CRÉDITO ELECTRÓNICA";
-        if ("5".equals(tipo)) return "NOTA DE DÉBITO ELECTRÓNICA";
+        if ("4".equals(tipo)) return "AUTOFACTURA ELECTRÓNICA";
+        if ("5".equals(tipo)) return "NOTA DE CRÉDITO ELECTRÓNICA";
+        if ("6".equals(tipo)) return "NOTA DE DÉBITO ELECTRÓNICA";
         if ("7".equals(tipo)) return "NOTA DE REMISIÓN ELECTRÓNICA";
         return "DOCUMENTO ELECTRÓNICO";
     }
@@ -104,6 +111,27 @@ public class KudeGenerator {
     private String formatCdc(String cdc) {
         if (cdc == null || cdc.length() != 44) return cdc;
         return String.join(" ", cdc.split("(?<=\\G.{4})"));
+    }
+
+    private BufferedImage loadLogo(DocumentoElectronico dte) {
+        try {
+            // 1. Intentar cargar logo de la empresa (Base64)
+            if (dte.getEmisor() != null && dte.getEmisor().getLogoBase64() != null) {
+                String base64 = dte.getEmisor().getLogoBase64();
+                if (base64.contains(",")) base64 = base64.split(",")[1];
+                byte[] imageBytes = Base64.getDecoder().decode(base64);
+                return ImageIO.read(new ByteArrayInputStream(imageBytes));
+            }
+            
+            // 2. Si no tiene, cargar logo por defecto (Zentra)
+            InputStream is = getClass().getResourceAsStream("/kude/zentra_logo.png");
+            if (is != null) {
+                return ImageIO.read(is);
+            }
+        } catch (Exception e) {
+            logger.warning("No se pudo cargar el logo: " + e.getMessage());
+        }
+        return null;
     }
 
     private BufferedImage generateQrImage(String text) throws Exception {

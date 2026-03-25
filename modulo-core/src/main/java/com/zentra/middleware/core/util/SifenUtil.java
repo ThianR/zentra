@@ -40,22 +40,22 @@ public class SifenUtil {
     }
 
     /**
-     * Genera el CDC de 44 digitos.
-     * Estructura simplificada para el MVP:
-     * Tipo(2) + RUC(8) + DV(1) + Estab(3) + Punto(3) + Numero(7) + TipoEmis(1) + Fecha(8) + CodSeg(9) + DV_CDC(1)
+     * Genera el CDC de 44 digitos segun Manual Tecnico SIFEN v150.
+     * Estructura:
+     * TipoDoc(2) + RUC(8) + DV(1) + Estab(3) + Punto(3) + Numero(7) + TipoEmis(1) + Fecha(8) + CodSeg(9) + Ambiente(1) + DV_CDC(1)
      */
-    public static String generarCdc(String tipoDoc, String ruc, String dv, String estab, String punto, String nro, int tipoContribuyente, String fecha, String tipoEmis, String codSeg) {
-        String cdcSemilla = String.format("%02d%08d%1s%03d%03d%07d%d%08d%1s%09d", 
+    public static String generarCdc(String tipoDoc, String ruc, String dv, String estab, String punto, String nro, String tipoEmis, String fecha, String codSeg, int ambiente) {
+        String cdcSemilla = String.format("%02d%08d%1s%03d%03d%07d%1s%08d%09d%1d", 
                 Long.parseLong(tipoDoc), 
                 Long.parseLong(ruc.replaceAll("[^0-9]", "")), 
                 dv, 
                 Long.parseLong(estab), 
                 Long.parseLong(punto), 
                 Long.parseLong(nro), 
-                tipoContribuyente,
+                tipoEmis,
                 Long.parseLong(fecha), 
-                tipoEmis, 
-                Long.parseLong(codSeg));
+                Long.parseLong(codSeg),
+                ambiente);
         
         int dvCdc = calcularDv(cdcSemilla);
         return cdcSemilla + dvCdc;

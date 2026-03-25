@@ -12,8 +12,10 @@ import com.zentra.middleware.xml.DteXmlGenerator;
 import com.zentra.middleware.crypto.service.XmlSignerService;
 import com.zentra.middleware.sifen.SifenSoapClient;
 import com.zentra.middleware.kude.KudeGenerator;
+import com.zentra.middleware.core.repository.SifenReferenciaRepository;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -30,6 +32,7 @@ import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/v1/emision")
+@Transactional
 public class EmisionController {
 
     private static final Logger logger = Logger.getLogger(EmisionController.class.getName());
@@ -40,6 +43,7 @@ public class EmisionController {
     private final KudeGenerator kudeGenerator;
     private final DocumentoService documentoService;
     private final DteValidatorService validatorService;
+    private final SifenReferenciaRepository referenciaRepository;
     private final HttpClient httpClient;
 
     public EmisionController(
@@ -48,13 +52,15 @@ public class EmisionController {
             SifenSoapClient sifenClient,
             KudeGenerator kudeGenerator,
             DocumentoService documentoService,
-            DteValidatorService validatorService) {
+            DteValidatorService validatorService,
+            SifenReferenciaRepository referenciaRepository) {
         this.xmlGenerator = xmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
         this.kudeGenerator = kudeGenerator;
         this.documentoService = documentoService;
         this.validatorService = validatorService;
+        this.referenciaRepository = referenciaRepository;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
@@ -65,13 +71,44 @@ public class EmisionController {
         try {
             logger.info("Recibida solicitud de generación DTE...");
             
+@SuppressWarnings("unchecked")
+            Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
             Empresa emisor = documentoService.obtenerEmpresaPorRuc("80000001");
+            
+            if (emiRaw != null) {
+                // Actualizar campos del emisor con los datos enviados desde el frontend si están presentes
+                if (emiRaw.get("dv") != null) emisor.setDv(String.valueOf(emiRaw.get("dv")));
+                if (emiRaw.get("tipoContribuyente") != null) emisor.setTipoContribuyente(safeInt(emiRaw.get("tipoContribuyente"), emisor.getTipoContribuyente()));
+                if (emiRaw.get("razonSocial") != null) emisor.setRazonSocial(String.valueOf(emiRaw.get("razonSocial")));
+                if (emiRaw.get("actividadEconomica") != null) emisor.setActividadEconomica(String.valueOf(emiRaw.get("actividadEconomica")));
+                if (emiRaw.get("direccion") != null) emisor.setDireccion(String.valueOf(emiRaw.get("direccion")));
+                if (emiRaw.get("telefono") != null) emisor.setTelefono(String.valueOf(emiRaw.get("telefono")));
+                if (emiRaw.get("email") != null) emisor.setEmail(String.valueOf(emiRaw.get("email")));
+                
+                if (emiRaw.get("codDepartamento") != null) {
+                    int codDepto = safeInt(emiRaw.get("codDepartamento"), emisor.getCodDepartamento());
+                    emisor.setCodDepartamento(codDepto);
+                    referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepto))
+                        .ifPresent(ref -> emisor.setDepartamento(ref.getDescripcion()));
+                }
+                
+                if (emiRaw.get("codCiudad") != null) {
+                    int codCiud = safeInt(emiRaw.get("codCiudad"), emisor.getCodCiudad());
+                    emisor.setCodCiudad(codCiud);
+                    // Buscamos la ciudad filtrando por su departamento padre para evitar ambigüedad de códigos (ej: codigo 1 existe en todos los deptos)
+                    referenciaRepository.findByTipoAndPadreCodigoAndActivoOrderByOrdenAscDescripcionAsc("CIUDAD", String.valueOf(emisor.getCodDepartamento()), true)
+                        .stream()
+                        .filter(ref -> ref.getCodigo().equals(String.valueOf(codCiud)))
+                        .findFirst()
+                        .ifPresent(ref -> emisor.setCiudad(ref.getDescripcion()));
+                }
+            }
 
             DocumentoElectronico dte = new DocumentoElectronico();
             dte.setEmisor(emisor);
             dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
             
-            // Mapeo detallado de Emisor (desde la entidad Empresa)
+            // Mapeo detallado de Emisor sincronizado
             dte.setRucEmisor(emisor.getRuc());
             dte.setRazonSocialEmisor(emisor.getRazonSocial());
             dte.setActividadEconomicaEmisor(emisor.getActividadEconomica());
@@ -82,13 +119,16 @@ public class EmisionController {
             @SuppressWarnings("unchecked")
             Map<String, Object> recRaw = (Map<String, Object>) payload.get("receptor");
             if (recRaw != null) {
-                dte.setRucReceptor(String.valueOf(recRaw.getOrDefault("ruc", "Varios")));
+                String rucRaw = String.valueOf(recRaw.getOrDefault("ruc", "Varios"));
+                dte.setRucReceptor(rucRaw.split("-")[0].replace(".", ""));
                 dte.setReceptorRazonSocial(String.valueOf(recRaw.getOrDefault("razonSocial", "Sin Nombre")));
                 dte.setReceptorDireccion(String.valueOf(recRaw.getOrDefault("direccion", "")));
                 dte.setReceptorTelefono(String.valueOf(recRaw.getOrDefault("telefono", "")));
                 dte.setReceptorEmail(String.valueOf(recRaw.getOrDefault("email", "")));
+                dte.setCPaisReceptor(String.valueOf(recRaw.getOrDefault("cPaisReceptor", "PRY")));
             } else {
-                dte.setRucReceptor(String.valueOf(payload.getOrDefault("rucReceptor", "Varios")));
+                String rucRaw = String.valueOf(payload.getOrDefault("rucReceptor", "Varios"));
+                dte.setRucReceptor(rucRaw.split("-")[0].replace(".", ""));
                 dte.setReceptorRazonSocial(String.valueOf(payload.getOrDefault("razonSocialReceptor", "Sin Nombre")));
                 dte.setReceptorDireccion(String.valueOf(payload.getOrDefault("direccionReceptor", "")));
                 dte.setReceptorTelefono(String.valueOf(payload.getOrDefault("telefonoReceptor", "")));
@@ -111,11 +151,15 @@ public class EmisionController {
             dte.setTimbrado(String.valueOf(payload.getOrDefault("timbrado", "12345678")));
             
             Object env = payload.get("ambiente");
-            dte.setAmbiente(env != null ? Integer.parseInt(env.toString()) : 1);
+            dte.setAmbiente(safeInt(env, 1));
             dte.setFormatoKuDE(String.valueOf(payload.getOrDefault("formatoKuDE", "A4")));
 
             Object cond = payload.get("condicionOperacion");
-            dte.setCondicionOperacion(cond != null ? Integer.parseInt(cond.toString()) : 1);
+            dte.setCondicionOperacion(safeInt(cond, 1));
+
+            dte.setTipoOperacion(safeInt(payload.get("iTiOpe"), 1));
+            dte.setIndicadorPresencia(safeInt(payload.get("iIndPres"), 1));
+            dte.setNaturalezaVendedor(safeInt(payload.get("naturalezaVendedor"), null));
             
             dte.setCdcDocumentoAsociado(String.valueOf(payload.getOrDefault("cdcDocumentoAsociado", "")));
             dte.setMotivoEmision(String.valueOf(payload.getOrDefault("motivoEmision", "")));
@@ -131,6 +175,7 @@ public class EmisionController {
                     t.setMatriculaVehiculo(String.valueOf(tRaw.get("matriculaVehiculo")));
                     Object motTr = tRaw.get("motivoTraslado");
                     t.setMotivoTraslado(motTr != null ? Integer.parseInt(motTr.toString()) : 1);
+                    t.setKmsRecorrido(safeInt(tRaw.get("kmsRecorrido"), 10));
                     dte.setTransporte(t);
                 }
             }
@@ -284,6 +329,28 @@ public class EmisionController {
         }
     }
 
+    @GetMapping("/xml/{id}")
+    public ResponseEntity<byte[]> descargarXml(@PathVariable String id) {
+        try {
+            DocumentoElectronico dte = documentoService.obtenerPorId(id);
+            String xml = dte.getXmlFirmado();
+            if (xml == null) xml = dte.getXmlGenerado();
+            
+            if (xml == null) return ResponseEntity.notFound().build();
+            
+            byte[] bytes = xml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            String filename = "dte_" + (dte.getCdc() != null ? dte.getCdc() : dte.getId()) + ".xml";
+            
+            return ResponseEntity.ok()
+                    .header("Content-Type", "application/xml")
+                    .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                    .body(bytes);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error descargando XML: " + e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     @GetMapping("/consultar-ruc")
     public ResponseEntity<?> consultarRuc(@RequestParam String ruc) {
         try {
@@ -318,9 +385,24 @@ public class EmisionController {
     }
 
     private int safeInt(Object val, int def) {
-        if (val == null || String.valueOf(val).isEmpty()) return def;
+        if (val == null || String.valueOf(val).isEmpty() || "null".equals(String.valueOf(val))) return def;
+        if (val instanceof Number) return ((Number) val).intValue();
         try {
-            return Integer.parseInt(String.valueOf(val).trim());
+            String s = String.valueOf(val).trim();
+            if (s.contains(".")) return (int) Double.parseDouble(s);
+            return Integer.parseInt(s);
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private Integer safeInt(Object val, Integer def) {
+        if (val == null || String.valueOf(val).isEmpty() || "null".equals(String.valueOf(val))) return def;
+        if (val instanceof Number) return ((Number) val).intValue();
+        try {
+            String s = String.valueOf(val).trim();
+            if (s.contains(".")) return (int) Double.parseDouble(s);
+            return Integer.parseInt(s);
         } catch (Exception e) {
             return def;
         }

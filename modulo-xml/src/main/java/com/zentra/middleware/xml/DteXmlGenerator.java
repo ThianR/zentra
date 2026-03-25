@@ -19,11 +19,22 @@ import java.time.format.DateTimeFormatter;
 import java.util.GregorianCalendar;
 import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
+import java.util.logging.Logger;
 
 @Service
 public class DteXmlGenerator {
 
+    private static final Logger logger = Logger.getLogger(DteXmlGenerator.class.getName());
+    private static JAXBContext jaxbContext;
     private final ObjectFactory factory = new ObjectFactory();
+
+    static {
+        try {
+            jaxbContext = JAXBContext.newInstance("com.zentra.middleware.sifen.schema");
+        } catch (Exception e) {
+            logger.severe("Error inicializando JAXBContext: " + e.getMessage());
+        }
+    }
 
     public String generarXml(DocumentoElectronico dte) {
         try {
@@ -47,13 +58,8 @@ public class DteXmlGenerator {
             String fechaStr = dte.getFechaCreacion().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String codSeg = String.format("%09d", (int)(Math.random() * 1000000000));
 
-            int tipoContribuyente = 2; // Por defecto Juridica
-            if (dte.getEmisor().getTipoContribuyente() != null) {
-                tipoContribuyente = dte.getEmisor().getTipoContribuyente();
-            }
-
             int ambiente = dte.getAmbiente() != null ? dte.getAmbiente() : 1;
-            String cdc = SifenUtil.generarCdc(tipoDoc, ruc, dv, estab, punto, nro, tipoContribuyente, fechaStr, tipoEmis, codSeg);
+            String cdc = SifenUtil.generarCdc(tipoDoc, ruc, dv, estab, punto, nro, tipoEmis, fechaStr, codSeg, ambiente);
             dte.setCdc(cdc);
 
             // 2. Poblar objetos JAXB (Mapeo Exhaustivo)
@@ -84,7 +90,7 @@ public class DteXmlGenerator {
             TgDTim gTimb = factory.createTgDTim();
             gTimb.setITiDE(new BigInteger(tipoDoc));
             // Descripcion segun tipo oficial de SIFEN
-            gTimb.setDDesTiDE(TdDesTiDE.FACTURA_ELECTRÓNICA); 
+            gTimb.setDDesTiDE(mapearTipoDocEnum(tipoDoc)); 
             gTimb.setDNumTim(dte.getTimbrado() != null && !dte.getTimbrado().isEmpty() ? dte.getTimbrado() : "12345678");
             gTimb.setDEst(estab);
             gTimb.setDPunExp(punto);
@@ -117,7 +123,7 @@ public class DteXmlGenerator {
             TgDtipDE gDtipDE = factory.createTgDtipDE();
             
             // Si es Factura Electrónica (tipo 1)
-            if ("1".equals(tipoDoc)) {
+            if ("1".equals(tipoDoc) || "2".equals(tipoDoc) || "3".equals(tipoDoc)) {
                 TgCamFE gCamFE = factory.createTgCamFE();
                 int indPres = dte.getIndicadorPresencia() != null ? dte.getIndicadorPresencia() : 1;
                 gCamFE.setIIndPres(BigInteger.valueOf(indPres));
@@ -133,7 +139,36 @@ public class DteXmlGenerator {
                     gCamFE.setGCompPub(gComp);
                 }
                 gDtipDE.setGCamFE(gCamFE);
-            } else if ("4".equals(tipoDoc) || "5".equals(tipoDoc)) {
+            } else if ("4".equals(tipoDoc)) {
+                // Autofactura Electrónica
+                // TgCamAE no tiene iIndPres; esos campos son de TgCamFE
+                TgCamAE gCamAE = factory.createTgCamAE();
+                int natVen = dte.getNaturalezaVendedor() != null ? dte.getNaturalezaVendedor() : 1;
+                gCamAE.setINatVen(BigInteger.valueOf(natVen));
+                gCamAE.setDDesNatVen(natVen == 1 ? TdDesNatVen.NO_CONTRIBUYENTE : TdDesNatVen.EXTRANJERO);
+
+                // Datos del vendedor (campos obligatorios del XSD para gCamAE)
+                String rucRec = dte.getRucReceptor() != null ? dte.getRucReceptor() : "0";
+                gCamAE.setITipIDVen(BigInteger.valueOf(1));  // 1 = Cédula paraguaya
+                gCamAE.setDDTipIDVen(TdDtipDoc.CÉDULA_PARAGUAYA);
+                gCamAE.setDNumIDVen(rucRec);
+                gCamAE.setDNomVen(dte.getReceptorRazonSocial() != null ? dte.getReceptorRazonSocial() : "Sin nombre");
+                // Dirección y ubicación del vendedor (obligatorios según XSD)
+                gCamAE.setDDirVen("Dir. no especificada");
+                gCamAE.setDNumCasVen(BigInteger.ONE);
+                gCamAE.setCDepVen(BigInteger.ONE);
+                gCamAE.setDDesDepVen(TDesDepartamento.CAPITAL);
+                gCamAE.setCCiuVen(BigInteger.ONE);
+                gCamAE.setDDesCiuVen("Asunción");
+                // Dirección del proveedor (misma que vendedor para simplificar)
+                gCamAE.setDDirProv("Dir. no especificada");
+                gCamAE.setCCiuProv(BigInteger.ONE);
+                gCamAE.setCDepProv(BigInteger.ONE);
+                gCamAE.setDDesDepProv(TDesDepartamento.CAPITAL);
+                gCamAE.setDDesCiuProv("Asunción");
+
+                gDtipDE.setGCamAE(gCamAE);
+            } else if ("5".equals(tipoDoc) || "6".equals(tipoDoc)) {
                 // Nota de Crédito / Débito
                 TgCamNCDE gCamNCDE = factory.createTgCamNCDE();
                 int motId = 1;
@@ -143,7 +178,7 @@ public class DteXmlGenerator {
                    }
                 } catch (Exception e) {}
                 gCamNCDE.setIMotEmi(String.valueOf(motId));
-                gCamNCDE.setDDesMotEmi(mapearMotivoNC(motId));
+                gCamNCDE.setDDesMotEmi(mapearMotivoNcNd(motId, tipoDoc));
                 gDtipDE.setGCamNCDE(gCamNCDE);
             } else if ("7".equals(tipoDoc)) {
                 // Nota de Remisión Electrónica
@@ -153,8 +188,9 @@ public class DteXmlGenerator {
                     int motId = t.getMotivoTraslado() != null ? t.getMotivoTraslado() : 1;
                     gCamNRE.setIMotEmiNR(BigInteger.valueOf(motId));
                     gCamNRE.setDDesMotEmiNR(mapearMotivoRemision(motId));
-                    gCamNRE.setIRespEmiNR(BigInteger.valueOf(t.getResponsableEmision() != null ? t.getResponsableEmision() : 1));
-                    gCamNRE.setDDesRespEmiNR(t.getResponsableEmision() == 1 ? "Emisor" : "Receptor");
+                    int respEmiNR = t.getResponsableEmision() != null ? t.getResponsableEmision() : 1;
+                    gCamNRE.setIRespEmiNR(BigInteger.valueOf(respEmiNR));
+                    gCamNRE.setDDesRespEmiNR(respEmiNR == 1 ? "Emisor" : "Receptor");
                     gCamNRE.setDKmR(t.getKmsRecorrido() != null ? t.getKmsRecorrido() : 10);
                     gCamNRE.setDFecEm(dte.getFechaCreacion().toLocalDate().toString());
                     if (t.getPrecioFlete() != null) {
@@ -296,8 +332,7 @@ public class DteXmlGenerator {
             rde.setGCamFuFD(factory.createTgCamFuFD());
 
             // 3. Marshalling a String
-            JAXBContext context = JAXBContext.newInstance("com.zentra.middleware.sifen.schema");
-            Marshaller marshaller = context.createMarshaller();
+            Marshaller marshaller = jaxbContext.createMarshaller();
             marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
             
             StringWriter sw = new StringWriter();
@@ -321,8 +356,13 @@ public class DteXmlGenerator {
         gEmis.setDNumCas(new BigInteger(emisor.getNumeroCasa() != null ? emisor.getNumeroCasa() : "0"));
         
         gEmis.setCDepEmi(BigInteger.valueOf(emisor.getCodDepartamento() != null ? emisor.getCodDepartamento() : 1));
-        String depto = emisor.getDepartamendo() != null ? emisor.getDepartamendo() : "CAPITAL";
-        gEmis.setDDesDepEmi(TDesDepartamento.fromValue(depto));
+        String depto = emisor.getDepartamento() != null ? emisor.getDepartamento() : "CAPITAL";
+        try {
+            gEmis.setDDesDepEmi(TDesDepartamento.fromValue(depto));
+        } catch (Exception e) {
+            logger.warning("Nombre de departamento no reconocido por SIFEN: " + depto + ". Usando CAPITAL.");
+            gEmis.setDDesDepEmi(TDesDepartamento.CAPITAL);
+        }
         gEmis.setCDisEmi(null); // Opcional
         
         gEmis.setCCiuEmi(emisor.getCodCiudad() != null ? emisor.getCodCiudad() : 1);
@@ -344,26 +384,45 @@ public class DteXmlGenerator {
         TgDatRec gDatRec = factory.createTgDatRec();
         String rucReceptor = dte.getRucReceptor();
         String razonSocial = dte.getReceptorRazonSocial() != null ? dte.getReceptorRazonSocial() : "Varios";
-        
-        // Lógica básica para el MVP: Si contiene guion, es RUC (Contribuyente)
-        if (rucReceptor != null && rucReceptor.contains("-")) {
-            String[] partes = rucReceptor.split("-");
-            gDatRec.setINatRec(BigInteger.valueOf(1)); // Contribuyente
-            gDatRec.setITiContRec(BigInteger.valueOf(2)); // Persona Jurídica (Mock)
-            gDatRec.setDRucRec(partes[0]);
-            gDatRec.setDDVRec(new BigInteger(partes[1]));
-            gDatRec.setDNomRec(razonSocial);
+
+        // Lógica para iNatRec (Naturaleza del Receptor)
+        if (rucReceptor != null && rucReceptor.length() > 0 && !rucReceptor.equals("Varios")) {
+            // Si el RUC tiene DV (contiene guion o el dte.tipoReceptor dice que es contribuyente)
+            if (rucReceptor.contains("-") || (dte.getTipoReceptor() != null && dte.getTipoReceptor() == 1)) {
+                String rucSolo = rucReceptor.split("-")[0];
+                String dvRec = rucReceptor.contains("-") ? rucReceptor.split("-")[1] : "0";
+                
+                gDatRec.setINatRec(BigInteger.valueOf(1)); // Contribuyente
+                gDatRec.setITiContRec(BigInteger.valueOf(2)); // Persona Jurídica (Generalmente se asume si es RUC)
+                gDatRec.setDRucRec(rucSolo);
+                gDatRec.setDDVRec(new BigInteger(dvRec));
+                gDatRec.setDNomRec(razonSocial);
+            } else {
+                gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
+                gDatRec.setITipIDRec(BigInteger.valueOf(1)); // Cédula de Identidad Parche
+                gDatRec.setDDTipIDRec("Cédula de identidad");
+                gDatRec.setDNumIDRec(rucReceptor);
+                gDatRec.setDNomRec(razonSocial);
+            }
         } else {
-            gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
-            gDatRec.setITipIDRec(BigInteger.valueOf(1)); // Cédula de Identidad
+            // Consumidor Final
+            gDatRec.setINatRec(BigInteger.valueOf(2));
+            gDatRec.setITipIDRec(BigInteger.valueOf(1));
             gDatRec.setDDTipIDRec("Cédula de identidad");
-            gDatRec.setDNumIDRec(rucReceptor != null ? rucReceptor : "4444444");
-            gDatRec.setDNomRec(razonSocial);
+            gDatRec.setDNumIDRec("0");
+            gDatRec.setDNomRec("Sin Nombre");
         }
 
-        gDatRec.setITiOpe(BigInteger.valueOf(1)); // B2B
-        gDatRec.setCPaisRec(PaisType.PRY);
-        gDatRec.setDDesPaisRe("Paraguay");
+        int opeType = dte.getTipoOperacion() != null ? dte.getTipoOperacion() : 1;
+        gDatRec.setITiOpe(BigInteger.valueOf(opeType));
+        
+        String codPais = dte.getCPaisReceptor() != null ? dte.getCPaisReceptor() : "PRY";
+        try {
+            gDatRec.setCPaisRec(PaisType.fromValue(codPais));
+        } catch (Exception e) {
+            gDatRec.setCPaisRec(PaisType.PRY);
+        }
+        gDatRec.setDDesPaisRe(codPais.equals("PRY") ? "Paraguay" : codPais);
         
         return gDatRec;
     }
@@ -419,11 +478,32 @@ public class DteXmlGenerator {
             case 4 -> "Venta a domicilio";
             case 5 -> "Operación bancaria";
             case 6 -> "Operación cíclica";
-            default -> "Otro";
+            case 9 -> "Otros";
+            default -> "Operación presencial";
         };
     }
 
-    private TdDesMotEmi mapearMotivoNC(int cod) {
+
+    private TdDesTiDE mapearTipoDocEnum(String tipo) {
+        return switch (tipo) {
+            case "1" -> TdDesTiDE.FACTURA_ELECTRÓNICA;
+            case "4" -> TdDesTiDE.AUTOFACTURA_ELECTRÓNICA;
+            case "5" -> TdDesTiDE.NOTA_DE_CRÉDITO_ELECTRÓNICA;
+            case "6" -> TdDesTiDE.NOTA_DE_DÉBITO_ELECTRÓNICA;
+            case "7" -> TdDesTiDE.NOTA_DE_REMISIÓN_ELECTRÓNICA;
+            default -> TdDesTiDE.FACTURA_ELECTRÓNICA;
+        };
+    }
+
+    private TdDesMotEmi mapearMotivoNcNd(int cod, String tipoDoc) {
+        if ("6".equals(tipoDoc)) { // Nota de Débito
+            return switch (cod) {
+                case 1 -> TdDesMotEmi.AJUSTE_DE_PRECIO; // SIFEN v150: Intereses -> Ajuste de precio
+                case 2 -> TdDesMotEmi.RECUPERO_DE_GASTO; // Gastos -> Recupero gasto
+                default -> TdDesMotEmi.AJUSTE_DE_PRECIO;
+            };
+        }
+        // Nota de Crédito (Tipo 5)
         return switch (cod) {
             case 1 -> TdDesMotEmi.DEVOLUCIÓN_Y_AJUSTE_DE_PRECIOS;
             case 2 -> TdDesMotEmi.DEVOLUCIÓN;

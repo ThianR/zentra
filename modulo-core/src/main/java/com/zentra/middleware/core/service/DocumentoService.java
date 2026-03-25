@@ -5,6 +5,7 @@ import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import com.zentra.middleware.core.repository.EmpresaRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -12,6 +13,7 @@ import java.util.List;
  * Servicio para la gestión de documentos electrónicos y emisores.
  */
 @Service
+@Transactional
 public class DocumentoService {
 
     private final DocumentoElectronicoRepository repository;

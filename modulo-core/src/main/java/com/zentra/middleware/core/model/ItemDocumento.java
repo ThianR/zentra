@@ -25,8 +25,8 @@ public class ItemDocumento {
     private Double montoDescuento = 0.0;
     
     // Calculados
-    private Double montoTotalItem;
-    private Double montoIvaItem;
+    private Double montoTotalItem = 0.0;
+    private Double montoIvaItem = 0.0;
 
     public ItemDocumento() {}
 

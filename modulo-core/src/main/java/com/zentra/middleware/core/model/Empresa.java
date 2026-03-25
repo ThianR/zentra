@@ -23,7 +23,7 @@ public class Empresa {
     private String direccion;
     private String numeroCasa = "0";
     private Integer codDepartamento = 1; // Distrito Capital por defecto
-    private String departamendo = "CAPITAL";
+    private String departamento = "CAPITAL";
     private Integer codDistrito = 1;
     private String distrito = "ASUNCION";
     private Integer codCiudad = 1;
@@ -40,6 +40,9 @@ public class Empresa {
     // Ruta al certificado P12 (simplificado para el MVP)
     private String rutaCertificado;
     private String passwordCertificado;
+
+    @jakarta.persistence.Column(columnDefinition = "TEXT")
+    private String logoBase64;
 
     public Empresa() {}
 
@@ -63,8 +66,8 @@ public class Empresa {
     public void setNumeroCasa(String numeroCasa) { this.numeroCasa = numeroCasa; }
     public Integer getCodDepartamento() { return codDepartamento; }
     public void setCodDepartamento(Integer codDepartamento) { this.codDepartamento = codDepartamento; }
-    public String getDepartamendo() { return departamendo; }
-    public void setDepartamendo(String departamendo) { this.departamendo = departamendo; }
+    public String getDepartamento() { return departamento; }
+    public void setDepartamento(String departamento) { this.departamento = departamento; }
     public Integer getCodDistrito() { return codDistrito; }
     public void setCodDistrito(Integer codDistrito) { this.codDistrito = codDistrito; }
     public String getDistrito() { return distrito; }
@@ -86,4 +89,7 @@ public class Empresa {
     public void setRutaCertificado(String rutaCertificado) { this.rutaCertificado = rutaCertificado; }
     public String getPasswordCertificado() { return passwordCertificado; }
     public void setPasswordCertificado(String passwordCertificado) { this.passwordCertificado = passwordCertificado; }
+
+    public String getLogoBase64() { return logoBase64; }
+    public void setLogoBase64(String logoBase64) { this.logoBase64 = logoBase64; }
 }

@@ -99,6 +99,16 @@ Este enfoque permite:
 - introducir colas y procesos async de forma ordenada;
 - evolucionar a multi-tenant escalable sin rehacer el core.
 
+### 2.4 Estado Actual de Implementación (Hito MVP v1.5.0)
+
+Actualmente el proyecto se encuentra consolidando las **Fases A3 y A6**, con incursiones operativas en la **Fase A4**. 
+Se han introducido las siguientes determinaciones técnicas ausentes en el diseño original pero vitales para el ecosistema paraguayo:
+
+- **SIFEN v150 estricto**: Todo el modelo de dominio core (`modulo-xml` y `modulo-sifen`) opera nativamente bajo el namespace y validaciones del Manual Técnico v1.5.0.
+- **Micro-caché de Referencias Fiscales**: Se implementó el `SifenReferenciaService` para la gestión dinámica de los catálogos de la SET (departamentos, ciudades, monedas, tipos de operación) alimentando al frontend directamente e impidiendo rechazos por datos maestros obsoletos.
+- **Soporte KuDE Multi-Formato**: El generador soporta renderizado adaptativo para A4 y Ticket Térmico mediante Apache FOP desde la Fase A.
+- **Espectro de DTEs prioritarios**: Se adelantó la compatibilidad de generación XML para Factura, Autofactura, Nota de Crédito, Nota de Débito y Remisión, cubriendo el 95% de las necesidades del mercado local en el MVP.
+
 ---
 
 ## 3. Principios de diseño obligatorios

@@ -24,6 +24,7 @@ public class DocumentoElectronico {
     private String cdc;
     
     private String tipoDocumento; // 1=FE, 2=FEx, etc.
+    private Integer tipoOperacion = 1; // 1=B2B, 2=B2C, 3=B2G, 4=B2F
     private Integer condicionOperacion = 1; // 1=Contado, 2=Crédito
 
     @Enumerated(EnumType.STRING)
@@ -32,7 +33,7 @@ public class DocumentoElectronico {
     @ManyToOne
     private Empresa emisor;
 
-    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = jakarta.persistence.FetchType.EAGER)
     private List<ItemDocumento> items = new ArrayList<>();
 
 
@@ -55,6 +56,9 @@ public class DocumentoElectronico {
     private String receptorDireccion;
     private String receptorTelefono;
     private String receptorEmail;
+    private Integer tipoReceptor = 1; // 1=Contribuyente, 2=No Contribuyente
+    private String cPaisReceptor = "PRY"; 
+    private Integer naturalezaVendedor; // Para Autofactura: 1=No Contribuyente, 2=Extranjero
     
     private Double totalOperacion;
     private Double descuentoGlobal = 0.0;
@@ -73,7 +77,7 @@ public class DocumentoElectronico {
     private Integer tipoDocumentoAsociado; // 1=Electrónico, 2=Impreso
     private String motivoEmision; // Para NC/ND
     
-    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = jakarta.persistence.FetchType.EAGER)
     private List<Cuota> cuotas = new ArrayList<>();
 
     private Integer indicadorPresencia = 1; // 1=Operación presencial, etc.
@@ -100,6 +104,8 @@ public class DocumentoElectronico {
     public void setEstado(EstadoDte estado) { this.estado = estado; }
     public String getTipoDocumento() { return tipoDocumento; }
     public void setTipoDocumento(String tipoDocumento) { this.tipoDocumento = tipoDocumento; }
+    public Integer getTipoOperacion() { return tipoOperacion; }
+    public void setTipoOperacion(Integer tipoOperacion) { this.tipoOperacion = tipoOperacion; }
     public Integer getCondicionOperacion() { return condicionOperacion; }
     public void setCondicionOperacion(Integer condicionOperacion) { this.condicionOperacion = condicionOperacion; }
     public Empresa getEmisor() { return emisor; }
@@ -133,6 +139,12 @@ public class DocumentoElectronico {
     public void setReceptorTelefono(String receptorTelefono) { this.receptorTelefono = receptorTelefono; }
     public String getReceptorEmail() { return receptorEmail; }
     public void setReceptorEmail(String receptorEmail) { this.receptorEmail = receptorEmail; }
+    public String getCPaisReceptor() { return cPaisReceptor; }
+    public void setCPaisReceptor(String cPaisReceptor) { this.cPaisReceptor = cPaisReceptor; }
+    public Integer getTipoReceptor() { return tipoReceptor; }
+    public void setTipoReceptor(Integer tipoReceptor) { this.tipoReceptor = tipoReceptor; }
+    public Integer getNaturalezaVendedor() { return naturalezaVendedor; }
+    public void setNaturalezaVendedor(Integer naturalezaVendedor) { this.naturalezaVendedor = naturalezaVendedor; }
 
     public Double getTotalOperacion() { return totalOperacion; }
     public void setTotalOperacion(Double totalOperacion) { this.totalOperacion = totalOperacion; }

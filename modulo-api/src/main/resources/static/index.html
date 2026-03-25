@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zentra - Middleware SIFEN</title>
+    <title>ZENTRA - Middleware SIFEN v1.5.0</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -165,17 +165,97 @@
 
                 <div class="form-container glass fade-in">
                     <form id="formDte" class="dte-form-grid">
+                        <!-- Configuración del Emisor -->
+                        <div class="form-section full-width collapsible">
+                            <h4 class="section-title collapsible-trigger" onclick="toggleSection('sectionEmisor')">
+                                <i class="fas fa-building"></i> Configuración del Emisor (SIFEN) 
+                                <span class="badge badge-info">Requerido por XSD</span>
+                                <i class="fas fa-chevron-down float-right"></i>
+                            </h4>
+                            <div id="sectionEmisor" class="collapsible-content">
+                                <div class="grid-row cols-3">
+                                    <div class="form-group">
+                                        <label>RUC Emisor</label>
+                                        <input type="text" id="emisorRuc" value="80000001" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>DV</label>
+                                        <input type="text" id="emisorDv" placeholder="7" class="form-control" maxlength="1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tipo Contribuyente</label>
+                                        <select id="emisorTipoContribuyente" class="form-select dynamic-ref" data-ref="TIPO_CONTRIBUYENTE">
+                                            <option value="">Cargando...</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group span-2">
+                                        <label>Razón Social (Mín. 4 carac.)</label>
+                                        <input type="text" id="emisorRazonSocial" placeholder="Nombre completo de la empresa" class="form-control">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Actividad Económica (gActEco)</label>
+                                        <input type="text" id="emisorActividad" placeholder="Venta de mercaderías" class="form-control">
+                                    </div>
+                                    <div class="form-group span-2">
+                                        <label>Dirección Comercial</label>
+                                        <input type="text" id="emisorDireccion" placeholder="Calle, Nro, Barrio" class="form-control">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Teléfono (Mín. 6 carac.)</label>
+                                        <input type="text" id="emisorTelefono" placeholder="021xxxxxx" class="form-control">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Correo Electrónico</label>
+                                        <input type="email" id="emisorEmail" placeholder="emisor@ejemplo.com" class="form-control">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Departamento</label>
+                                        <select id="emisorCodDepto" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                            <option value="">Cargando...</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Ciudad</label>
+                                        <select id="emisorCodCiudad" class="form-select">
+                                            <option value="">Seleccione Depto.</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="info-box info">
+                                    <i class="fas fa-info-circle"></i> Estos datos son vitales para la validación del CDC y el esquema XML.
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Configuración Base -->
                         <div class="form-section full-width">
                             <h4 class="section-title">Información General</h4>
                             <div class="grid-row cols-3">
                                 <div class="form-group">
                                     <label>Tipo de Documento</label>
-                                    <select id="tipoDocumento" name="tipoDocumento" class="form-control">
-                                        <option value="1">Factura Electrónica</option>
-                                        <option value="4">Nota de Crédito</option>
-                                        <option value="5">Nota de Débito</option>
-                                        <option value="7">Nota de Remisión</option>
+                                    <select id="tipoDocumento" name="tipoDocumento" class="form-select dynamic-ref" data-ref="TIPO_DOCUMENTO">
+                                        <option value="">Cargando...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tipo de Operación (iTiOpe)</label>
+                                    <select id="iTiOpe" class="form-select">
+                                        <option value="1">1 - B2B (Empresa a Empresa)</option>
+                                        <option value="2">2 - B2C (Empresa a Consumidor)</option>
+                                        <option value="3">3 - B2G (Empresa a Gobierno)</option>
+                                        <option value="4">4 - B2F (Empresa a Extranjero)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Indicador de Presencia (iIndPres)</label>
+                                    <select id="iIndPres" class="form-select">
+                                        <option value="1">1 - Operación Presencial</option>
+                                        <option value="2">2 - Operación Electrónica</option>
+                                        <option value="3">3 - Telemarketing</option>
+                                        <option value="4">4 - Venta a domicilio</option>
+                                        <option value="5">5 - Operación Bancaria</option>
+                                        <option value="6">6 - Operación Cíclica</option>
+                                        <option value="9">9 - Otros</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -213,6 +293,13 @@
                                                 class="fas fa-search"></i></button>
                                     </div>
                                 </div>
+                                <div class="form-group hidden" id="groupNatVen">
+                                    <label>Naturaleza Vendedor (Autofactura)</label>
+                                    <select id="naturalezaVendedor" class="form-select">
+                                        <option value="1">1 - No Contribuyente</option>
+                                        <option value="2">2 - Extranjero</option>
+                                    </select>
+                                </div>
                                 <div class="form-group span-2">
                                     <label>Razón Social / Nombre</label>
                                     <input type="text" id="razonSocialReceptor" name="razonSocialReceptor"
@@ -230,6 +317,16 @@
                                     <label>Email</label>
                                     <input type="email" id="emailReceptor" name="emailReceptor" class="form-control" placeholder="receptor@ejemplo.com">
                                 </div>
+                                <div class="form-group">
+                                    <label>País (Requerido B2F)</label>
+                                    <select id="cPaisReceptor" class="form-select">
+                                        <option value="PRY">Paraguay (PRY)</option>
+                                        <option value="ARG">Argentina (ARG)</option>
+                                        <option value="BRA">Brasil (BRA)</option>
+                                        <option value="URY">Uruguay (URY)</option>
+                                        <option value="USA">EE.UU. (USA)</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -239,16 +336,14 @@
                             <div class="grid-row cols-3">
                                 <div class="form-group">
                                     <label>Condición de Operación</label>
-                                    <select id="condicionOperacion" name="condicionOperacion" class="form-control" onchange="toggleCuotas()">
-                                        <option value="1">Contado</option>
-                                        <option value="2">Crédito</option>
+                                    <select id="condicionOperacion" name="condicionOperacion" class="form-select dynamic-ref" data-ref="CONDICION_OPERACION" onchange="toggleCuotas()">
+                                        <option value="">Cargando...</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Moneda</label>
-                                    <select id="moneda" name="moneda" class="form-control">
-                                        <option value="PYG">Guaraníes (PYG)</option>
-                                        <option value="USD">Dólares (USD)</option>
+                                    <select id="moneda" name="moneda" class="form-select dynamic-ref" data-ref="MONEDA">
+                                        <option value="">Cargando...</option>
                                     </select>
                                 </div>
                             </div>
@@ -334,6 +429,14 @@
                                         <option value="13">Otros</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label>Km Estimados</label>
+                                    <input type="number" id="kmsRecorrido" class="form-control" value="10">
+                                </div>
+                                <div class="form-group">
+                                    <label>Descripción Vehículo</label>
+                                    <input type="text" id="descVehiculo" class="form-control" placeholder="Camioneta Toyota Hilux">
+                                </div>
                             </div>
                         </div>
 
@@ -397,7 +500,7 @@
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=1.5.0"></script>
 </body>
 
 </html>
