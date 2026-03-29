@@ -727,7 +727,13 @@ async function submitDte() {
                 }
                 showToast(`${err.errores.length} error(es) de validación. Ver detalles arriba.`, 'error');
             } else {
-                showToast(`Error: ${err.message || 'Fallo en la emisión'}`, 'error');
+                if (err.mensajeUsuario) {
+                    showToast(err.mensajeUsuario, 'error');
+                } else if (err.codigoSifen) {
+                    showToast(`SIFEN Rechazo [${err.codigoSifen}]: ${err.message}`, 'error');
+                } else {
+                    showToast(`Error: ${err.message || 'Fallo en la emisión'}`, 'error');
+                }
             }
         }
     } catch (error) {
@@ -750,9 +756,10 @@ function loadMockData(type) {
     document.getElementById('timbrado').value = '12345678';
     
     // Datos del Emisor (Auto-completar para evitar errores de validación)
-    document.getElementById('emisorDv').value = '7';
+    document.getElementById('emisorRuc').value = '8394835';
+    document.getElementById('emisorDv').value = '0';
     document.getElementById('emisorTipoContribuyente').value = '2';
-    document.getElementById('emisorRazonSocial').value = 'ZENTRA SOLUCIONES TECNOLÓGICAS S.A.';
+    document.getElementById('emisorRazonSocial').value = "JORGE APARECIDO DE SANT'ANNA";
     document.getElementById('emisorActividad').value = 'SERVICIOS DE TECNOLOGÍA';
     document.getElementById('emisorDireccion').value = 'AVDA. ARTIGAS 123, ASUNCION';
     document.getElementById('emisorTelefono').value = '021000000';

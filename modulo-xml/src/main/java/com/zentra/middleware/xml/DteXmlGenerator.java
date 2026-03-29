@@ -114,6 +114,15 @@ public class DteXmlGenerator {
             // Mapeo detallado del Emisor
             gDatGralOpe.setGEmis(mapearEmisor(dte.getEmisor()));
             
+            // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura/Autofactura)
+            TgOpeCom gOpeCom = factory.createTgOpeCom();
+            // 1 = IVA, 2 = ISC, 3 = Renta, 4 = Ninguno, 5 = IVA-Renta
+            gOpeCom.setITImp(BigInteger.valueOf(1)); 
+            gOpeCom.setDDesTImp(TdDesTImp.IVA);
+            gOpeCom.setCMoneOpe(CMondT.PYG);
+            gOpeCom.setDDesMoneOpe("Guaraní");
+            gDatGralOpe.setGOpeCom(gOpeCom);
+            
             // Mapeo detallado del Receptor
             gDatGralOpe.setGDatRec(mapearReceptor(dte));
             
@@ -331,9 +340,10 @@ public class DteXmlGenerator {
             rde.setDE(de);
             rde.setGCamFuFD(factory.createTgCamFuFD());
 
-            // 3. Marshalling a String
+            // 3. Marshalling a String con configuración para evitar prefijos ns2
             Marshaller marshaller = jaxbContext.createMarshaller();
             marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+            marshaller.setProperty(Marshaller.JAXB_SCHEMA_LOCATION, "http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd");
             
             StringWriter sw = new StringWriter();
             marshaller.marshal(factory.createRDE(rde), sw);

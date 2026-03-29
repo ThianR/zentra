@@ -9,13 +9,13 @@ import com.zentra.middleware.core.model.Transporte;
 import com.zentra.middleware.core.service.DocumentoService;
 import com.zentra.middleware.core.service.DteValidatorService;
 import com.zentra.middleware.xml.DteXmlGenerator;
+import com.zentra.middleware.xml.XsdValidatorService;
 import com.zentra.middleware.crypto.service.XmlSignerService;
 import com.zentra.middleware.sifen.SifenSoapClient;
 import com.zentra.middleware.kude.KudeGenerator;
 import com.zentra.middleware.core.repository.SifenReferenciaRepository;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -32,7 +32,6 @@ import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/v1/emision")
-@Transactional
 public class EmisionController {
 
     private static final Logger logger = Logger.getLogger(EmisionController.class.getName());
@@ -45,6 +44,7 @@ public class EmisionController {
     private final DteValidatorService validatorService;
     private final SifenReferenciaRepository referenciaRepository;
     private final HttpClient httpClient;
+    private final XsdValidatorService xsdValidatorService; // Added field
 
     public EmisionController(
             DteXmlGenerator xmlGenerator,
@@ -53,7 +53,8 @@ public class EmisionController {
             KudeGenerator kudeGenerator,
             DocumentoService documentoService,
             DteValidatorService validatorService,
-            SifenReferenciaRepository referenciaRepository) {
+            SifenReferenciaRepository referenciaRepository,
+            XsdValidatorService xsdValidatorService) { // Added to constructor parameters
         this.xmlGenerator = xmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
@@ -61,6 +62,7 @@ public class EmisionController {
         this.documentoService = documentoService;
         this.validatorService = validatorService;
         this.referenciaRepository = referenciaRepository;
+        this.xsdValidatorService = xsdValidatorService; // Initialized field
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
@@ -73,7 +75,12 @@ public class EmisionController {
             
 @SuppressWarnings("unchecked")
             Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
-            Empresa emisor = documentoService.obtenerEmpresaPorRuc("80000001");
+            String rucEmisor = "8394835"; // RUC por defecto del import.sql sincronizado
+            if (emiRaw != null && emiRaw.get("ruc") != null) {
+                rucEmisor = String.valueOf(emiRaw.get("ruc")).split("-")[0].replace(".", "");
+            }
+            
+            Empresa emisor = documentoService.obtenerEmpresaPorRuc(rucEmisor);
             
             if (emiRaw != null) {
                 // Actualizar campos del emisor con los datos enviados desde el frontend si están presentes
@@ -142,9 +149,11 @@ public class EmisionController {
             String nro = String.valueOf(payload.getOrDefault("numero", "0000001"));
             String fulNum = estab + "-" + punto + "-" + nro;
 
-            // Validación de Duplicados
+            // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
+            documentoService.eliminarSiEstaRechazado(fulNum, dte.getTipoDocumento());
+            
             if (documentoService.existePorNumero(fulNum, dte.getTipoDocumento())) {
-                return ResponseEntity.status(409).body(Map.of("message", "El documento con número " + fulNum + " ya existe en el sistema."));
+                return ResponseEntity.status(409).body(Map.of("message", "El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente."));
             }
 
             dte.setNumeroComprobante(fulNum);
@@ -271,23 +280,60 @@ public class EmisionController {
             xmlGenerator.generarXml(dte);
             signerService.firmarXml(dte);
             
+            // --- VALIDACIÓN XSD LUEGO DE FIRMAR ---
+            xsdValidatorService.validarXml(dte.getXmlFirmado());
+            
             boolean aprobado = sifenClient.enviarDteSincrono(dte);
             dte.setEstado(aprobado ? EstadoDte.APROBADO : EstadoDte.RECHAZADO);
 
             documentoService.guardar(dte);
             logger.info("Documento guardado con CDC: " + dte.getCdc());
 
-            return ResponseEntity.ok(Map.of(
-                "id", dte.getId(),
-                "cdc", dte.getCdc() != null ? dte.getCdc() : "",
-                "estado", dte.getEstado().name()
-            ));
+            // Preparar respuesta con resultado oficial de SIFEN
+            Map<String, Object> respuesta = new java.util.HashMap<>();
+            respuesta.put("id", dte.getId());
+            respuesta.put("cdc", dte.getCdc() != null ? dte.getCdc() : "");
+            respuesta.put("estado", dte.getEstado().name());
+            respuesta.put("codigoSifen", dte.getCodigoEstadoSifen() != null ? dte.getCodigoEstadoSifen() : "");
+            respuesta.put("mensajeSifen", dte.getMensajeSifen() != null ? dte.getMensajeSifen() : "");
+            respuesta.put("mensajeUsuario", dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "");
+
+            if (aprobado) {
+                respuesta.put("message", dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "Documento aprobado por SIFEN");
+                return ResponseEntity.ok(respuesta);
+            } else {
+                // Rechazado por SIFEN (ej: 0401) o falló conexión
+                String msg = dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : ("SIFEN devolvió estado: " + dte.getEstado().name() + " (Código: " + respuesta.get("codigoSifen") + ")");
+                respuesta.put("message", msg);
+                return ResponseEntity.status(422).body(respuesta);
+            }
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error en /generar: " + e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("message", "Error interno: " + e.getMessage()));
         }
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/ultimo-error")
+    public ResponseEntity<String> getUltimoError() {
+        return ResponseEntity.ok(
+            documentoService.obtenerTodos().stream()
+                .findFirst()
+                .map(com.zentra.middleware.core.model.DocumentoElectronico::getXmlRespuestaSifen)
+                .orElse("No hay documentos")
+        );
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/ultimo-documento")
+    public ResponseEntity<String> getUltimoDocumento() {
+        return ResponseEntity.ok(
+            documentoService.obtenerTodos().stream()
+                .findFirst()
+                .map(com.zentra.middleware.core.model.DocumentoElectronico::getXmlFirmado)
+                .orElse("No hay documentos firmado")
+        );
+    }
+
 
     @GetMapping("/documentos")
     public ResponseEntity<?> listarDocumentos() {

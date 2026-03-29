@@ -22,3 +22,7 @@ Thumbs.db
 
 # Spring Boot
 *.log
+
+# Certificados
+*.p12
+*.txt

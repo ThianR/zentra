@@ -7,5 +7,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface DocumentoElectronicoRepository extends JpaRepository<DocumentoElectronico, String> {
     boolean existsByNumeroComprobanteAndTipoDocumento(String numeroComprobante, String tipoDocumento);
+    java.util.Optional<DocumentoElectronico> findByNumeroComprobanteAndTipoDocumento(String numeroComprobante, String tipoDocumento);
     java.util.List<DocumentoElectronico> findAllByOrderByFechaCreacionDesc();
 }

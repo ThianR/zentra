@@ -43,6 +43,13 @@ public class DocumentoElectronico {
     @Lob
     private String xmlFirmado;
 
+    /** Acuse de recibo SOAP devuelto por SIFEN (XML crudo). Para auditoría. */
+    @Lob
+    private String xmlRespuestaSifen;
+
+    /** Código de estado oficial de SIFEN (ej: '0300'=Aprobado, '0400'=Error). */
+    private String codigoEstadoSifen;
+
     private String numeroComprobante;
     private String timbrado;
     private String rucEmisor;
@@ -190,4 +197,18 @@ public class DocumentoElectronico {
     public void setAmbiente(Integer ambiente) { this.ambiente = ambiente; }
     public String getFormatoKuDE() { return formatoKuDE; }
     public void setFormatoKuDE(String formatoKuDE) { this.formatoKuDE = formatoKuDE; }
+    public String getXmlRespuestaSifen() { return xmlRespuestaSifen; }
+    public void setXmlRespuestaSifen(String xmlRespuestaSifen) { this.xmlRespuestaSifen = xmlRespuestaSifen; }
+    public String getCodigoEstadoSifen() { return codigoEstadoSifen; }
+    public void setCodigoEstadoSifen(String codigoEstadoSifen) { this.codigoEstadoSifen = codigoEstadoSifen; }
+
+    /** Mensaje de descripción oficial de SIFEN (dMsgRes). */
+    private String mensajeSifen;
+    /** Mensaje amigable mapeado para el usuario final. */
+    private String mensajeUsuario;
+
+    public String getMensajeSifen() { return mensajeSifen; }
+    public void setMensajeSifen(String mensajeSifen) { this.mensajeSifen = mensajeSifen; }
+    public String getMensajeUsuario() { return mensajeUsuario; }
+    public void setMensajeUsuario(String mensajeUsuario) { this.mensajeUsuario = mensajeUsuario; }
 }

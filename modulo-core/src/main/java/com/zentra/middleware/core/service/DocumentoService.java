@@ -43,4 +43,14 @@ public class DocumentoService {
     public boolean existePorNumero(String numeroComprobante, String tipoDocumento) {
         return repository.existsByNumeroComprobanteAndTipoDocumento(numeroComprobante, tipoDocumento);
     }
+
+    public void eliminarSiEstaRechazado(String numero, String tipo) {
+        repository.findByNumeroComprobanteAndTipoDocumento(numero, tipo).ifPresent(dte -> {
+            if (dte.getEstado() == com.zentra.middleware.core.model.EstadoDte.RECHAZADO 
+                || dte.getEstado() == com.zentra.middleware.core.model.EstadoDte.ERROR_ENVIO) {
+                repository.delete(dte);
+                repository.flush();
+            }
+        });
+    }
 }

@@ -7,5 +7,6 @@ public enum EstadoDte {
     APROBADO,
     RECHAZADO,
     OBSERVADO,
-    ANULADO
+    ANULADO,
+    ERROR_ENVIO   // Fallo técnico de transmisión (red, certificado, timeout)
 }
