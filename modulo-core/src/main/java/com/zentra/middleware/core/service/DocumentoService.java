@@ -28,19 +28,19 @@ public class DocumentoService {
         return repository.findAllByOrderByFechaCreacionDesc();
     }
 
-    public DocumentoElectronico obtenerPorId(String id) {
+    public DocumentoElectronico obtenerPorId(@org.springframework.lang.NonNull String id) {
         return repository.findById(id).orElseThrow(() -> new RuntimeException("Documento no encontrado"));
     }
 
-    public DocumentoElectronico guardar(DocumentoElectronico dte) {
+    public DocumentoElectronico guardar(@org.springframework.lang.NonNull DocumentoElectronico dte) {
         return repository.save(dte);
     }
 
-    public Empresa obtenerEmpresaPorRuc(String ruc) {
+    public Empresa obtenerEmpresaPorRuc(@org.springframework.lang.NonNull String ruc) {
         return empresaRepository.findByRuc(ruc).orElseThrow(() -> new RuntimeException("Empresa no encontrada: " + ruc));
     }
 
-    public boolean existePorNumero(String numeroComprobante, String tipoDocumento) {
+    public boolean existePorNumero(@org.springframework.lang.NonNull String numeroComprobante, @org.springframework.lang.NonNull String tipoDocumento) {
         return repository.existsByNumeroComprobanteAndTipoDocumento(numeroComprobante, tipoDocumento);
     }
 

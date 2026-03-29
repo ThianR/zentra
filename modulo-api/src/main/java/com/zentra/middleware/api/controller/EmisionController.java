@@ -80,7 +80,7 @@ public class EmisionController {
                 rucEmisor = String.valueOf(emiRaw.get("ruc")).split("-")[0].replace(".", "");
             }
             
-            Empresa emisor = documentoService.obtenerEmpresaPorRuc(rucEmisor);
+            Empresa emisor = documentoService.obtenerEmpresaPorRuc(java.util.Objects.requireNonNull(rucEmisor));
             
             if (emiRaw != null) {
                 // Actualizar campos del emisor con los datos enviados desde el frontend si están presentes
@@ -149,10 +149,11 @@ public class EmisionController {
             String nro = String.valueOf(payload.getOrDefault("numero", "0000001"));
             String fulNum = estab + "-" + punto + "-" + nro;
 
+            String tipoDoc = dte.getTipoDocumento() != null ? dte.getTipoDocumento() : "1";
             // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
-            documentoService.eliminarSiEstaRechazado(fulNum, dte.getTipoDocumento());
+            documentoService.eliminarSiEstaRechazado(java.util.Objects.requireNonNull(fulNum), tipoDoc);
             
-            if (documentoService.existePorNumero(fulNum, dte.getTipoDocumento())) {
+            if (documentoService.existePorNumero(fulNum, tipoDoc)) {
                 return ResponseEntity.status(409).body(Map.of("message", "El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente."));
             }
 
@@ -361,7 +362,8 @@ public class EmisionController {
     @GetMapping("/kude/{id}")
     public ResponseEntity<byte[]> obtenerKude(@PathVariable String id, @RequestParam(defaultValue = "A4") String formato) {
         try {
-            DocumentoElectronico dte = documentoService.obtenerPorId(id);
+            if (id == null) return ResponseEntity.badRequest().build();
+            DocumentoElectronico dte = documentoService.obtenerPorId(java.util.Objects.requireNonNull(id));
             byte[] pdf = kudeGenerator.generarKudePdf(dte, formato);
             
             String filename = "kude_" + (dte.getCdc() != null ? dte.getCdc() : dte.getId()) + "_" + formato.toLowerCase() + ".pdf";
@@ -378,7 +380,8 @@ public class EmisionController {
     @GetMapping("/xml/{id}")
     public ResponseEntity<byte[]> descargarXml(@PathVariable String id) {
         try {
-            DocumentoElectronico dte = documentoService.obtenerPorId(id);
+            if (id == null) return ResponseEntity.badRequest().build();
+            DocumentoElectronico dte = documentoService.obtenerPorId(java.util.Objects.requireNonNull(id));
             String xml = dte.getXmlFirmado();
             if (xml == null) xml = dte.getXmlGenerado();
             
