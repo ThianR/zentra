@@ -8,7 +8,14 @@ CREATE TABLE IF NOT EXISTS empresas (
     cod_establecimiento VARCHAR(3),
     punto_expedicion VARCHAR(3),
     ruta_certificado VARCHAR(255),
-    password_certificado VARCHAR(255)
+    password_certificado VARCHAR(255),
+    id_csc VARCHAR(10) DEFAULT '0001',
+    valor_csc VARCHAR(255),
+    ambiente INT DEFAULT 2,
+    certificado_fisico BYTEA,
+    fecha_vencimiento_certificado DATE,
+    alias_certificado VARCHAR(100),
+    logo_base64 TEXT
 );
 
 CREATE TABLE IF NOT EXISTS documentos_electronicos (

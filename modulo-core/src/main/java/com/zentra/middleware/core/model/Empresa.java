@@ -37,9 +37,20 @@ public class Empresa {
     private String actividadEconomica = "Venta de Mercaderías y Servicios";
     private Integer tipoContribuyente = 2; // Jurídica por defecto
     
-    // Ruta al certificado P12 (simplificado para el MVP)
+    // Ruta al certificado P12 (simplificado para el MVP - Deprecated en Plan B)
     private String rutaCertificado;
     private String passwordCertificado;
+
+    // SIFEN: Seguridad, KuDE y Autenticación (Plan B Multi-Tenant)
+    private String idCsc = "0001";
+    private String valorCsc;
+    private Integer ambiente = 2; // 1: Producción, 2: Test
+    
+    @jakarta.persistence.Lob
+    private byte[] certificadoFisico; // Archivo P12/PFX almacenado internamente
+    
+    private java.time.LocalDate fechaVencimientoCertificado;
+    private String aliasCertificado;
 
     @jakarta.persistence.Column(columnDefinition = "TEXT")
     private String logoBase64;
@@ -89,6 +100,19 @@ public class Empresa {
     public void setRutaCertificado(String rutaCertificado) { this.rutaCertificado = rutaCertificado; }
     public String getPasswordCertificado() { return passwordCertificado; }
     public void setPasswordCertificado(String passwordCertificado) { this.passwordCertificado = passwordCertificado; }
+
+    public String getIdCsc() { return idCsc; }
+    public void setIdCsc(String idCsc) { this.idCsc = idCsc; }
+    public String getValorCsc() { return valorCsc; }
+    public void setValorCsc(String valorCsc) { this.valorCsc = valorCsc; }
+    public Integer getAmbiente() { return ambiente; }
+    public void setAmbiente(Integer ambiente) { this.ambiente = ambiente; }
+    public byte[] getCertificadoFisico() { return certificadoFisico; }
+    public void setCertificadoFisico(byte[] certificadoFisico) { this.certificadoFisico = certificadoFisico; }
+    public java.time.LocalDate getFechaVencimientoCertificado() { return fechaVencimientoCertificado; }
+    public void setFechaVencimientoCertificado(java.time.LocalDate fechaVencimientoCertificado) { this.fechaVencimientoCertificado = fechaVencimientoCertificado; }
+    public String getAliasCertificado() { return aliasCertificado; }
+    public void setAliasCertificado(String aliasCertificado) { this.aliasCertificado = aliasCertificado; }
 
     public String getLogoBase64() { return logoBase64; }
     public void setLogoBase64(String logoBase64) { this.logoBase64 = logoBase64; }

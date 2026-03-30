@@ -69,7 +69,8 @@ public class EmisionController {
     }
 
     @PostMapping("/generar")
-    public ResponseEntity<?> generarDte(@RequestBody Map<String, Object> payload) {
+    @SuppressWarnings("null")
+    public ResponseEntity<Map<String, Object>> generarDte(@RequestBody Map<String, Object> payload) {
         try {
             logger.info("Recibida solicitud de generación DTE...");
             
@@ -80,7 +81,9 @@ public class EmisionController {
                 rucEmisor = String.valueOf(emiRaw.get("ruc")).split("-")[0].replace(".", "");
             }
             
-            Empresa emisor = documentoService.obtenerEmpresaPorRuc(java.util.Objects.requireNonNull(rucEmisor));
+            @SuppressWarnings("null")
+            String rucSafe = java.util.Objects.requireNonNull(rucEmisor);
+            Empresa emisor = documentoService.obtenerEmpresaPorRuc(rucSafe);
             
             if (emiRaw != null) {
                 // Actualizar campos del emisor con los datos enviados desde el frontend si están presentes
@@ -153,7 +156,7 @@ public class EmisionController {
             // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
             documentoService.eliminarSiEstaRechazado(java.util.Objects.requireNonNull(fulNum), tipoDoc);
             
-            if (documentoService.existePorNumero(fulNum, tipoDoc)) {
+            if (documentoService.existePorNumero(java.util.Objects.requireNonNull(fulNum), tipoDoc)) {
                 return ResponseEntity.status(409).body(Map.of("message", "El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente."));
             }
 

@@ -453,7 +453,11 @@ Escalar desde el MVP hacia una plataforma multi-tenant más madura, con mejor on
 #### Plan de implementación
 - Separar tenant context en todas las capas.
 - Diseñar aislamiento lógico por tenant.
-- Implementar configuración por empresa: certificados, endpoints, reglas, branding básico de documentos, retención, notificaciones.
+- Implementar configuración por empresa:
+  - **Certificados**: Soporte para ingesta de archivos `.p12`/`.pfx`. Extracción y fusión obligatoria para `.cer`/`.key`.
+  - Almacenamiento Criptográfico Seguro: Transicionar de rutas locales a almacenamiento de bytes/blob cifrado o KeyVault. Alertas de fecha de expiración.
+  - **Identificadores SIFEN**: Manejo por empresa del ambiente de conexión (Test/Prod), su `idCsc` y su `valorCsc` nativo (necesario para KuDE con QR válido).
+  - Otros: Endpoints, reglas, branding básico de documentos, retención, notificaciones.
 - Refactorizar auditoría con tenant-awareness.
 - Implementar RBAC granular.
 - Incorporar cuotas, límites y consumo por plan.
