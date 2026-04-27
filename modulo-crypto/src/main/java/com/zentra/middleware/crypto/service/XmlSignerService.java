@@ -1,190 +1,249 @@
 package com.zentra.middleware.crypto.service;
 
 import com.zentra.middleware.core.model.DocumentoElectronico;
-
-import org.apache.xml.security.Init;
-import org.apache.xml.security.keys.KeyInfo;
-import org.apache.xml.security.keys.content.X509Data;
-import org.apache.xml.security.signature.XMLSignature;
-import org.apache.xml.security.transforms.Transforms;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
+import javax.xml.crypto.dsig.*;
+import javax.xml.crypto.dsig.dom.DOMSignContext;
+import javax.xml.crypto.dsig.keyinfo.KeyInfo;
+import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
+import javax.xml.crypto.dsig.keyinfo.X509Data;
+import javax.xml.crypto.dsig.spec.C14NMethodParameterSpec;
+import javax.xml.crypto.dsig.spec.TransformParameterSpec;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.*;
-import java.security.KeyStore;
+import java.io.ByteArrayOutputStream;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Logger;
 
-/**
- * Servicio de firma XMLDSig usando Apache Santuario.
- * Cuando no hay certificado configurado, cae en modo simulación para pruebas locales.
- */
 @Service
 public class XmlSignerService {
 
     private static final Logger logger = Logger.getLogger(XmlSignerService.class.getName());
 
-    // Algoritmos requeridos por SIFEN v150
-    // IMPORTANTE: Se usa C14N Exclusive (exc-c14n#) según el XML de referencia aprobado por SIFEN
-    private static final String ALGO_FIRMA    = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
-    private static final String ALGO_DIGEST   = "http://www.w3.org/2001/04/xmlenc#sha256";
-    private static final String ALGO_C14N     = "http://www.w3.org/2001/10/xml-exc-c14n#";
-    private static final String ALGO_ENVUELTO = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
+    private final boolean usarFirmaSimulada = false;
 
-    static {
-        Init.init();
+    public XmlSignerService() {
     }
 
-    /**
-     * Firma el XML del DTE usando el certificado P12 de la empresa emisora.
-     * Si la empresa no tiene certificado configurado, ejecuta una firma simulada para pruebas locales.
-     */
     public String firmarXml(DocumentoElectronico dte) throws Exception {
-        if (dte.getXmlGenerado() == null) {
-            throw new IllegalArgumentException("No hay XML generado para firmar.");
-        }
-
-        // Verificar si hay certificado real configurado para la empresa emisora
-        if (dte.getEmisor() == null
-                || dte.getEmisor().getRutaCertificado() == null
-                || dte.getEmisor().getRutaCertificado().isBlank()) {
-            logger.warning("Empresa sin certificado configurado. Usando firma simulada para ambiente local.");
+        if (usarFirmaSimulada) {
             return simularFirma(dte);
         }
 
-        try {
-            return firmarConCertificado(dte);
-        } catch (Exception e) {
-            logger.severe("Error durante la firma real: " + e.getMessage());
-            throw new RuntimeException("Fallo en la firma digital: " + e.getMessage(), e);
-        }
-    }
+        String xmlGenerado = dte.getXmlGenerado();
+        String cdc = dte.getCdc();
+        
+        // Carga directa del certificado desde el emisor
+        String p12Path = dte.getEmisor().getRutaCertificado();
+        String p12Pass = dte.getEmisor().getPasswordCertificado();
 
-    /**
-     * Realiza la firma XMLDSig real usando Apache Santuario y el P12 de la empresa.
-     * La estructura generada es idéntica a la requerida por SIFEN v150.
-     */
-    private String firmarConCertificado(DocumentoElectronico dte) throws Exception {
-        String rutaP12 = dte.getEmisor().getRutaCertificado();
-        String password = dte.getEmisor().getPasswordCertificado();
-
-        // Cargar el almacén de claves P12
-        KeyStore keyStore = KeyStore.getInstance("PKCS12");
-        try (FileInputStream fis = new FileInputStream(rutaP12)) {
-            keyStore.load(fis, password.toCharArray());
+        if (p12Path == null || p12Pass == null) {
+            throw new Exception("El emisor no tiene configurada la ruta o el password del certificado P12.");
         }
 
-        // Obtener el alias del primer certificado disponible
-        String alias = keyStore.aliases().nextElement();
-        PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, password.toCharArray());
-        X509Certificate cert = (X509Certificate) keyStore.getCertificate(alias);
+        java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
+        try (java.io.InputStream is = new java.io.FileInputStream(p12Path)) {
+            ks.load(is, p12Pass.toCharArray());
+        }
 
-        logger.info("Firmando con certificado: " + cert.getSubjectX500Principal().getName()
-                + " | Vence: " + cert.getNotAfter());
+        String alias = ks.aliases().nextElement();
+        java.security.PrivateKey privateKey = (java.security.PrivateKey) ks.getKey(alias, p12Pass.toCharArray());
+        java.security.cert.X509Certificate cert = (java.security.cert.X509Certificate) ks.getCertificate(alias);
 
-        // Forzar el prefijo 'ds' para el bloque de firma. Esto evita que Santuario inyecte
-        // xmlns="" en el elemento raíz <rDE>, lo cual SIFEN rechaza con error de prefijo nulo.
-        org.apache.xml.security.utils.ElementProxy.setDefaultPrefix(
-            org.apache.xml.security.utils.Constants.SignatureSpecNS, "ds");
+        if (privateKey == null || cert == null) {
+            throw new Exception("No se pudo cargar la clave privada o el certificado del archivo P12.");
+        }
 
-        // Parsear el XML generado como Document DOM con soporte de namespaces
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         dbf.setNamespaceAware(true);
-        Document doc = dbf.newDocumentBuilder()
-                .parse(new ByteArrayInputStream(dte.getXmlGenerado().getBytes("UTF-8")));
+        DocumentBuilder db = dbf.newDocumentBuilder();
+        Document doc = db.parse(new InputSource(new StringReader(xmlGenerado)));
 
-        // Marcar el atributo "Id" del elemento <DE> como identificador criptográfico.
-        // Esto es indispensable para que Santuario resuelva la referencia URI="#CDC"
         Element root = doc.getDocumentElement();
-        NodeList deList = doc.getElementsByTagNameNS("*", "DE");
-        if (deList.getLength() == 0) {
-            throw new RuntimeException("No se encontró el elemento <DE> en el XML generado.");
+        Element deElement = (Element) doc.getElementsByTagName("DE").item(0);
+        Element gCamFuFDElement = (Element) doc.getElementsByTagName("gCamFuFD").item(0);
+
+        if (deElement != null) {
+            deElement.setIdAttribute("Id", true);
+        } else {
+            throw new Exception("No se encontro el elemento <DE> en el XML generado.");
         }
-        Element deElement = (Element) deList.item(0);
-        deElement.setIdAttribute("Id", true);
 
-        // Crear el objeto de firma y añadirlo al final del elemento raíz <rDE>
-        XMLSignature sig = new XMLSignature(doc, null, ALGO_FIRMA);
-        root.appendChild(sig.getElement());
+        XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
 
-        // Transformaciones requeridas por SIFEN v150:
-        // 1. enveloped-signature: excluye el propio nodo <Signature> del hash
-        // 2. Exclusive C14N: normalización canónica excluyente
-        Transforms transforms = new Transforms(doc);
-        transforms.addTransform(ALGO_ENVUELTO);
-        transforms.addTransform(ALGO_C14N);
+        List<Transform> transformList = new ArrayList<>();
+        transformList.add(fac.newTransform(Transform.ENVELOPED, (TransformParameterSpec) null));
+        transformList.add(fac.newTransform(CanonicalizationMethod.EXCLUSIVE, (C14NMethodParameterSpec) null));
 
-        // La referencia URI apunta al elemento <DE> mediante su atributo Id (el CDC de 44 dígitos)
-        sig.addDocument("#" + dte.getCdc(), transforms, ALGO_DIGEST);
+        Reference ref = fac.newReference(
+            "#" + cdc,
+            fac.newDigestMethod(DigestMethod.SHA256, null),
+            transformList,
+            null,
+            null
+        );
 
-        // Incluir el certificado X509 completo en el KeyInfo de la firma
-        KeyInfo keyInfo = sig.getKeyInfo();
-        keyInfo.addKeyName(alias);
-        X509Data x509Data = new X509Data(doc);
-        x509Data.addCertificate(cert);
-        keyInfo.add(x509Data);
+        SignedInfo si = fac.newSignedInfo(
+            fac.newCanonicalizationMethod(CanonicalizationMethod.EXCLUSIVE, (C14NMethodParameterSpec) null),
+            fac.newSignatureMethod("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", null),
+            Collections.singletonList(ref)
+        );
 
-        // Ejecutar la firma criptográfica con la clave privada del P12
-        sig.sign(privateKey);
+        KeyInfoFactory kif = fac.getKeyInfoFactory();
+        X509Data xd = kif.newX509Data(Collections.singletonList(cert));
+        KeyInfo ki = kif.newKeyInfo(Collections.singletonList(xd));
 
-        // Serializar el documento firmado sin declaración XML para evitar conflicto al embeber en SOAP
-        StringWriter sw = new StringWriter();
-        Transformer transformer = TransformerFactory.newInstance().newTransformer();
-        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        DOMSignContext dsc;
+        if (gCamFuFDElement != null) {
+            dsc = new DOMSignContext(privateKey, root, gCamFuFDElement);
+        } else {
+            dsc = new DOMSignContext(privateKey, root);
+        }
+        
+        XMLSignature signature = fac.newXMLSignature(si, ki);
+        signature.sign(dsc);
+
+        TransformerFactory tf = TransformerFactory.newInstance();
+        Transformer transformer = tf.newTransformer();
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
         transformer.setOutputProperty(OutputKeys.INDENT, "no");
-        transformer.transform(new DOMSource(doc), new StreamResult(sw));
+        transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+        
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        transformer.transform(new DOMSource(doc), new StreamResult(baos));
+        String xmlFirmado = baos.toString(StandardCharsets.UTF_8.name());
+        
+        xmlFirmado = limpiarSaltosBase64(xmlFirmado);
+        
+        // Se mantiene el xmlns="http://www.w3.org/2000/09/xmldsig#" en <Signature> para cumplimiento del estándar SIFEN.
+        xmlFirmado = xmlFirmado.trim();
 
-        String xmlFirmado = sw.toString();
         dte.setXmlFirmado(xmlFirmado);
-        logger.info("Firma XMLDSig completada exitosamente. CDC: " + dte.getCdc());
+        
+        // --- QR ---
+        String pVersion = "150";
+        String pId = dte.getCdc();
+        java.time.LocalDateTime fecha = dte.getFechaCreacion() != null ? dte.getFechaCreacion() : java.time.LocalDateTime.now();
+        String dFeEmiDE = fecha.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        String hexFecha = toHex(dFeEmiDE);
+        String dRucRec = dte.getRucReceptor() != null ? dte.getRucReceptor() : "0";
+        long dTotGralOpe = dte.getTotalOperacion() != null ? Math.round(dte.getTotalOperacion()) : 0L;
+        long dTotIVA = dte.getTotalIva() != null ? Math.round(dte.getTotalIva()) : 0L;
+        int cItems = dte.getItems() != null ? dte.getItems().size() : 0;
+
+        String digestHex = extraerDigestValueHex(xmlFirmado);
+        String IdCSC = dte.getEmisor().getIdCsc() != null ? dte.getEmisor().getIdCsc() : "0001";
+        
+        StringBuilder urlParaHash = new StringBuilder("https://ekuatia.set.gov.py/consultas/qr");
+        urlParaHash.append("?nVersion=").append(pVersion);
+        urlParaHash.append("&Id=").append(pId);
+        urlParaHash.append("&dFeEmiDE=").append(hexFecha);
+        urlParaHash.append("&dRucRec=").append(dRucRec);
+        urlParaHash.append("&dTotGralOpe=").append(dTotGralOpe);
+        urlParaHash.append("&dTotIVA=").append(dTotIVA);
+        urlParaHash.append("&cItems=").append(cItems);
+        urlParaHash.append("&DigestValue=").append(digestHex);
+        urlParaHash.append("&IdCSC=").append(IdCSC);
+
+        String secretCSC = dte.getEmisor().getValorCsc() != null ? dte.getEmisor().getValorCsc() : "ABCD0000000000000000000000000000";
+        String cadenaACifrar = urlParaHash.toString() + secretCSC;
+        String realHashQr = sha256Hex(cadenaACifrar);
+
+        StringBuilder dCarQR = new StringBuilder(dte.getAmbiente() == com.zentra.middleware.core.enums.Ambiente.PRODUCCION 
+            ? "https://ekuatia.set.gov.py/consultas/qr" 
+            : "https://sifen-test.set.gov.py/consultas/qr");
+            
+        dCarQR.append("?").append(urlParaHash.toString().replace("https://ekuatia.set.gov.py/consultas/qr?", "").replace("&", "&amp;"));
+        dCarQR.append("&amp;cHashQR=").append(realHashQr);
+
+        String qrBlock = "<gCamFuFD><dCarQR>" + dCarQR.toString() + "</dCarQR></gCamFuFD>";
+
+        if (xmlFirmado.contains("<gCamFuFD")) {
+            xmlFirmado = xmlFirmado.replaceFirst("<gCamFuFD>.*?</gCamFuFD>", qrBlock);
+        } else {
+            xmlFirmado = xmlFirmado.replace("</rDE>", qrBlock + "</rDE>");
+        }
+
+        xmlFirmado = xmlFirmado.replace("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "").trim();
+
+        dte.setXmlFirmado(xmlFirmado);
         return xmlFirmado;
     }
 
-    /**
-     * Genera una firma simulada para pruebas locales sin certificado real.
-     * El XML resultante NO es válido criptográficamente pero mantiene la estructura
-     * esperada por SIFEN v150 para no bloquear el flujo en desarrollo.
-     */
     private String simularFirma(DocumentoElectronico dte) {
-        String cdc = dte.getCdc() != null ? dte.getCdc() : "SIN_CDC";
-        String bloqueSignature =
-                "\n  <Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\">\n"
-                + "    <SignedInfo>\n"
-                + "      <CanonicalizationMethod Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\"/>\n"
-                + "      <SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\"/>\n"
-                + "      <Reference URI=\"#" + cdc + "\">\n"
-                + "        <Transforms>\n"
-                + "          <Transform Algorithm=\"http://www.w3.org/2000/09/xmldsig#enveloped-signature\"/>\n"
-                + "          <Transform Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\"/>\n"
-                + "        </Transforms>\n"
-                + "        <DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\"/>\n"
-                + "        <DigestValue>SIMULADO_BASE64==</DigestValue>\n"
-                + "      </Reference>\n"
-                + "    </SignedInfo>\n"
-                + "    <SignatureValue>SIMULADO_BASE64==</SignatureValue>\n"
-                + "    <KeyInfo><X509Data><X509Certificate>SIMULADO</X509Certificate></X509Data></KeyInfo>\n"
-                + "  </Signature>\n";
+        return dte.getXmlGenerado();
+    }
 
-        String xmlGenerado = dte.getXmlGenerado();
-        String xmlFirmado;
-
-        // JAXB puede generar el cierre con prefijo ns2 dependiendo de la configuración
-        if (xmlGenerado.contains("</ns2:rDE>")) {
-            xmlFirmado = xmlGenerado.replace("</ns2:rDE>", bloqueSignature + "</ns2:rDE>");
-        } else {
-            xmlFirmado = xmlGenerado.replace("</rDE>", bloqueSignature + "</rDE>");
+    private String limpiarSaltosBase64(String xml) {
+        String[] etiquetas = {"SignatureValue", "DigestValue", "X509Certificate"};
+        for (String etq : etiquetas) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                "(<" + etq + ">)([\\s\\S]*?)(</" + etq + ">)");
+            java.util.regex.Matcher m = p.matcher(xml);
+            StringBuffer sb = new StringBuffer();
+            while (m.find()) {
+                String contenidoLimpio = m.group(2)
+                    .replace("&#13;", "")
+                    .replace("\r\n", "\n")
+                    .replace("\r", "\n")
+                    .trim();
+                m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
+                    m.group(1) + contenidoLimpio + m.group(3)));
+            }
+            m.appendTail(sb);
+            xml = sb.toString();
         }
+        return xml;
+    }
 
-        dte.setXmlFirmado(xmlFirmado);
-        return xmlFirmado;
+    private String toHex(String value) {
+        if (value == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char c : value.toCharArray()) {
+            sb.append(String.format("%02x", (int) c));
+        }
+        return sb.toString();
+    }
+
+    private String sha256Hex(String base) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(base.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception ex) {
+            throw new RuntimeException("Error calculando SHA-256", ex);
+        }
+    }
+
+    private String extraerDigestValueHex(String xml) {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("<DigestValue>([^<]+)</DigestValue>");
+        java.util.regex.Matcher m = p.matcher(xml);
+        if (m.find()) {
+            String base64 = m.group(1).trim();
+            return toHex(base64);
+        }
+        return "";
     }
 }

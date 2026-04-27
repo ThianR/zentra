@@ -8,5 +8,6 @@ public enum EstadoDte {
     RECHAZADO,
     OBSERVADO,
     ANULADO,
-    ERROR_ENVIO   // Fallo técnico de transmisión (red, certificado, timeout)
+    ERROR_ENVIO,  // Fallo técnico de transmisión (red, certificado, timeout)
+    EN_PROCESO    // Lote recibido por SIFEN pendiente de consulta
 }

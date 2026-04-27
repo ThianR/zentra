@@ -106,7 +106,7 @@ public class TgDatRec {
     @XmlElement(required = true)
     @XmlSchemaType(name = "string")
     protected PaisType cPaisRec;
-    @XmlElement(required = true)
+    @XmlElement(name = "dDesPaisRe", required = true)
     protected String dDesPaisRe;
     protected BigInteger iTiContRec;
     protected String dRucRec;
@@ -207,26 +207,10 @@ public class TgDatRec {
         this.cPaisRec = value;
     }
 
-    /**
-     * Obtiene el valor de la propiedad dDesPaisRe.
-     * 
-     * @return
-     *     possible object is
-     *     {@link String }
-     *     
-     */
     public String getDDesPaisRe() {
         return dDesPaisRe;
     }
 
-    /**
-     * Define el valor de la propiedad dDesPaisRe.
-     * 
-     * @param value
-     *     allowed object is
-     *     {@link String }
-     *     
-     */
     public void setDDesPaisRe(String value) {
         this.dDesPaisRe = value;
     }

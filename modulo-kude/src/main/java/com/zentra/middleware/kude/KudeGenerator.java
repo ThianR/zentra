@@ -39,7 +39,7 @@ public class KudeGenerator {
             parameters.put("P_EMISOR_DIRECCION", dte.getDireccionEmisor() != null ? dte.getDireccionEmisor() : "DIRECCION DEL EMISOR");
             parameters.put("P_EMISOR_TELEFONO", dte.getTelefonoEmisor() != null ? dte.getTelefonoEmisor() : "021-000-000");
             parameters.put("P_EMISOR_ACTIVIDAD", dte.getActividadEconomicaEmisor() != null ? dte.getActividadEconomicaEmisor() : "VENTA DE BIENES Y SERVICIOS");
-            parameters.put("P_TIMBRADO", dte.getTimbrado() != null ? dte.getTimbrado() : "12345678");
+            parameters.put("P_TIMBRADO", dte.getTimbrado() != null ? dte.getTimbrado() : "16770994");
             
             // Datos del Documento
             parameters.put("P_NUMERO_DOCUMENTO", dte.getNumeroComprobante());

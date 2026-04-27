@@ -173,14 +173,20 @@
                                 <i class="fas fa-chevron-down float-right"></i>
                             </h4>
                             <div id="sectionEmisor" class="collapsible-content">
+                                <div class="form-group mb-12">
+                                    <label>Seleccionar Empresa Emisora</label>
+                                    <select id="selectEmpresaEmisora" class="form-select">
+                                        <option value="">Cargando empresas...</option>
+                                    </select>
+                                </div>
                                 <div class="grid-row cols-3">
                                     <div class="form-group">
                                         <label>RUC Emisor</label>
-                                        <input type="text" id="emisorRuc" value="80000001" class="form-control" readonly>
+                                        <input type="text" id="emisorRuc" value="80014603" class="form-control" readonly>
                                     </div>
                                     <div class="form-group">
                                         <label>DV</label>
-                                        <input type="text" id="emisorDv" placeholder="7" class="form-control" maxlength="1">
+                                        <input type="text" id="emisorDv" value="4" class="form-control" maxlength="1">
                                     </div>
                                     <div class="form-group">
                                         <label>Tipo Contribuyente</label>
@@ -247,6 +253,13 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label>Tipo de Envío a SIFEN</label>
+                                    <select id="tipoEnvio" class="form-select">
+                                        <option value="SYNC">Síncrono (En línea - Respuesta inmediata)</option>
+                                        <option value="ASYNC">Asíncrono por Lote (Recomendado para masivos)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label>Indicador de Presencia (iIndPres)</label>
                                     <select id="iIndPres" class="form-select">
                                         <option value="1">1 - Operación Presencial</option>
@@ -274,8 +287,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Timbrado Nro.</label>
-                                    <input type="text" id="timbrado" name="timbrado" value="12345678" maxlength="8"
-                                        class="form-control" placeholder="12345678">
+                                    <input type="text" id="timbrado" name="timbrado" value="16770994" maxlength="8"
+                                        class="form-control" placeholder="16770994">
                                 </div>
                             </div>
                         </div>

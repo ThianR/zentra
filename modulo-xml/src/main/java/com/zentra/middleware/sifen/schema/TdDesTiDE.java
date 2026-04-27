@@ -37,19 +37,19 @@ import jakarta.xml.bind.annotation.XmlType;
 public enum TdDesTiDE {
 
     @XmlEnumValue("Factura electr\u00f3nica")
-    FACTURA_ELECTRÓNICA("Factura electr\u00f3nica"),
+    FACTURA_ELECTRONICA("Factura electr\u00f3nica"),
     @XmlEnumValue("Autofactura electr\u00f3nica")
-    AUTOFACTURA_ELECTRÓNICA("Autofactura electr\u00f3nica"),
+    AUTOFACTURA_ELECTRONICA("Autofactura electr\u00f3nica"),
     @XmlEnumValue("Nota de cr\u00e9dito electr\u00f3nica")
-    NOTA_DE_CRÉDITO_ELECTRÓNICA("Nota de cr\u00e9dito electr\u00f3nica"),
+    NOTA_DE_CREDITO_ELECTRONICA("Nota de cr\u00e9dito electr\u00f3nica"),
     @XmlEnumValue("Nota de d\u00e9bito electr\u00f3nica")
-    NOTA_DE_DÉBITO_ELECTRÓNICA("Nota de d\u00e9bito electr\u00f3nica"),
+    NOTA_DE_DEBITO_ELECTRONICA("Nota de d\u00e9bito electr\u00f3nica"),
     @XmlEnumValue("Nota de remisi\u00f3n electr\u00f3nica")
-    NOTA_DE_REMISIÓN_ELECTRÓNICA("Nota de remisi\u00f3n electr\u00f3nica"),
+    NOTA_DE_REMISION_ELECTRONICA("Nota de remisi\u00f3n electr\u00f3nica"),
     @XmlEnumValue("Boleta de venta electr\u00f3nica")
-    BOLETA_DE_VENTA_ELECTRÓNICA("Boleta de venta electr\u00f3nica"),
+    BOLETA_DE_VENTA_ELECTRONICA("Boleta de venta electr\u00f3nica"),
     @XmlEnumValue("Boleta resimple electr\u00f3nica")
-    BOLETA_RESIMPLE_ELECTRÓNICA("Boleta resimple electr\u00f3nica");
+    BOLETA_RESIMPLE_ELECTRONICA("Boleta resimple electr\u00f3nica");
     private final String value;
 
     TdDesTiDE(String v) {

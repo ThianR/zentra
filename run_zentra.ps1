@@ -25,9 +25,23 @@ $env:PATH = "$($env:JAVA_HOME)\bin;$MAVEN_PATH;$($env:PATH)"
 Write-Host "Java Version:" -ForegroundColor Green
 & java -version
 
-# 3. Lanzar la aplicación
-Write-Host "Reconstruyendo TODO el proyecto (Root Clean Install)..." -ForegroundColor Cyan
-& "$MAVEN_PATH\mvn.cmd" clean install -DskipTests
+# 2b. Cargar variables de entorno desde .env
+if (Test-Path ".env") {
+    Write-Host "Cargando variables desde .env..." -ForegroundColor Cyan
+    Get-Content ".env" | ForEach-Object {
+        if ($_ -match "^\s*([^#\s][^=]+)=(.*)$") {
+            $envName = $matches[1].Trim()
+            $envVal = $matches[2].Trim()
+            [Environment]::SetEnvironmentVariable($envName, $envVal, "Process")
+        }
+    }
+}
 
-Write-Host "Lanzando modulo-api..." -ForegroundColor Magenta
-& "$MAVEN_PATH\mvn.cmd" spring-boot:run -pl modulo-api
+# 3. Lanzar la aplicación
+$env:MAVEN_OPTS = "-Dfile.encoding=UTF-8"
+Write-Host "Reconstruyendo proyecto (Install)..." -ForegroundColor Cyan
+& "$MAVEN_PATH\mvn.cmd" clean install -DskipTests "-Dfile.encoding=UTF-8"
+
+
+Write-Host "Lanzando modulo-api (Salida redirigida a zentra.log)..." -ForegroundColor Magenta
+& "$MAVEN_PATH\mvn.cmd" spring-boot:run -f modulo-api/pom.xml > zentra.log 2>&1

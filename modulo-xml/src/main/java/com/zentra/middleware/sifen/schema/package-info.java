@@ -5,5 +5,11 @@
 // Generado el: 2026.03.19 a las 11:22:40 PM PYT 
 //
 
-@jakarta.xml.bind.annotation.XmlSchema(namespace = "http://ekuatia.set.gov.py/sifen/xsd", elementFormDefault = jakarta.xml.bind.annotation.XmlNsForm.QUALIFIED)
+@jakarta.xml.bind.annotation.XmlSchema(
+    namespace = "http://ekuatia.set.gov.py/sifen/xsd", 
+    elementFormDefault = jakarta.xml.bind.annotation.XmlNsForm.QUALIFIED,
+    xmlns = {
+        @jakarta.xml.bind.annotation.XmlNs(prefix = "",   namespaceURI = "http://ekuatia.set.gov.py/sifen/xsd")
+    }
+)
 package com.zentra.middleware.sifen.schema;

@@ -156,7 +156,10 @@ async function loadDocumentos() {
         tbody.innerHTML = '';
         docs.reverse().forEach(doc => {
             const tr = document.createElement('tr');
-            const statusClass = doc.estado === 'APROBADO' ? 'aprobado' : 'rechazado';
+            let statusClass = 'pendiente';
+            if (doc.estado === 'APROBADO') statusClass = 'aprobado';
+            else if (doc.estado === 'RECHAZADO' || doc.estado === 'ERROR_ENVIO') statusClass = 'rechazado';
+            else if (doc.estado === 'EN_PROCESO') statusClass = 'warning';
             
             tr.innerHTML = `
                 <td>${formatDate(doc.fechaCreacion)}</td>
@@ -166,6 +169,11 @@ async function loadDocumentos() {
                 <td>${formatCurrency(doc.totalOperacion)}</td>
                 <td><span class="badge-status ${statusClass}">${doc.estado || 'PENDIENTE'}</span></td>
                 <td>
+                    ${doc.estado === 'EN_PROCESO' ? `
+                    <button class="btn btn-xs btn-primary" onclick="consultarLoteSifen('${doc.id}')" title="Consultar Lote en SIFEN">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                    ` : ''}
                     <button class="btn btn-xs btn-outline" onclick="descargarKude('${doc.id}')" title="Descargar KuDE (A4)">
                         <i class="fas fa-file-pdf"></i>
                     </button>
@@ -216,6 +224,23 @@ window.descargarXml = function(id) {
     document.body.removeChild(link);
 }
 
+window.consultarLoteSifen = async function(id) {
+    try {
+        showToast('Consultando estado del Lote en SIFEN...', 'info');
+        const res = await fetch(`/api/v1/emision/consultar-lote/${id}`);
+        const data = await res.json();
+        
+        if (res.ok) {
+            showToast(`Lote Aprobado: ${data.mensajeUsuario}`, 'success');
+        } else {
+            showToast(`Estado SIFEN: ${data.mensajeUsuario}`, 'warning');
+        }
+        loadDocumentos();
+    } catch(e) {
+        showToast('Error consultando lote: ' + e.message, 'error');
+    }
+}
+
 // --- Form Logic ---
 
 function initForm() {
@@ -252,6 +277,69 @@ function initForm() {
     if (deptoSelect) {
         deptoSelect.onchange = (e) => loadCiudades(e.target.value);
     }
+
+    // Vincular selector de empresas
+    const empresaSelect = document.getElementById('selectEmpresaEmisora');
+    if (empresaSelect) {
+        loadEmpresasEmisoras();
+        empresaSelect.onchange = (e) => populateEmisorData(e.target.value);
+    }
+}
+
+async function loadEmpresasEmisoras() {
+    const select = document.getElementById('selectEmpresaEmisora');
+    if (!select) return;
+    
+    try {
+        const response = await fetch('/api/v1/emision/empresas');
+        const empresas = await response.json();
+        
+        window.zentraEmpresas = empresas;
+        
+        select.innerHTML = '<option value="">-- Seleccionar Empresa --</option>';
+        empresas.forEach(emp => {
+            const opt = document.createElement('option');
+            opt.value = emp.ruc;
+            opt.text = `${emp.razonSocial} (${emp.ruc})`;
+            select.appendChild(opt);
+        });
+
+        // Si solo hay una, cargarla por defecto
+        if (empresas.length === 1) {
+            select.value = empresas[0].ruc;
+            populateEmisorData(empresas[0].ruc);
+        }
+    } catch (error) {
+        console.error('Error cargando empresas:', error);
+        select.innerHTML = '<option value="">Error al cargar</option>';
+    }
+}
+
+function populateEmisorData(ruc) {
+    if (!ruc || !window.zentraEmpresas) return;
+    
+    const emp = window.zentraEmpresas.find(e => e.ruc === ruc);
+    if (!emp) return;
+    
+    document.getElementById('emisorRuc').value = emp.ruc || '';
+    document.getElementById('emisorDv').value = emp.dv || '';
+    document.getElementById('emisorRazonSocial').value = emp.razonSocial || '';
+    document.getElementById('emisorActividad').value = emp.actividadEconomica || '';
+    document.getElementById('emisorDireccion').value = emp.direccion || '';
+    document.getElementById('emisorTelefono').value = emp.telefono || '';
+    document.getElementById('emisorEmail').value = emp.email || '';
+    
+    if (emp.codDepartamento) {
+        document.getElementById('emisorCodDepto').value = emp.codDepartamento;
+        loadCiudades(emp.codDepartamento).then(() => {
+            if (emp.codCiudad) document.getElementById('emisorCodCiudad').value = emp.codCiudad;
+        });
+    }
+
+    if (emp.codEstablecimiento) document.getElementById('codEstablecimiento').value = emp.codEstablecimiento;
+    if (emp.puntoExpedicion) document.getElementById('puntoExpedicion').value = emp.puntoExpedicion;
+    
+    showToast(`Emisor: ${emp.razonSocial} cargado`, 'info');
 }
 
 // --- Tablas de Referencia Dinámicas ---
@@ -698,6 +786,11 @@ async function submitDte() {
                 descVehiculo: document.getElementById('descVehiculo').value
             }
         };
+        
+        const selectorEnvio = document.getElementById('tipoEnvio');
+        if (selectorEnvio) {
+            payload.tipoEnvio = selectorEnvio.value;
+        }
 
         const response = await fetch('/api/v1/emision/generar', {
             method: 'POST',
@@ -707,7 +800,13 @@ async function submitDte() {
 
         if (response.ok) {
             const res = await response.json();
-            showToast(`DTE Emitido con éxito. CDC: ${res.cdc}`, 'success');
+            if (res.ticket) {
+                showToast(`Lote en proceso SIFEN. Ticket: ${res.ticket}`, 'info');
+                // Alerta prolongada para Lote
+                setTimeout(() => alert("El DTE se envió por lote.\nTicket SIFEN: " + res.ticket + "\nPuedes consultar su estado desde el Dashboard."), 500);
+            } else {
+                showToast(`DTE Emitido con éxito. CDC: ${res.cdc}`, 'success');
+            }
             switchView('dashboard');
             loadDocumentos();
         } else {
@@ -753,17 +852,17 @@ function loadMockData(type) {
     document.getElementById('numeroComprobante').value = numero;
     document.getElementById('codEstablecimiento').value = '001';
     document.getElementById('puntoExpedicion').value = '001';
-    document.getElementById('timbrado').value = '12345678';
+    document.getElementById('timbrado').value = '16770994';
     
     // Datos del Emisor (Auto-completar para evitar errores de validación)
-    document.getElementById('emisorRuc').value = '8394835';
-    document.getElementById('emisorDv').value = '0';
+    document.getElementById('emisorRuc').value = '80014603';
+    document.getElementById('emisorDv').value = '4';
     document.getElementById('emisorTipoContribuyente').value = '2';
-    document.getElementById('emisorRazonSocial').value = "JORGE APARECIDO DE SANT'ANNA";
-    document.getElementById('emisorActividad').value = 'SERVICIOS DE TECNOLOGÍA';
-    document.getElementById('emisorDireccion').value = 'AVDA. ARTIGAS 123, ASUNCION';
+    document.getElementById('emisorRazonSocial').value = "REPUESTOS RG S.A.";
+    document.getElementById('emisorActividad').value = 'Autopartes, servicios de mantenimiento, repuestos';
+    document.getElementById('emisorDireccion').value = 'AVDA. FERNANDO DE LA MORA 1234, ASUNCION';
     document.getElementById('emisorTelefono').value = '021000000';
-    document.getElementById('emisorEmail').value = 'sifen@zentra.com.py';
+    document.getElementById('emisorEmail').value = 'facturacion@repuestosrg.com.py';
     document.getElementById('emisorCodDepto').value = '1';
     document.getElementById('emisorCodCiudad').value = '1';
 

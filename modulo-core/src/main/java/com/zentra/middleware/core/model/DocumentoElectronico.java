@@ -1,5 +1,6 @@
 package com.zentra.middleware.core.model;
 
+import com.zentra.middleware.core.enums.Ambiente;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -7,8 +8,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.FetchType;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.ArrayList;
@@ -33,22 +36,27 @@ public class DocumentoElectronico {
     @ManyToOne
     private Empresa emisor;
 
-    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = jakarta.persistence.FetchType.EAGER)
+    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<ItemDocumento> items = new ArrayList<>();
 
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String xmlGenerado;
     
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String xmlFirmado;
 
     /** Acuse de recibo SOAP devuelto por SIFEN (XML crudo). Para auditoría. */
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String xmlRespuestaSifen;
 
     /** Código de estado oficial de SIFEN (ej: '0300'=Aprobado, '0400'=Error). */
     private String codigoEstadoSifen;
+    
+    /** Número de ticket de lote para envío asíncrono. */
+    private String numeroTicketLote;
+    
+    private Integer tipoEmision;
 
     private String numeroComprobante;
     private String timbrado;
@@ -95,10 +103,15 @@ public class DocumentoElectronico {
     @jakarta.persistence.Embedded
     private Transporte transporte;
 
-    private Integer ambiente = 1; // 1=Test, 2=Prod
+    /** Código de tipo de transacción SIFEN (1=Venta mercadería, 2=Servicios, 3=Mixto, etc.). */
+    private Integer tipoTransaccion;
+
+    @Convert(converter = com.zentra.middleware.core.converter.AmbienteConverter.class)
+    private Ambiente ambiente = Ambiente.TEST;
     private String formatoKuDE = "A4"; // A4, TICKET
 
     private LocalDateTime fechaCreacion = LocalDateTime.now();
+    private String codigoSeguridad; // Código de Seguridad Aleatorio para el CDC (9 dígitos)
 
     public DocumentoElectronico() {}
 
@@ -193,8 +206,10 @@ public class DocumentoElectronico {
     public LocalDateTime getFechaCreacion() { return fechaCreacion; }
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
 
-    public Integer getAmbiente() { return ambiente; }
-    public void setAmbiente(Integer ambiente) { this.ambiente = ambiente; }
+    public Ambiente getAmbiente() { return ambiente; }
+    public void setAmbiente(Ambiente ambiente) { this.ambiente = ambiente; }
+    public Integer getTipoTransaccion() { return tipoTransaccion; }
+    public void setTipoTransaccion(Integer tipoTransaccion) { this.tipoTransaccion = tipoTransaccion; }
     public String getFormatoKuDE() { return formatoKuDE; }
     public void setFormatoKuDE(String formatoKuDE) { this.formatoKuDE = formatoKuDE; }
     public String getXmlRespuestaSifen() { return xmlRespuestaSifen; }
@@ -211,4 +226,12 @@ public class DocumentoElectronico {
     public void setMensajeSifen(String mensajeSifen) { this.mensajeSifen = mensajeSifen; }
     public String getMensajeUsuario() { return mensajeUsuario; }
     public void setMensajeUsuario(String mensajeUsuario) { this.mensajeUsuario = mensajeUsuario; }
+    public String getCodigoSeguridad() { return codigoSeguridad; }
+    public void setCodigoSeguridad(String codigoSeguridad) { this.codigoSeguridad = codigoSeguridad; }
+    
+    public Integer getTipoEmision() { return tipoEmision; }
+    public void setTipoEmision(Integer tipoEmision) { this.tipoEmision = tipoEmision; }
+    
+    public String getNumeroTicketLote() { return numeroTicketLote; }
+    public void setNumeroTicketLote(String numeroTicketLote) { this.numeroTicketLote = numeroTicketLote; }
 }

@@ -38,15 +38,15 @@ import jakarta.xml.bind.annotation.XmlType;
 public enum TdDesMotEmi {
 
     @XmlEnumValue("Devoluci\u00f3n y Ajuste de precios")
-    DEVOLUCIÓN_Y_AJUSTE_DE_PRECIOS("Devoluci\u00f3n y Ajuste de precios"),
+    DEVOLUCION_Y_AJUSTE_DE_PRECIOS("Devoluci\u00f3n y Ajuste de precios"),
     @XmlEnumValue("Devoluci\u00f3n")
-    DEVOLUCIÓN("Devoluci\u00f3n"),
+    DEVOLUCION("Devoluci\u00f3n"),
     @XmlEnumValue("Descuento")
     DESCUENTO("Descuento"),
     @XmlEnumValue("Bonificaci\u00f3n")
-    BONIFICACIÓN("Bonificaci\u00f3n"),
+    BONIFICACION("Bonificaci\u00f3n"),
     @XmlEnumValue("Cr\u00e9dito incobrable")
-    CRÉDITO_INCOBRABLE("Cr\u00e9dito incobrable"),
+    CREDITO_INCOBRABLE("Cr\u00e9dito incobrable"),
     @XmlEnumValue("Recupero de costo")
     RECUPERO_DE_COSTO("Recupero de costo"),
     @XmlEnumValue("Recupero de gasto")

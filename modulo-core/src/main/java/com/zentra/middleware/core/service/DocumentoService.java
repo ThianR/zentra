@@ -40,6 +40,10 @@ public class DocumentoService {
         return empresaRepository.findByRuc(ruc).orElseThrow(() -> new RuntimeException("Empresa no encontrada: " + ruc));
     }
 
+    public List<Empresa> obtenerTodasLasEmpresas() {
+        return empresaRepository.findAll();
+    }
+
     public boolean existePorNumero(@org.springframework.lang.NonNull String numeroComprobante, @org.springframework.lang.NonNull String tipoDocumento) {
         return repository.existsByNumeroComprobanteAndTipoDocumento(numeroComprobante, tipoDocumento);
     }

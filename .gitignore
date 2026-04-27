@@ -1,10 +1,11 @@
-﻿# Maven
+# Maven
 target/
 *.war
 *.ear
 *.zip
 *.tar.gz
 *.rar
+*.class
 
 # IDEs
 .idea/
@@ -25,4 +26,18 @@ Thumbs.db
 
 # Certificados
 *.p12
-*.txt
+
+# Archivos temporales y de diagnóstico en tiempo de ejecución
+temp/*
+!temp/.gitkeep
+*.bin
+DEBUG_*.xml
+debug_*.xml
+debug_*.log
+last_*.xml
+last_*.txt
+
+# Variables de entorno
+.env
+.env.*
+!.env.example

@@ -1,11 +1,15 @@
 package com.zentra.middleware.sifen;
 
+import com.zentra.middleware.core.enums.Ambiente;
 import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.model.EstadoDte;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Service;
 
 import javax.net.ssl.*;
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -13,30 +17,47 @@ import java.security.KeyStore;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.zentra.middleware.sifen.schema.REnviDeRequest;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
+
 /**
- * Cliente SOAP para comunicación con SIFEN (SET - Paraguay).
- * Implementa mTLS con el certificado P12 del emisor y parsea la respuesta oficial.
- * Opera en ambiente de Pruebas (Test) por defecto.
+ * Cliente para comunicación SOAP con los servidores de SIFEN (SET Paraguay).
+ * Implementa mTLS y la estructura de sobres requerida para DTE v150.
  */
 @Service
 public class SifenSoapClient {
 
+    // Directorio centralizado para archivos de diagnóstico en tiempo de ejecución
+    private static final String DIRECTORIO_TEMP = "temp";
+
     private static final Logger logger = Logger.getLogger(SifenSoapClient.class.getName());
 
-    // Endpoints oficiales de SIFEN según ambiente
-    private static final String ENDPOINT_TEST = "https://sifen-test.set.gov.py/de/ws/sync/recibe";
-    private static final String ENDPOINT_PROD = "https://sifen.set.gov.py/de/ws/sync/recibe";
+    // Servicio: siRecepDE (Recepción de Documento Electrónico síncrono)
+    private static final String ENDPOINT_TEST = "https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl";
+    private static final String ENDPOINT_PROD = "https://sifen.set.gov.py/de/ws/sync/recibe.wsdl";
+    
+    // Servicio: siRecepLoteDE (Recepción de Lotes asíncrono)
+    private static final String ENDPOINT_LOTE_TEST = "https://sifen-test.set.gov.py/de/ws/async/recibe-lote.wsdl";
+    private static final String ENDPOINT_LOTE_PROD = "https://sifen.set.gov.py/de/ws/async/recibe-lote.wsdl";
+    
+    // Servicio: siConsLoteDE (Consulta de Lotes)
+    private static final String ENDPOINT_CONSULTA_TEST = "https://sifen-test.set.gov.py/de/ws/consultas/consulta-lote.wsdl";
+    private static final String ENDPOINT_CONSULTA_PROD = "https://sifen.set.gov.py/de/ws/consultas/consulta-lote.wsdl";
 
-    // Timeout para la conexión y lectura de respuesta (en milisegundos)
-    private static final int TIMEOUT_CONEXION = 30_000;
-    private static final int TIMEOUT_LECTURA  = 60_000;
+    private static final int TIMEOUT_CONEXION = 30000;
+    private static final int TIMEOUT_LECTURA = 60000;
 
     /**
-     * Envía el DTE firmado a SIFEN de forma síncrona usando SOAP + mTLS.
-     * Actualiza el estado, código y acuse del documento en base al resultado oficial.
+     * Envía un DTE firmado a SIFEN y procesa el acuse de recibo.
+     * 
+     * @param dte El documento con el XML firmado ya generado.
+     * @return true si fue aprobado, false si fue rechazado o hubo error técnico.
      */
     public boolean enviarDteSincrono(DocumentoElectronico dte) {
-        if (dte.getXmlFirmado() == null) {
+        if (dte.getXmlFirmado() == null || dte.getXmlFirmado().isBlank()) {
             throw new IllegalStateException("El documento no está firmado. No se puede enviar a SIFEN.");
         }
 
@@ -47,28 +68,73 @@ public class SifenSoapClient {
         try {
             // Construir el contexto SSL con el P12 del emisor
             SSLContext sslContext = construirSslContext(dte);
-            HttpsURLConnection conn = abrirConexion(endpoint, sslContext);
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siRecepDE");
 
             // Armar el SOAP Envelope requerido por la SET
-            String soapBody = construirSoapEnvelope(dte.getXmlFirmado());
+            String soapBody = construirSoapEnvelope(dte);
 
-            // Enviar la petición
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(soapBody.getBytes(StandardCharsets.UTF_8));
-                os.flush();
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_soap_request.xml"), soapBody, java.nio.charset.StandardCharsets.UTF_8);
+            } catch(Exception ignored) {}
+
+            logger.info("============== PETICIÓN SOAP ENVIADA (UTF-8) ==============\n" + soapBody
+                    + "\n===================================================");
+
+            // Transmitir en UTF-8 (estándar SOAP 1.2)
+            int httpStatus;
+            try {
+                byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+                logger.info("Enviando SOAP Request (" + soapBytes.length + " bytes): " + soapBody);
+                
+                // TAREA 3 — VERIFICAR CON LOG DE BYTES
+                String marker = "electr";
+                int idx = soapBody.indexOf(marker);
+                if (idx >= 0 && soapBytes.length > idx + marker.length() + 3) {
+                    byte[] sample = java.util.Arrays.copyOfRange(soapBytes, 
+                        idx + marker.length(), idx + marker.length() + 3);
+                    logger.info("Bytes reales del stream (electr+3): " + java.util.Arrays.toString(sample));
+                }
+
+                // Eliminado System.out.println del SOAP crudo que causa corrupción visual (CP437)
+                // y confusión sobre las "dos rutas". La única ruta real es: soapBytes
+                
+                // TAREA 2 — VERIFICAR dDMoneTiPag ESPECÍFICAMENTE:
+                String markerMone = "<dDMoneTiPag>";
+                int idxMone = soapBody.indexOf(markerMone);
+                if (idxMone >= 0) {
+                    int endMone = soapBody.indexOf("</dDMoneTiPag>", idxMone);
+                    String val = soapBody.substring(idxMone + markerMone.length(), endMone);
+                    logger.info("dDMoneTiPag valor extraído del SOAP: '" + val + "'");
+                    logger.info("dDMoneTiPag bytes reales antes de HTTP (UTF-16BE): " + 
+                        java.util.Arrays.toString(val.getBytes(java.nio.charset.Charset.forName("UTF-16BE"))));
+                }
+
+                // Desactivar FixedLengthStreamingMode para evitar problemas de fragmentación con proxies
+                // conn.setFixedLengthStreamingMode(soapBytes.length);
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(soapBytes);
+                    os.flush();
+                }
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                // SIFEN pudo haber cortado temprano con un HTTP 400, 422 o 500
+                httpStatus = conn.getResponseCode();
+                logger.warning("Error de red detectado, recuperando status SIFEN: " + httpStatus);
             }
-
-            int httpStatus = conn.getResponseCode();
             logger.info("HTTP Status SIFEN: " + httpStatus);
+            logger.info("Headers respuesta SIFEN: " + conn.getHeaderFields());
 
             // Leer la respuesta (éxito o error)
-            InputStream is = httpStatus >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            String xmlRespuesta = leerRespuesta(is);
+            String xmlRespuesta = leerRespuesta(conn);
             conn.disconnect();
 
             // Almacenar el acuse crudo para auditoría
             dte.setXmlRespuestaSifen(xmlRespuesta);
-            logger.info("============== RESPUESTA CRUDA SIFEN ==============\n" + xmlRespuesta + "\n===================================================");
+            logger.info("============== RESPUESTA CRUDA SIFEN ==============\n" + xmlRespuesta
+                    + "\n===================================================");
 
             // Parsear el código de respuesta SIFEN
             String codRes = extraerCodigo(xmlRespuesta);
@@ -94,25 +160,212 @@ public class SifenSoapClient {
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error de transmisión SIFEN: " + e.getMessage(), e);
             dte.setEstado(EstadoDte.ERROR_ENVIO);
-            // Almacenar el mensaje de error para diagnóstico
             dte.setXmlRespuestaSifen("ERROR_TRANSMISION: " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * Resuelve el endpoint SOAP según el ambiente del documento.
-     * 1 = Test, 2 = Producción.
-     */
-    private String resolverEndpoint(Integer ambiente) {
-        return (ambiente != null && ambiente == 2) ? ENDPOINT_PROD : ENDPOINT_TEST;
+    public boolean enviarDteAsincrono(DocumentoElectronico dte) {
+        if (dte.getXmlFirmado() == null || dte.getXmlFirmado().isBlank()) {
+            throw new IllegalStateException("El documento no está firmado. No se puede enviar a SIFEN.");
+        }
+
+        String endpoint = (dte.getAmbiente() == Ambiente.PRODUCCION) ? ENDPOINT_LOTE_PROD : ENDPOINT_LOTE_TEST;
+        logger.info("Transmitiendo LOTE ASÍNCRONO a SIFEN [ambiente=" + dte.getAmbiente() + "] -> " + endpoint);
+
+        try {
+            SSLContext sslContext = construirSslContext(dte);
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siRecepLoteDE");
+
+            // Comprimir XML en ZIP y luego a Base64
+            String xmlLimpio = dte.getXmlFirmado().replaceFirst("<\\?xml.*?\\?>", "").trim();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
+                java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry(dte.getCdc() + ".xml");
+                zos.putNextEntry(entry);
+                zos.write(xmlLimpio.getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+            String base64Zip = java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+
+            String dId = (dte.getId() != null) ? String.valueOf(dte.getId()) : "1";
+            String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                              "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+                              "<env:Header/>" +
+                              "<env:Body>" +
+                              "<rEnvioLote xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                              "<dId>" + dId + "</dId>" +
+                              "<xDE>" + base64Zip + "</xDE>" +
+                              "</rEnvioLote>" +
+                              "</env:Body>" +
+                              "</env:Envelope>";
+
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_soap_request_lote.xml"), soapBody, StandardCharsets.UTF_8);
+            } catch(Exception ignored) {}
+
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            int httpStatus;
+            try {
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                httpStatus = conn.getResponseCode();
+            }
+            
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+            
+            dte.setXmlRespuestaSifen(xmlRespuesta);
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            dte.setCodigoEstadoSifen(codRes);
+            
+            // 0300 significa lote recibido exitosamente
+            if ("0300".equals(codRes)) {
+                String dNumTic = extraerEtiqueta(xmlRespuesta, "dNumTic", null);
+                if (dNumTic != null) {
+                    dte.setNumeroTicketLote(dNumTic);
+                    dte.setEstado(EstadoDte.EN_PROCESO);
+                    dte.setMensajeUsuario("Lote recibido por SIFEN. Ticket: " + dNumTic);
+                    logger.info("Lote aceptado. Ticket: " + dNumTic);
+                    return true;
+                } else {
+                    dte.setEstado(EstadoDte.ERROR_ENVIO);
+                    dte.setMensajeUsuario("SIFEN aceptó el lote pero no devolvió el número de Ticket.");
+                    return false;
+                }
+            } else {
+                String msgRes = extraerMensaje(xmlRespuesta);
+                dte.setMensajeSifen(msgRes);
+                dte.setMensajeUsuario("Rechazo de lote SIFEN (" + codRes + "): " + msgRes);
+                dte.setEstado(EstadoDte.RECHAZADO);
+                return false;
+            }
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error en transmisión asíncrona: " + e.getMessage(), e);
+            dte.setEstado(EstadoDte.ERROR_ENVIO);
+            dte.setXmlRespuestaSifen("ERROR: " + e.getMessage());
+            return false;
+        }
     }
 
-    /**
-     * Construye el SSLContext con mTLS.
-     * Carga el P12 de la empresa en el KeyStore y acepta el TrustStore por defecto de la JVM.
-     * Si la empresa no tiene certificado, se usa el SSLContext por defecto (solo TLS, sin mTLS).
-     */
+    public boolean consultarLoteSifen(DocumentoElectronico dte) {
+        if (dte.getNumeroTicketLote() == null || dte.getNumeroTicketLote().isBlank()) {
+            throw new IllegalStateException("El documento no tiene un número de Ticket asociado para consultar.");
+        }
+
+        String endpoint = (dte.getAmbiente() == Ambiente.PRODUCCION) ? ENDPOINT_CONSULTA_PROD : ENDPOINT_CONSULTA_TEST;
+        logger.info("Consultando LOTE ASÍNCRONO Ticket " + dte.getNumeroTicketLote() + " -> " + endpoint);
+
+        try {
+            SSLContext sslContext = construirSslContext(dte);
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siConsLoteDE");
+
+            String dId = (dte.getId() != null) ? String.valueOf(dte.getId()) : "1";
+            String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                              "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+                              "<env:Header/>" +
+                              "<env:Body>" +
+                              "<rEnviConsLoteDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                              "<dId>" + dId + "</dId>" +
+                              "<dNumTic>" + dte.getNumeroTicketLote() + "</dNumTic>" +
+                              "</rEnviConsLoteDe>" +
+                              "</env:Body>" +
+                              "</env:Envelope>";
+
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            int httpStatus;
+            try {
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                httpStatus = conn.getResponseCode();
+            }
+            
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+            
+            dte.setXmlRespuestaSifen(xmlRespuesta);
+            
+            // Parsear resultado del lote
+            String dCodResLote = extraerEtiqueta(xmlRespuesta, "dCodResLote", "DESCONOCIDO");
+            String dMsgResLote = extraerEtiqueta(xmlRespuesta, "dMsgResLote", "Sin descripcion");
+            
+            logger.info("Resultado Consulta Lote SIFEN: " + dCodResLote + " - " + dMsgResLote);
+            
+            if ("0300".equals(dCodResLote)) {
+                // El lote fue procesado y APROBADO
+                dte.setCodigoEstadoSifen(dCodResLote);
+                dte.setEstado(EstadoDte.APROBADO);
+                dte.setMensajeUsuario("Lote procesado y aprobado: " + dMsgResLote);
+                return true;
+            } else if ("0304".equals(dCodResLote)) {
+                // Lote en proceso (Todavía no terminado)
+                dte.setCodigoEstadoSifen(dCodResLote);
+                dte.setMensajeUsuario("Lote en proceso de verificación por SIFEN. Intente más tarde.");
+                return false;
+            } else {
+                // Rechazado u otro error (ej: 0303 Rechazado, etc)
+                // Se busca el dCodRes dentro de gResProcLote para saber el rechazo exacto del DTE
+                String dCodResDoc = extraerEtiqueta(xmlRespuesta, "dCodRes", dCodResLote);
+                String dMsgResDoc = extraerEtiqueta(xmlRespuesta, "dMsgRes", dMsgResLote);
+                
+                dte.setCodigoEstadoSifen(dCodResDoc);
+                dte.setEstado(EstadoDte.RECHAZADO);
+                dte.setMensajeSifen(dMsgResDoc);
+                dte.setMensajeUsuario("Lote o DTE rechazado: " + dMsgResDoc);
+                return false;
+            }
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error en consulta de lote asíncrona: " + e.getMessage(), e);
+            dte.setMensajeUsuario("Error de red al consultar: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String resolverEndpoint(Ambiente ambiente) {
+        return (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_PROD : ENDPOINT_TEST;
+    }
+
+
+    private String construirSoapEnvelope(DocumentoElectronico dte) {
+        // Extraer el contenido del rDE sin el prólogo XML, preservando cada byte para la firma.
+        String xmlFirmado = dte.getXmlFirmado();
+        String xmlLimpio = xmlFirmado.replaceFirst("<\\?xml.*?\\?>", "").trim();
+
+        // jsifenlib envía dId como un número secuencial o "1".
+        // SIFEN rechaza si se envía un UUID en este campo.
+        String dId = "1";
+
+        // SIFEN v150 REQUIERE que <dId> y <xDE> estén en el namespace vacío (unqualified).
+        // Usamos el namespace por defecto para que los elementos hijos (dId y xDE)
+        // pertenezcan al namespace de SIFEN sin necesidad de prefijos redundantes.
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+               "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+               "<env:Header/>" +
+               "<env:Body>" +
+               "<rEnviDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+               "<dId>" + dId + "</dId>" +
+               "<xDE>" +
+               xmlLimpio +
+               "</xDE>" +
+               "</rEnviDe>" +
+               "</env:Body>" +
+               "</env:Envelope>";
+    }
+
     private SSLContext construirSslContext(DocumentoElectronico dte) throws Exception {
         SSLContext sslContext;
 
@@ -120,11 +373,10 @@ public class SifenSoapClient {
                 && dte.getEmisor().getRutaCertificado() != null
                 && !dte.getEmisor().getRutaCertificado().isBlank()) {
 
-            String ruta     = dte.getEmisor().getRutaCertificado();
+            String ruta = dte.getEmisor().getRutaCertificado();
             String password = dte.getEmisor().getPasswordCertificado();
-            char[] p12Pass  = password != null ? password.toCharArray() : new char[0];
+            char[] p12Pass = password != null ? password.toCharArray() : new char[0];
 
-            // Cargar el P12 como KeyStore del cliente (para autenticación mTLS)
             KeyStore p12Store = KeyStore.getInstance("PKCS12");
             try (FileInputStream fis = new FileInputStream(ruta)) {
                 p12Store.load(fis, p12Pass);
@@ -134,119 +386,98 @@ public class SifenSoapClient {
             kmf.init(p12Store, p12Pass);
 
             sslContext = SSLContext.getInstance("TLSv1.2");
-            // TrustManager que acepta todo para pruebas (evita rechazos por CAs de QA no registradas)
-            TrustManager[] trustAll = new TrustManager[]{
-                new X509TrustManager() {
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
-                }
+            TrustManager[] trustAll = new TrustManager[] {
+                    new X509TrustManager() {
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new java.security.cert.X509Certificate[0];
+                        }
+                    }
             };
             sslContext.init(kmf.getKeyManagers(), trustAll, new java.security.SecureRandom());
-            logger.info("SSLContext mTLS configurado (TrustAll habilitado para Test) con P12: " + ruta);
         } else {
-            // Sin certificado configurado: usar el SSLContext por defecto (sin mTLS)
-            logger.warning("Sin certificado P12 configurado. Usando TLS sin autenticación de cliente.");
             sslContext = SSLContext.getDefault();
         }
 
         return sslContext;
     }
 
-    /**
-     * Abre la conexión HTTPS con el SSLContext provisto.
-     */
-    private HttpsURLConnection abrirConexion(String endpoint, SSLContext sslContext) throws Exception {
+    private HttpsURLConnection abrirConexion(String endpoint, SSLContext sslContext, String action) throws Exception {
         URL url = URI.create(endpoint).toURL();
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-
         conn.setSSLSocketFactory(sslContext.getSocketFactory());
         conn.setConnectTimeout(TIMEOUT_CONEXION);
         conn.setReadTimeout(TIMEOUT_LECTURA);
         conn.setDoOutput(true);
         conn.setRequestMethod("POST");
-        // SIFEN v150 usa SOAP 1.2 -> application/soap+xml
-        conn.setRequestProperty("Content-Type", "application/soap+xml; charset=UTF-8");
-        conn.setRequestProperty("SOAPAction", ""); // En SOAP 1.2 el SOAPAction es opcional o va en el Content-Type
+
+        // SIFEN v150: Content-Type validado contra InventivaFE (usa jsifenlib).
+        // La librería Roshka usa 'application/xml; charset=utf-8' — NO application/soap+xml.
+        // DataPower Gateway acepta ambos, pero 'application/xml' es el que produce aprobaciones.
+        String contentType = "application/xml; charset=utf-8";
+        conn.setRequestProperty("Content-Type", contentType);
+        if (action != null && !action.isEmpty()) {
+            conn.setRequestProperty("SOAPAction", action);
+        }
+        logger.info("Headers enviados a SIFEN -> Content-Type: " + contentType + " | SOAPAction: " + action);
 
         return conn;
     }
 
-    /**
-     * Arma el Envelope SOAP 1.2 que envuelve el XML firmado del DTE.
-     * Conforme a la especificación SIFEN v150.
-     */
-    private String construirSoapEnvelope(String xmlFirmado) {
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-             + "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">\n"
-             + "  <env:Body>\n"
-             + "    <rEnviDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">\n"
-             + "      <dId>1</dId>\n"
-             + "      <xDE>\n"
-             + "        " + xmlFirmado + "\n"
-             + "      </xDE>\n"
-             + "    </rEnviDe>\n"
-             + "  </env:Body>\n"
-             + "</env:Envelope>";
-    }
 
-    /**
-     * Lee la respuesta del InputStream de la conexión HTTPS.
-     */
-    private String leerRespuesta(InputStream is) throws IOException {
-        if (is == null) return "";
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String linea;
-            while ((linea = br.readLine()) != null) {
-                sb.append(linea).append("\n");
+    private String leerRespuesta(HttpURLConnection conn) throws IOException {
+        int responseCode = conn.getResponseCode();
+        InputStream is = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
+
+        StringBuilder sb = new StringBuilder();
+        if (is != null) {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line);
+                }
             }
-            return sb.toString();
         }
+
+        String xml = sb.toString();
+        logger.info("Respuesta cruda de SIFEN [" + responseCode + "]: " + xml);
+
+        if (xml == null || xml.isBlank()) {
+            logger.warning("Respuesta vacía de SIFEN (HTTP " + responseCode + "). Se continúa el flujo.");
+            return "";
+        }
+        return xml;
     }
 
-    /**
-     * Extrae el código de resultado SIFEN (<dCodRes>) del XML de respuesta.
-     * Retorna "DESCONOCIDO" si no puede parsear.
-     */
     private String extraerCodigo(String xml) {
         return extraerEtiqueta(xml, "dCodRes", "DESCONOCIDO");
     }
 
-    /**
-     * Extrae el mensaje de resultado SIFEN (<dMsgRes>) del XML de respuesta.
-     */
     private String extraerMensaje(String xml) {
-        return extraerEtiqueta(xml, "dMsgRes", "Sin descripción");
+        return extraerEtiqueta(xml, "dMsgRes", "Sin descripcion");
     }
 
-    /**
-     * Mapea códigos de respuesta de SIFEN a mensajes amigables para el usuario.
-     */
     private String mapearMensajeAmigable(String cod, String msgOriginal) {
-        if (cod == null) return "No se recibió una respuesta clara de SIFEN. Verifique su conexión o intente nuevamente.";
-        
+        if (cod == null)
+            return "No se recibio una respuesta clara de SIFEN.";
         return switch (cod) {
-            case "0100" -> "Los datos del emisor (RUC/Nombre) no coinciden con los registros de la SET o el certificado digital utilizado.";
-            case "0160" -> "Error técnico de formato (SOAP). El archivo enviado tiene una estructura incorrecta que impide su lectura por SIFEN.";
-            case "0300" -> "¡Documento aprobado exitosamente por la SET!";
-            case "0400" -> "Firma digital inválida. La firma del documento no pudo ser verificada criptográficamente.";
-            case "0401" -> "No se pudo validar el certificado del emisor. Verifique si el certificado está vigente y cargado correctamente.";
-            case "0001" -> "El RUC del emisor no existe o no está registrado como facturador electrónico.";
-            case "0002" -> "Certificado digital revocado o cancelado ante la autoridad certificadora.";
-            case "0010" -> "Timbrado inválido o vencido para el establecimiento y punto de expedición indicados.";
-            case "0020" -> "Duplicado: Ya existe un documento con este mismo número de comprobante (Establecimiento-Punto-Número).";
-            case "0301" -> "RUC del receptor no se encuentra activo según los registros de la SET.";
-            default -> "Respuesta SIFEN (" + cod + "): " + (msgOriginal != null ? msgOriginal : "Sin descripción disponible.");
+            case "0160" ->
+                "Error tecnico de formato (SOAP). El archivo enviado tiene una estructura incorrecta que impide su lectura por SIFEN.";
+            case "0300" -> "Documento aprobado exitosamente!";
+            default -> "Respuesta SIFEN (" + cod + "): " + (msgOriginal != null ? msgOriginal : "Sin descripcion.");
         };
     }
 
-    /**
-     * Extrae el contenido de una etiqueta XML simple del texto provisto.
-     */
     private String extraerEtiqueta(String xml, String etiqueta, String valorPorDefecto) {
-        if (xml == null || xml.isBlank()) return valorPorDefecto;
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("<(?:.*?:)?" + etiqueta + ">(.*?)</(?:.*?:)?" + etiqueta + ">", java.util.regex.Pattern.DOTALL);
+        if (xml == null || xml.isBlank())
+            return valorPorDefecto;
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "<(?:.*?:)?" + etiqueta + ">(.*?)</(?:.*?:)?" + etiqueta + ">", java.util.regex.Pattern.DOTALL);
         java.util.regex.Matcher matcher = pattern.matcher(xml);
         if (matcher.find()) {
             return matcher.group(1).trim();

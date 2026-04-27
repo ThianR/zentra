@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     razon_social VARCHAR(255),
     cod_establecimiento VARCHAR(3),
     punto_expedicion VARCHAR(3),
+    timbrado VARCHAR(8),
     ruta_certificado VARCHAR(255),
     password_certificado VARCHAR(255),
     id_csc VARCHAR(10) DEFAULT '0001',
@@ -32,14 +33,7 @@ CREATE TABLE IF NOT EXISTS documentos_electronicos (
 
 -- Datos de prueba (Seeds)
 
-INSERT INTO empresas (id, ruc, dv, razon_social, cod_establecimiento, punto_expedicion)
-VALUES ('e1', '80000001', '5', 'Zentra Demo Emisor S.A.', '001', '001')
+INSERT INTO empresas (id, ruc, dv, razon_social, cod_establecimiento, punto_expedicion, timbrado, id_csc, valor_csc, ambiente)
+VALUES ('80014603', '80014603', '4', 'REPUESTOS RG S.A.', '001', '001', '16770994', '0001', '73c9BeeA5AFb8fD17a3fD93a32A07A1a', 1)
 ON CONFLICT (ruc) DO NOTHING;
 
-INSERT INTO documentos_electronicos (id, cdc, tipo_documento, estado, emisor_id, numero_comprobante)
-VALUES ('d1', '018000000150010010000001120240319123456781', '01', 'APROBADO', 'e1', '001-001-0000001')
-ON CONFLICT (cdc) DO NOTHING;
-
-INSERT INTO documentos_electronicos (id, cdc, tipo_documento, estado, emisor_id, numero_comprobante)
-VALUES ('d2', '018000000150010010000002120240319123456782', '01', 'RECHAZADO', 'e1', '001-001-0000002')
-ON CONFLICT (cdc) DO NOTHING;

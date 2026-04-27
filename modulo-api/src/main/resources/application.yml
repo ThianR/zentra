@@ -1,22 +1,33 @@
 spring:
+  devtools:
+    restart:
+      enabled: false
   application:
     name: zentra-api
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: jdbc:postgresql://localhost:5432/postgres?useUnicode=true&characterEncoding=UTF-8
     username: postgres
-    password: 'z&ntr@SIF&N'
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   sql:
     init:
       mode: always
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: true
     defer-datasource-initialization: true
     properties:
       hibernate:
         jdbc.time_zone: UTC
+        connection:
+          useUnicode: true
+          characterEncoding: UTF-8
+          CharSet: utf-8
 
 server:
   port: 9090
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true

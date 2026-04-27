@@ -22,21 +22,41 @@ public class DataInitializer {
             if (empresaRepo.count() == 0) {
                 System.out.println("Creando datos de prueba para Zentra...");
                 
-                Empresa demo = new Empresa();
-                demo.setRuc("80000001");
-                demo.setDv("5");
-                demo.setRazonSocial("Zentra Demo Emisor S.A.");
-                demo.setCodEstablecimiento("001");
-                demo.setPuntoExpedicion("001");
-                empresaRepo.save(demo);
+                Empresa rg = new Empresa();
+                rg.setId("80014603");
+                rg.setRuc("80014603");
+                rg.setDv("4");
+                rg.setRazonSocial("RG S.A");
+                rg.setCodEstablecimiento("001");
+                rg.setPuntoExpedicion("001");
+                rg.setDireccion("(ASUNCION) AV. EUSEBIO AYALA 4840 C/GUIDO BOGGIANI");
+                rg.setNumeroCasa("4840");
+                rg.setCodDepartamento(1);
+                rg.setDepartamento("CAPITAL");
+                rg.setCodDistrito(1);
+                rg.setDistrito("ASUNCION (DISTRITO)");
+                rg.setCodCiudad(1);
+                rg.setCiudad("ASUNCION (DISTRITO)");
+                rg.setTelefono("000000000511296");
+                rg.setEmail("fact.electronicargsa@gmail.com");
+                rg.setActividadEconomica("COMERCIO DE PARTES, PIEZAS Y ACCESORIOS NUEVOS PARA VEHICULOS AUTOMOTORES");
+                rg.setTipoContribuyente(2);
+                rg.setRutaCertificado("d:/Personales/SISTEMAS/SIFEN/zentra/context/certificado_para_facturacion.pfx");
+                rg.setPasswordCertificado("77145137");
+                rg.setAmbiente(com.zentra.middleware.core.enums.Ambiente.TEST);
+                rg.setIdCsc("0001");
+                rg.setValorCsc("73c9BeeA5AFb8fD17a3fD93a32A07A1a");
+                empresaRepo.save(rg);
 
+/* 
                 DocumentoElectronico dte = new DocumentoElectronico();
-                dte.setEmisor(demo);
+                dte.setEmisor(rg);
                 dte.setNumeroComprobante("001-001-0000001");
                 dte.setTipoDocumento("1");
-                dte.setCdc("018000000150010010000001120240319123456781");
+                dte.setCdc("01800146034001001167709942024031900000011");
                 dte.setEstado(EstadoDte.APROBADO);
                 dteRepo.save(dte);
+*/
 
                 System.out.println("Inicialización completada.");
             }

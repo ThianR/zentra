@@ -135,26 +135,10 @@ public class RDE {
         this.signature = value;
     }
 
-    /**
-     * Obtiene el valor de la propiedad gCamFuFD.
-     * 
-     * @return
-     *     possible object is
-     *     {@link TgCamFuFD }
-     *     
-     */
     public TgCamFuFD getGCamFuFD() {
         return gCamFuFD;
     }
 
-    /**
-     * Define el valor de la propiedad gCamFuFD.
-     * 
-     * @param value
-     *     allowed object is
-     *     {@link TgCamFuFD }
-     *     
-     */
     public void setGCamFuFD(TgCamFuFD value) {
         this.gCamFuFD = value;
     }

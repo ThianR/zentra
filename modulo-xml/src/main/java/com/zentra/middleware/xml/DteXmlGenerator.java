@@ -1,6 +1,8 @@
 package com.zentra.middleware.xml;
 
+import com.zentra.middleware.core.enums.Ambiente;
 import com.zentra.middleware.core.model.DocumentoElectronico;
+import com.zentra.middleware.core.util.DescripcionTipoTransaccion;
 import com.zentra.middleware.core.util.SifenUtil;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -11,8 +13,9 @@ import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Service;
 
-import java.io.StringWriter;
+import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -54,13 +57,20 @@ public class DteXmlGenerator {
             String nro = partesNro[partesNro.length - 1].replaceAll("[^0-9]", "");
             if (nro.isEmpty()) nro = "0000001";
             
-            String tipoEmis = "1";
             String fechaStr = dte.getFechaCreacion().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String codSeg = String.format("%09d", (int)(Math.random() * 1000000000));
 
-            int ambiente = dte.getAmbiente() != null ? dte.getAmbiente() : 1;
-            String cdc = SifenUtil.generarCdc(tipoDoc, ruc, dv, estab, punto, nro, tipoEmis, fechaStr, codSeg, ambiente);
+            // SIFEN v150: iTipCont (25) e iTipEmi (34) deben coincidir entre CDC y tags XML. 
+            // Forzamos 2 (Jurídica) si el RUC es > 80000000.
+            String iTipCont = (Long.parseLong(ruc.replaceAll("[^0-9]", "0")) > 80000000) ? "2" : "1";
+            String iTipEmi = "1"; // Siempre 1 para Normal, 2 para Contingencia
+
+            // SIFEN v150: generarCdc(tipoDoc, ruc, dv, estab, punto, nro, iTipCont, fecha, iTipEmi, codSeg)
+            String cdc = SifenUtil.generarCdc(tipoDoc, ruc, dv, estab, punto, nro, iTipCont, fechaStr, iTipEmi, codSeg);
             dte.setCdc(cdc);
+
+            // Guardar iTipEmi en el dte para que gOpeDE sea consistente
+            dte.setTipoEmision(Integer.parseInt(iTipEmi));
 
             // 2. Poblar objetos JAXB (Mapeo Exhaustivo)
             RDE rde = factory.createRDE();
@@ -70,32 +80,49 @@ public class DteXmlGenerator {
             de.setId(cdc);
             de.setDDVId(new BigInteger(cdc.substring(43)));
             
-            // Fecha Firma (Conversion de LocalDateTime a XMLGregorianCalendar via ZonedDateTime)
             ZonedDateTime zdt = ZonedDateTime.of(dte.getFechaCreacion(), ZoneId.systemDefault());
             GregorianCalendar gcal = GregorianCalendar.from(zdt);
             XMLGregorianCalendar xmlCal = DatatypeFactory.newInstance().newXMLGregorianCalendar(gcal);
+            xmlCal.setFractionalSecond(null);
+            xmlCal.setTimezone(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
             de.setDFecFirma(xmlCal);
-            de.setDSisFact(1); // Auto-impresor / Propio
+            de.setDSisFact(1);
 
-            // gOpeDE (Operación)
             TgCOpeDE gOpeDE = factory.createTgCOpeDE();
-            gOpeDE.setIAmb(BigInteger.valueOf(ambiente));
-            gOpeDE.setDDesAmb(ambiente == 1 ? "Test" : "Produccion");
-            gOpeDE.setITipEmi(new BigInteger("1")); // Normal
-            gOpeDE.setDDesTipEmi(TdDesTipEmi.NORMAL);
-            gOpeDE.setDCodSeg(new BigInteger(codSeg));
+            int tipEmi = dte.getTipoEmision() != null ? dte.getTipoEmision() : 1;
+            gOpeDE.setITipEmi(BigInteger.valueOf(tipEmi));
+            gOpeDE.setDDesTipEmi(tipEmi == 1 ? TdDesTipEmi.NORMAL : TdDesTipEmi.CONTINGENCIA);
+            gOpeDE.setDCodSeg(codSeg);
             de.setGOpeDE(gOpeDE);
 
-            // gTimb (Timbrado)
             TgDTim gTimb = factory.createTgDTim();
             gTimb.setITiDE(new BigInteger(tipoDoc));
-            // Descripcion segun tipo oficial de SIFEN
             gTimb.setDDesTiDE(mapearTipoDocEnum(tipoDoc)); 
             gTimb.setDNumTim(dte.getTimbrado() != null && !dte.getTimbrado().isEmpty() ? dte.getTimbrado() : "12345678");
             gTimb.setDEst(estab);
             gTimb.setDPunExp(punto);
-            gTimb.setDNumDoc(nro);
-            gTimb.setDFeIniT(xmlCal); // Fecha inicio timbrado
+            gTimb.setDNumDoc(String.format("%07d", Long.parseLong(nro)));
+
+            // CAMBIO v2-2: dFeIniT = fecha de INICIO DEL TIMBRADO (registrada en Marangatu),
+            // NO la fecha de emisión. SIFEN valida que coincida con el timbrado registrado.
+            // InventivaFE aprobado: <dFeIniT>2023-10-30</dFeIniT>
+            // Zentra anterior (rechazado): <dFeIniT>2026-04-25</dFeIniT> (fecha de hoy = error)
+            if (dte.getEmisor().getFechaInicioTimbrado() != null) {
+                GregorianCalendar gcalTimb = new GregorianCalendar();
+                gcalTimb.setTime(java.sql.Date.valueOf(dte.getEmisor().getFechaInicioTimbrado()));
+                XMLGregorianCalendar xmlCalTimb = DatatypeFactory.newInstance().newXMLGregorianCalendar(gcalTimb);
+                // Solo fecha (sin hora) — SIFEN espera formato yyyy-MM-dd
+                xmlCalTimb.setHour(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
+                xmlCalTimb.setMinute(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
+                xmlCalTimb.setSecond(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
+                xmlCalTimb.setMillisecond(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
+                xmlCalTimb.setTimezone(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
+                gTimb.setDFeIniT(xmlCalTimb);
+            } else {
+                // Fallback: si no hay fecha de timbrado en BD, usar la fecha de emisión
+                gTimb.setDFeIniT(xmlCal);
+                logger.warning("ADVERTENCIA: fechaInicioTimbrado no configurada en BD. Usando fecha de emisión como dFeIniT.");
+            }
             de.setGTimb(gTimb);
 
             // gDatGralOpe (Datos Generales)
@@ -103,7 +130,7 @@ public class DteXmlGenerator {
             gDatGralOpe.setDFeEmiDE(xmlCal);
             
             // Documento Asociado if present
-            if (dte.getCdcDocumentoAsociado() != null) {
+            if (dte.getCdcDocumentoAsociado() != null && !dte.getCdcDocumentoAsociado().isEmpty()) {
                 TgCamDEAsoc gCamDEAsoc = factory.createTgCamDEAsoc();
                 gCamDEAsoc.setITipDocAso(BigInteger.valueOf(dte.getTipoDocumentoAsociado() != null ? dte.getTipoDocumentoAsociado() : 1));
                 gCamDEAsoc.setDDesTipDocAso(gCamDEAsoc.getITipDocAso().equals(BigInteger.valueOf(1)) ? TdDesTipDocAso.ELECTRÓNICO : TdDesTipDocAso.IMPRESO);
@@ -117,11 +144,16 @@ public class DteXmlGenerator {
             // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura/Autofactura)
             TgOpeCom gOpeCom = factory.createTgOpeCom();
             // 1 = IVA, 2 = ISC, 3 = Renta, 4 = Ninguno, 5 = IVA-Renta
-            gOpeCom.setITImp(BigInteger.valueOf(1)); 
+            gOpeCom.setITImp(BigInteger.valueOf(1));
             gOpeCom.setDDesTImp(TdDesTImp.IVA);
             gOpeCom.setCMoneOpe(CMondT.PYG);
             gOpeCom.setDDesMoneOpe("Guaraní");
+            // Tipo de transacción: obligatorio en gOpeCom según XSD v150
+            int tipTra = resolverTipoTransaccion(dte);
+            gOpeCom.setITipTra(tipTra);
+            gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
             gDatGralOpe.setGOpeCom(gOpeCom);
+
             
             // Mapeo detallado del Receptor
             gDatGralOpe.setGDatRec(mapearReceptor(dte));
@@ -223,10 +255,11 @@ public class DteXmlGenerator {
                 gTrans.setDNomTrans(t.getNombreTransportista() != null ? t.getNombreTransportista() : "Transportista Mock");
                 gTrans.setDRucTrans(t.getRucTransportista());
                 gTrans.setDDVTrans(t.getDvTransportista() != null ? new BigInteger(t.getDvTransportista()) : null);
-                gTrans.setDNumIDChof(t.getNumeroDocumentoChofer() != null ? t.getNumeroDocumentoChofer() : "1234567");
-                gTrans.setDNomChof(t.getNombreChofer() != null ? t.getNombreChofer() : "Chofer Mock");
+                String numDocChof = (t.getNumeroDocumentoChofer() == null || t.getNumeroDocumentoChofer().trim().isEmpty() || "null".equals(t.getNumeroDocumentoChofer())) ? "1234567" : t.getNumeroDocumentoChofer().trim();
+                gTrans.setDNumIDChof(numDocChof);
+                gTrans.setDNomChof(t.getNombreChofer() != null && !t.getNombreChofer().trim().isEmpty() && !"null".equals(t.getNombreChofer()) ? t.getNombreChofer() : "Chofer Mock");
                 gTrans.setDDomFisc("Domicilio transportista mock");
-                gTrans.setDDirChof(t.getDireccionChofer() != null ? t.getDireccionChofer() : "Dir Chofer Mock");
+                gTrans.setDDirChof(t.getDireccionChofer() != null && !t.getDireccionChofer().trim().isEmpty() && !"null".equals(t.getDireccionChofer()) ? t.getDireccionChofer() : "Dir Chofer Mock");
                 
                 gTranspObj.setGCamTrans(gTrans);
                 gDtipDE.setGTransp(gTranspObj);
@@ -242,7 +275,8 @@ public class DteXmlGenerator {
                 TgPagCont gPagCont = factory.createTgPagCont();
                 gPagCont.setITiPago(BigInteger.valueOf(1)); // Efectivo
                 gPagCont.setDDesTiPag("Efectivo");
-                gPagCont.setDMonTiPag(BigDecimal.valueOf(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
+                // En PYG los montos deben ser enteros sin decimales (norma SIFEN v150)
+                gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
                 gPagCont.setCMoneTiPag(CMondT.PYG);
                 gPagCont.setDDMoneTiPag("Guaraní");
                 gCamCond.getGPaConEIni().add(gPagCont);
@@ -295,34 +329,40 @@ public class DteXmlGenerator {
 
             // gTotSub (Totales)
             TgTotSub gTotSub = factory.createTgTotSub();
-            gTotSub.setDSubExe(totalExenta);
-            gTotSub.setDSub5(totalGravas5);
-            gTotSub.setDSub10(totalGravas10);
+            gTotSub.setDSubExe(entero(totalExenta));
+            // CAMBIO v2-4: dSubExo requerido por InventivaFE (siempre 0 para ventas normales)
+            gTotSub.setDSubExo(BigDecimal.ZERO);
+            gTotSub.setDSub5(entero(totalGravas5));
+            gTotSub.setDSub10(entero(totalGravas10));
             
             BigDecimal totOpeSinDescGlobal = totalExenta.add(totalGravas5).add(totalGravas10);
             BigDecimal descGlobal = BigDecimal.valueOf(dte.getDescuentoGlobal() != null ? dte.getDescuentoGlobal() : 0.0);
             BigDecimal porcDescGlobal = BigDecimal.valueOf(dte.getPorcentajeDescuentoGlobal() != null ? dte.getPorcentajeDescuentoGlobal() : 0.0);
             
-            gTotSub.setDTotOpe(totOpeSinDescGlobal);
-            gTotSub.setDTotDesc(totalDescuentoItems); // Descuentos por ítem
+            gTotSub.setDTotOpe(entero(totOpeSinDescGlobal));
+            gTotSub.setDTotDesc(entero(totalDescuentoItems));
             gTotSub.setDTotDescGlotem(BigDecimal.ZERO);
             gTotSub.setDTotAntItem(BigDecimal.ZERO);
             gTotSub.setDTotAnt(BigDecimal.ZERO);
-            gTotSub.setDPorcDescTotal(porcDescGlobal);
-            gTotSub.setDDescTotal(descGlobal);
+            gTotSub.setDPorcDescTotal(porcDescGlobal.setScale(0, RoundingMode.HALF_UP));
+            gTotSub.setDDescTotal(entero(descGlobal));
             gTotSub.setDAnticipo(BigDecimal.ZERO);
             gTotSub.setDRedon(BigDecimal.ZERO);
+            // CAMBIO v2-4: dComi requerido por InventivaFE (comisión = 0 para ventas directas)
+            gTotSub.setDComi(BigDecimal.ZERO);
             
             BigDecimal totGralOpe = totOpeSinDescGlobal.subtract(descGlobal);
-            gTotSub.setDTotGralOpe(totGralOpe);
+            gTotSub.setDTotGralOpe(entero(totGralOpe));
             
             BigDecimal totIva = totalIva10.add(totalIva5);
 
-            gTotSub.setDIVA5(totalIva5);
-            gTotSub.setDIVA10(totalIva10);
-            gTotSub.setDLiqTotIVA5(totalIva5);
-            gTotSub.setDLiqTotIVA10(totalIva10);
-            gTotSub.setDTotIVA(totIva);
+            gTotSub.setDIVA5(entero(totalIva5));
+            gTotSub.setDIVA10(entero(totalIva10));
+            gTotSub.setDLiqTotIVA5(entero(totalIva5));
+            gTotSub.setDLiqTotIVA10(entero(totalIva10));
+            // CAMBIO v2-4: dIVAComi requerido por InventivaFE (IVA comisión = 0)
+            gTotSub.setDIVAComi(BigDecimal.ZERO);
+            gTotSub.setDTotIVA(entero(totIva));
             
             // Cálculos oficiales de bases imponibles según SIFEN (monto / 1.1 o 1.05)
             BigDecimal base5 = totalGravas5.compareTo(BigDecimal.ZERO) > 0 ? 
@@ -332,22 +372,44 @@ public class DteXmlGenerator {
             
             gTotSub.setDBaseGrav5(base5);
             gTotSub.setDBaseGrav10(base10);
-            gTotSub.setDTBasGraIVA(base5.add(base10));
-            gTotSub.setDTotalGs(totGralOpe);
+            gTotSub.setDTBasGraIVA(entero(base5.add(base10)));
             
             de.setGTotSub(gTotSub);
 
-            rde.setDE(de);
-            rde.setGCamFuFD(factory.createTgCamFuFD());
+            // CAMBIO v2-5: gCamGen — nodo vacío requerido por InventivaFE aprobado en producción.
+            // El XSD lo define como minOccurs="0" pero InventivaFE siempre lo incluye como <gCamGen/>.
+            de.setGCamGen(factory.createTgCamGen());
 
-            // 3. Marshalling a String con configuración para evitar prefijos ns2
+            // Propagar los totales calculados al modelo DTE.
+            // El firmador (XmlSignerService) los necesita para construir la URL del QR.
+            dte.setTotalIva(totIva.doubleValue());
+            dte.setTotalOperacion(totGralOpe.doubleValue());
+
+            rde.setDE(de);
+
+            // 3. Marshalling a ByteArrayOutputStream con encoding UTF-8 explícito
+            // Se usa BAOS en lugar de StringWriter para garantizar que el XML
+            // declare correctamente <?xml ... encoding="UTF-8"?> sin corrupción.
             Marshaller marshaller = jaxbContext.createMarshaller();
-            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
-            marshaller.setProperty(Marshaller.JAXB_SCHEMA_LOCATION, "http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd");
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.FALSE);
+            marshaller.setProperty(Marshaller.JAXB_ENCODING, "UTF-8");
+            marshaller.setProperty(Marshaller.JAXB_SCHEMA_LOCATION,
+                "http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            marshaller.marshal(factory.createRDE(rde), baos);
+            String xmlGenerated = baos.toString(StandardCharsets.UTF_8);
             
-            StringWriter sw = new StringWriter();
-            marshaller.marshal(factory.createRDE(rde), sw);
-            String xmlGenerated = sw.toString();
+            // 2. LIMPIEZA CRÍTICA PARA DATAPOWER/SIFEN v150
+            // Eliminar cualquier namespace ns2 que JAXB pueda inyectar por la firma.
+            xmlGenerated = xmlGenerated.replace(" xmlns:ns2=\"http://www.w3.org/2000/09/xmldsig#\"", "");
+
+            // Reemplazar la etiqueta raíz para inyectar schemaLocation SIN perder el xmlns default de JAXB.
+            // JAXB genera: <rDE xmlns="http://ekuatia.set.gov.py/sifen/xsd">
+            xmlGenerated = xmlGenerated.replaceFirst("<rDE\\s+xmlns=\"http://ekuatia\\.set\\.gov\\.py/sifen/xsd\">",
+                "<rDE xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\" " +
+                "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" " +
+                "xsi:schemaLocation=\"http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd\">");
+
             dte.setXmlGenerado(xmlGenerated);
             return xmlGenerated;
 
@@ -373,7 +435,14 @@ public class DteXmlGenerator {
             logger.warning("Nombre de departamento no reconocido por SIFEN: " + depto + ". Usando CAPITAL.");
             gEmis.setDDesDepEmi(TDesDepartamento.CAPITAL);
         }
-        gEmis.setCDisEmi(null); // Opcional
+        // CAMBIO v2-3: cDisEmi y dDesDisEmi — obligatorios cuando cDepEmi está presente.
+        // InventivaFE aprobado: <cDisEmi>1</cDisEmi><dDesDisEmi>ASUNCION (DISTRITO)</dDesDisEmi>
+        int codDistrito = (emisor.getCodDistrito() != null && emisor.getCodDistrito() > 0)
+            ? emisor.getCodDistrito() : 1;
+        gEmis.setCDisEmi(BigInteger.valueOf(codDistrito));
+        String desDistrito = (emisor.getDistrito() != null && !emisor.getDistrito().isBlank())
+            ? emisor.getDistrito() : "ASUNCION (DISTRITO)";
+        gEmis.setDDesDisEmi(desDistrito);
         
         gEmis.setCCiuEmi(emisor.getCodCiudad() != null ? emisor.getCodCiudad() : 1);
         gEmis.setDDesCiuEmi(emisor.getCiudad() != null ? emisor.getCiudad() : "ASUNCION");
@@ -381,10 +450,27 @@ public class DteXmlGenerator {
         gEmis.setDTelEmi(emisor.getTelefono() != null ? emisor.getTelefono() : "021000000");
         gEmis.setDEmailE(emisor.getEmail() != null ? emisor.getEmail() : "emisor@example.com");
 
-        // Actividad Económica (Requerido al menos 1 por SIFEN)
+        // PLAN 4: Actividad Económica tomada del emisor (BD) en lugar de valor mock hardcodeado.
+        // La BD tiene el código real registrado en Marangatu para RUC 80014603-4.
         TgActEco gActEco = factory.createTgActEco();
-        gActEco.setCActEco("62010"); // Consultoría informática (String en el esquema)
-        gActEco.setDDesActEco("Consultoría informática");
+        String actEco = (emisor.getActividadEconomica() != null && !emisor.getActividadEconomica().isBlank())
+            ? emisor.getActividadEconomica()
+            : "45301";
+        // Si el campo tiene formato "codigo|descripcion" o es sólo el código numérico,
+        // separar; si no tiene pipe, usarlo como descripción y derivar código genérico.
+        if (actEco.matches("^\\d+$")) {
+            // Solo código numérico
+            gActEco.setCActEco(actEco);
+            gActEco.setDDesActEco("Actividad económica registrada en SET");
+        } else if (actEco.contains("|")) {
+            String[] partes = actEco.split("\\|", 2);
+            gActEco.setCActEco(partes[0].trim());
+            gActEco.setDDesActEco(partes[1].trim());
+        } else {
+            // Es una descripción libre — usar código genérico hasta tener el real en BD
+            gActEco.setCActEco("45301");
+            gActEco.setDDesActEco(actEco);
+        }
         gEmis.getGActEco().add(gActEco);
 
         return gEmis;
@@ -399,9 +485,11 @@ public class DteXmlGenerator {
         if (rucReceptor != null && rucReceptor.length() > 0 && !rucReceptor.equals("Varios")) {
             // Si el RUC tiene DV (contiene guion o el dte.tipoReceptor dice que es contribuyente)
             if (rucReceptor.contains("-") || (dte.getTipoReceptor() != null && dte.getTipoReceptor() == 1)) {
-                String rucSolo = rucReceptor.split("-")[0];
-                String dvRec = rucReceptor.contains("-") ? rucReceptor.split("-")[1] : "0";
+                String rucSolo = rucReceptor.split("-")[0].trim();
+                String dvRec = rucReceptor.contains("-") && rucReceptor.split("-").length > 1 ? rucReceptor.split("-")[1].trim() : "0";
                 
+                if (rucSolo.isEmpty()) rucSolo = "0";
+
                 gDatRec.setINatRec(BigInteger.valueOf(1)); // Contribuyente
                 gDatRec.setITiContRec(BigInteger.valueOf(2)); // Persona Jurídica (Generalmente se asume si es RUC)
                 gDatRec.setDRucRec(rucSolo);
@@ -411,7 +499,9 @@ public class DteXmlGenerator {
                 gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
                 gDatRec.setITipIDRec(BigInteger.valueOf(1)); // Cédula de Identidad Parche
                 gDatRec.setDDTipIDRec("Cédula de identidad");
-                gDatRec.setDNumIDRec(rucReceptor);
+                
+                String numId = (rucReceptor == null || rucReceptor.trim().isEmpty() || "null".equals(rucReceptor)) ? "0" : rucReceptor.trim();
+                gDatRec.setDNumIDRec(numId);
                 gDatRec.setDNomRec(razonSocial);
             }
         } else {
@@ -446,13 +536,14 @@ public class DteXmlGenerator {
         item.setDCantProSer(BigDecimal.valueOf(it.getCantidad()));
         
         TgValorItem v = factory.createTgValorItem();
-        v.setDPUniProSer(BigDecimal.valueOf(it.getPrecioUnitario()));
-        v.setDTotBruOpeItem(BigDecimal.valueOf(it.getPrecioUnitario() * it.getCantidad()));
+        // Montos en PYG: sin decimales según norma SIFEN v150
+        v.setDPUniProSer(entero(it.getPrecioUnitario()));
+        v.setDTotBruOpeItem(entero(it.getPrecioUnitario() * it.getCantidad()));
         
         TgValorRestaItem r = factory.createTgValorRestaItem();
         BigDecimal descIt = BigDecimal.valueOf(it.getMontoDescuento() != null ? it.getMontoDescuento() : 0.0);
-        r.setDDescItem(descIt);
-        r.setDTotOpeItem(BigDecimal.valueOf(it.getMontoTotalItem()));
+        r.setDDescItem(entero(descIt));
+        r.setDTotOpeItem(entero(it.getMontoTotalItem()));
         v.setGValorRestaItem(r);
         item.setGValorItem(v);
         
@@ -462,19 +553,21 @@ public class DteXmlGenerator {
         if (tasa > 0) {
             iva.setIAfecIVA(BigInteger.valueOf(1)); // Gravado
             iva.setDDesAfecIVA(TdDesAfecIVA.GRAVADO_IVA);
-            iva.setDBasGravIVA(BigDecimal.valueOf(it.getMontoTotalItem()).divide(
-                tasa == 10.0 ? BigDecimal.valueOf(1.1) : BigDecimal.valueOf(1.05), 
-                2, RoundingMode.HALF_UP));
+            // Base gravada sin decimales: monto / (1 + tasa%)
+            BigDecimal baseGrav = BigDecimal.valueOf(it.getMontoTotalItem()).divide(
+                tasa == 10.0 ? BigDecimal.valueOf(1.1) : BigDecimal.valueOf(1.05),
+                0, RoundingMode.HALF_UP);
+            iva.setDBasGravIVA(baseGrav);
             iva.setDBasExe(BigDecimal.ZERO);
         } else {
             iva.setIAfecIVA(BigInteger.valueOf(3)); // Exento/No grabado
             iva.setDDesAfecIVA(TdDesAfecIVA.EXENTO);
             iva.setDBasGravIVA(BigDecimal.ZERO);
-            iva.setDBasExe(BigDecimal.valueOf(it.getMontoTotalItem()));
+            iva.setDBasExe(entero(it.getMontoTotalItem()));
         }
         iva.setDPropIVA(BigDecimal.valueOf(100));
         iva.setDTasaIVA(BigInteger.valueOf((long)tasa));
-        iva.setDLiqIVAItem(BigDecimal.valueOf(it.getMontoIvaItem() != null ? it.getMontoIvaItem() : 0.0));
+        iva.setDLiqIVAItem(entero(it.getMontoIvaItem() != null ? it.getMontoIvaItem() : 0.0));
         item.setGCamIVA(iva);
         
         return item;
@@ -496,12 +589,12 @@ public class DteXmlGenerator {
 
     private TdDesTiDE mapearTipoDocEnum(String tipo) {
         return switch (tipo) {
-            case "1" -> TdDesTiDE.FACTURA_ELECTRÓNICA;
-            case "4" -> TdDesTiDE.AUTOFACTURA_ELECTRÓNICA;
-            case "5" -> TdDesTiDE.NOTA_DE_CRÉDITO_ELECTRÓNICA;
-            case "6" -> TdDesTiDE.NOTA_DE_DÉBITO_ELECTRÓNICA;
-            case "7" -> TdDesTiDE.NOTA_DE_REMISIÓN_ELECTRÓNICA;
-            default -> TdDesTiDE.FACTURA_ELECTRÓNICA;
+            case "1" -> TdDesTiDE.FACTURA_ELECTRONICA;
+            case "4" -> TdDesTiDE.AUTOFACTURA_ELECTRONICA;
+            case "5" -> TdDesTiDE.NOTA_DE_CREDITO_ELECTRONICA;
+            case "6" -> TdDesTiDE.NOTA_DE_DEBITO_ELECTRONICA;
+            case "7" -> TdDesTiDE.NOTA_DE_REMISION_ELECTRONICA;
+            default -> TdDesTiDE.FACTURA_ELECTRONICA;
         };
     }
 
@@ -515,12 +608,12 @@ public class DteXmlGenerator {
         }
         // Nota de Crédito (Tipo 5)
         return switch (cod) {
-            case 1 -> TdDesMotEmi.DEVOLUCIÓN_Y_AJUSTE_DE_PRECIOS;
-            case 2 -> TdDesMotEmi.DEVOLUCIÓN;
+            case 1 -> TdDesMotEmi.DEVOLUCION_Y_AJUSTE_DE_PRECIOS;
+            case 2 -> TdDesMotEmi.DEVOLUCION;
             case 3 -> TdDesMotEmi.DESCUENTO;
-            case 4 -> TdDesMotEmi.BONIFICACIÓN;
-            case 5 -> TdDesMotEmi.CRÉDITO_INCOBRABLE;
-            default -> TdDesMotEmi.DEVOLUCIÓN_Y_AJUSTE_DE_PRECIOS;
+            case 4 -> TdDesMotEmi.BONIFICACION;
+            case 5 -> TdDesMotEmi.CREDITO_INCOBRABLE;
+            default -> TdDesMotEmi.DEVOLUCION_Y_AJUSTE_DE_PRECIOS;
         };
     }
 
@@ -533,5 +626,33 @@ public class DteXmlGenerator {
             case 5 -> "Traslado por exportación";
             default -> "Traslado";
         };
+    }
+
+    /**
+     * Determina el tipo de transacción SIFEN según el DTE.
+     * Si el DTE especifica el tipo explícitamente, se usa ese valor.
+     * Si no, asume 1 (Venta de mercadería) por defecto.
+     */
+    private int resolverTipoTransaccion(DocumentoElectronico dte) {
+        if (dte.getTipoTransaccion() != null) {
+            return dte.getTipoTransaccion();
+        }
+        return 1; // Solo mercadería (default)
+    }
+
+    /**
+     * Convierte un valor double a BigDecimal sin decimales (escala 0).
+     * Obligatorio para montos en PYG según norma SIFEN v150.
+     */
+    private BigDecimal entero(double valor) {
+        return BigDecimal.valueOf(Math.round(valor));
+    }
+
+    /**
+     * Convierte un BigDecimal a escala 0 sin decimales.
+     * Retorna ZERO si el valor es nulo.
+     */
+    private BigDecimal entero(BigDecimal valor) {
+        return valor == null ? BigDecimal.ZERO : valor.setScale(0, RoundingMode.HALF_UP);
     }
 }

@@ -101,7 +101,7 @@ public class TgTotSub {
     protected BigDecimal dTotOpe;
     @XmlElement(required = true)
     protected BigDecimal dTotDesc;
-    @XmlElement(required = true)
+    @XmlElement(name = "dTotDescGlotem", namespace = "http://ekuatia.set.gov.py/sifen/xsd", required = true)
     protected BigDecimal dTotDescGlotem;
     @XmlElement(required = true)
     protected BigDecimal dTotAntItem;
@@ -126,11 +126,13 @@ public class TgTotSub {
     protected BigDecimal dLiqTotIVA10;
     @XmlElement(name = "dIVAComi")
     protected BigDecimal divaComi;
+    @XmlElement(required = true)
     protected BigDecimal dTotIVA;
     protected BigDecimal dBaseGrav5;
     protected BigDecimal dBaseGrav10;
-    @XmlElement(name = "dTBasGraIVA")
+    @XmlElement(name = "dTBasGraIVA", required = true)
     protected BigDecimal dtBasGraIVA;
+    @XmlElement(required = true)
     protected BigDecimal dTotalGs;
 
     /**

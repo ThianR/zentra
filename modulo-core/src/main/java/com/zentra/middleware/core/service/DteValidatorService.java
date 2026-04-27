@@ -129,8 +129,8 @@ public class DteValidatorService {
         // RUC: máx 8 dígitos numéricos
         if (isBlank(emisor.getRuc())) {
             r.agregar("EMISOR: El RUC del emisor es obligatorio.");
-        } else if (!emisor.getRuc().matches("[0-9]{1,8}")) {
-            r.agregar("EMISOR: El RUC del emisor debe ser numérico de hasta 8 dígitos. Recibido: '" + emisor.getRuc() + "'.");
+        } else if (!emisor.getRuc().matches("[0-9\\-]+")) {
+            r.agregar("EMISOR: El RUC del emisor debe ser numérico (puede incluir guion). Recibido: '" + emisor.getRuc() + "'.");
         }
 
         // DV: 1 carácter
@@ -196,8 +196,8 @@ public class DteValidatorService {
         // RUC del receptor
         String rucRecepr = dte.getRucReceptor();
         if (!isBlank(rucRecepr) && !rucRecepr.equalsIgnoreCase("Varios")) {
-            if (!rucRecepr.matches("[0-9]{1,8}")) {
-                r.agregar("RECEPTOR: El RUC del receptor debe ser numérico de hasta 8 dígitos. Recibido: '" + rucRecepr + "'.");
+            if (!rucRecepr.matches("[0-9\\-]+")) {
+                r.agregar("RECEPTOR: El RUC del receptor debe ser numérico (puede incluir guion). Recibido: '" + rucRecepr + "'.");
             }
         }
 

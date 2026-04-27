@@ -1,8 +1,12 @@
 package com.zentra.middleware.core.model;
 
+import com.zentra.middleware.core.enums.Ambiente;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Convert;
 import java.util.UUID;
 
 @Entity
@@ -18,6 +22,8 @@ public class Empresa {
     
     private String codEstablecimiento; // Ej: 001
     private String puntoExpedicion;      // Ej: 001
+    private String timbrado; // Timbrado asignado por la SET
+    private java.time.LocalDate fechaInicioTimbrado; // Fecha de inicio de vigencia del timbrado
     
     // Datos de Localización SIFEN
     private String direccion;
@@ -44,7 +50,8 @@ public class Empresa {
     // SIFEN: Seguridad, KuDE y Autenticación (Plan B Multi-Tenant)
     private String idCsc = "0001";
     private String valorCsc;
-    private Integer ambiente = 2; // 1: Producción, 2: Test
+    @Convert(converter = com.zentra.middleware.core.converter.AmbienteConverter.class)
+    private Ambiente ambiente = Ambiente.TEST;
     
     @jakarta.persistence.Lob
     private byte[] certificadoFisico; // Archivo P12/PFX almacenado internamente
@@ -70,6 +77,11 @@ public class Empresa {
     public void setCodEstablecimiento(String codEstablecimiento) { this.codEstablecimiento = codEstablecimiento; }
     public String getPuntoExpedicion() { return puntoExpedicion; }
     public void setPuntoExpedicion(String puntoExpedicion) { this.puntoExpedicion = puntoExpedicion; }
+    public String getTimbrado() { return timbrado; }
+    public void setTimbrado(String timbrado) { this.timbrado = timbrado; }
+
+    public java.time.LocalDate getFechaInicioTimbrado() { return fechaInicioTimbrado; }
+    public void setFechaInicioTimbrado(java.time.LocalDate fechaInicioTimbrado) { this.fechaInicioTimbrado = fechaInicioTimbrado; }
 
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
@@ -105,8 +117,8 @@ public class Empresa {
     public void setIdCsc(String idCsc) { this.idCsc = idCsc; }
     public String getValorCsc() { return valorCsc; }
     public void setValorCsc(String valorCsc) { this.valorCsc = valorCsc; }
-    public Integer getAmbiente() { return ambiente; }
-    public void setAmbiente(Integer ambiente) { this.ambiente = ambiente; }
+    public Ambiente getAmbiente() { return ambiente; }
+    public void setAmbiente(Ambiente ambiente) { this.ambiente = ambiente; }
     public byte[] getCertificadoFisico() { return certificadoFisico; }
     public void setCertificadoFisico(byte[] certificadoFisico) { this.certificadoFisico = certificadoFisico; }
     public java.time.LocalDate getFechaVencimientoCertificado() { return fechaVencimientoCertificado; }

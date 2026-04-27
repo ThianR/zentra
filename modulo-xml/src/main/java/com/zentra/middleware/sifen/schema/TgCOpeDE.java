@@ -45,8 +45,6 @@ import jakarta.xml.bind.annotation.XmlType;
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "tgCOpeDE", propOrder = {
-    "iAmb",
-    "dDesAmb",
     "iTipEmi",
     "dDesTipEmi",
     "dCodSeg",
@@ -56,17 +54,13 @@ import jakarta.xml.bind.annotation.XmlType;
 public class TgCOpeDE {
 
     @XmlElement(required = true)
-    protected BigInteger iAmb;
-    @XmlElement(required = true)
-    protected String dDesAmb;
-    @XmlElement(required = true)
     @XmlSchemaType(name = "positiveInteger")
     protected BigInteger iTipEmi;
     @XmlElement(required = true)
     @XmlSchemaType(name = "string")
     protected TdDesTipEmi dDesTipEmi;
     @XmlElement(required = true)
-    protected BigInteger dCodSeg;
+    protected String dCodSeg;
     protected String dInfoEmi;
     protected String dInfoFisc;
 
@@ -123,10 +117,10 @@ public class TgCOpeDE {
      * 
      * @return
      *     possible object is
-     *     {@link BigInteger }
+     *     {@link String }
      *     
      */
-    public BigInteger getDCodSeg() {
+    public String getDCodSeg() {
         return dCodSeg;
     }
 
@@ -135,10 +129,10 @@ public class TgCOpeDE {
      * 
      * @param value
      *     allowed object is
-     *     {@link BigInteger }
+     *     {@link String }
      *     
      */
-    public void setDCodSeg(BigInteger value) {
+    public void setDCodSeg(String value) {
         this.dCodSeg = value;
     }
 
@@ -177,13 +171,7 @@ public class TgCOpeDE {
     public String getDInfoFisc() {
         return dInfoFisc;
     }
-
     public void setDInfoFisc(String value) {
         this.dInfoFisc = value;
     }
-
-    public BigInteger getIAmb() { return iAmb; }
-    public void setIAmb(BigInteger value) { this.iAmb = value; }
-    public String getDDesAmb() { return dDesAmb; }
-    public void setDDesAmb(String value) { this.dDesAmb = value; }
 }
