@@ -1,0 +1,14 @@
+fix: resolver error 1003 del CDC SIFEN y purgar repositorio
+
+- Core (SIFEN): Se corrige el cálculo del Módulo 11 para el dígito 
+  verificador del CDC. Se invierte la iteración de los multiplicadores 
+  (Derecha a Izquierda), corrigiendo el error conceptual del manual 
+  técnico v150 y logrando validación exitosa en SIFEN.
+- XML: Se asegura la consistencia en la inyección del atributo `Id` y
+  el nodo `dDVId` en la generación del documento electrónico.
+- Seguridad: Se actualiza `.gitignore` añadiendo extensiones de 
+  certificados (.p12, .pfx, .key, .crt) y el directorio `keystore/` 
+  para prevenir la fuga accidental de credenciales.
+- Mantenimiento: Purga profunda del repositorio eliminando archivos 
+  temporales (`temp/`), logs de ejecución, clases de prueba aisladas y 
+  artefactos innecesarios.

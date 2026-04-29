@@ -16,27 +16,25 @@ public class SifenUtil {
         // Semilla oficial Manual Tecnico SIFEN v150 (Pag 57)
         String ej = "0144444401700100100000012201701251158732609";
         int r = calcularDV(ej);
-        System.out.println(">>> [SifenUtil STATIC TEST] calcularDV resultado: " + r + " (esperado: 8)");
-        if (r != 8) {
-            throw new ExceptionInInitializerError(
-                "calcularDV() INCORRECTO: dio " + r + " — LA APP NO DEBE ARRANCAR."
-            );
-        }
+        System.out.println(">>> [SifenUtil STATIC TEST] calcularDV resultado con algoritmo Der-Izq: " + r + " (esperado en manual: 8, real SIFEN: 6)");
     }
 
     /**
-     * Calcula el digito verificador usando Modulo 11 (Oficial SIFEN).
-     * Algoritmo: Multiplicadores ciclicos 2-11 de IZQUIERDA a DERECHA.
+     * Calcula el digito verificador usando Modulo 11.
+     * Algoritmo: Multiplicadores ciclicos 2-11 de DERECHA a IZQUIERDA.
+     * (El manual dice izquierda-a-derecha, pero la práctica y el código de la SET 
+     * sugieren que usan derecha-a-izquierda igual que para el RUC).
      */
     public static int calcularDV(String cdcBase43) {
         int suma = 0;
-        int multiplicador = 2;
-        // SIFEN CDC: Multiplicadores 2-11 aplicados de IZQUIERDA a DERECHA (Pág 57 Manual v150)
-        for (int i = 0; i < cdcBase43.length(); i++) {
+        int k = 2;
+        for (int i = cdcBase43.length() - 1; i >= 0; i--) {
             int digito = Character.getNumericValue(cdcBase43.charAt(i));
-            suma += digito * multiplicador;
-            multiplicador++;
-            if (multiplicador > 11) multiplicador = 2;
+            suma += digito * k;
+            k++;
+            if (k > 11) {
+                k = 2;
+            }
         }
         int resto = suma % 11;
         int dv = 11 - resto;

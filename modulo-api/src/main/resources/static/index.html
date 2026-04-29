@@ -132,7 +132,7 @@
                                     <th>Receptor</th>
                                     <th>Monto Total</th>
                                     <th>Estado SIFEN</th>
-                                    <th>Acciones</th>
+                                    <th style="min-width:160px">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="tbodyDocumentos">
@@ -513,7 +513,63 @@
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <script src="js/app.js?v=1.5.0"></script>
+    <!-- Modal: Detalle del Documento SIFEN -->
+    <div id="modalDetalleDte" class="modal-overlay" style="display:none;" onclick="cerrarModalDetalle(event)">
+        <div class="modal-card glass" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-invoice"></i> Detalle del Documento</h3>
+                <button class="btn-icon-only" onclick="cerrarModalDetalle()" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">Estado SIFEN</span>
+                        <span id="mdEstado" class="detail-value"></span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Código SIFEN</span>
+                        <span id="mdCodigo" class="detail-value mono"></span>
+                    </div>
+                    <div class="detail-item span-2">
+                        <span class="detail-label">Ticket / Protocolo de Lote</span>
+                        <span id="mdTicket" class="detail-value mono"></span>
+                    </div>
+                    <div class="detail-item span-2">
+                        <span class="detail-label">CDC (44 dígitos)</span>
+                        <span id="mdCdc" class="detail-value mono small-text"></span>
+                    </div>
+                    <div class="detail-item span-2">
+                        <span class="detail-label">Mensaje SIFEN</span>
+                        <span id="mdMensajeSifen" class="detail-value"></span>
+                    </div>
+                    <div class="detail-item span-2">
+                        <span class="detail-label">Mensaje de Usuario</span>
+                        <span id="mdMensajeUsuario" class="detail-value"></span>
+                    </div>
+                </div>
+                <div id="mdRespuestaRaw" class="raw-xml-box" style="display:none;">
+                    <strong>Respuesta XML SIFEN:</strong>
+                    <pre id="mdRespuestaXml"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="mdBtnConsultar" class="btn btn-primary" style="display:none;"
+                    onclick="consultarLoteSifenModal()">
+                    <i class="fas fa-sync-alt"></i> Consultar Estado en SIFEN
+                </button>
+                <button class="btn btn-outline" onclick="toggleRawXml()">
+                    <i class="fas fa-code"></i> Ver XML
+                </button>
+                <button class="btn btn-outline" onclick="cerrarModalDetalle()">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js?v=1.5.1"></script>
 </body>
 
 </html>

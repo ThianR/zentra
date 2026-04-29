@@ -178,17 +178,32 @@ public class SifenSoapClient {
             HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siRecepLoteDE");
 
             // Comprimir XML en ZIP y luego a Base64
+            // SIFEN v150 requiere que el XML dentro del ZIP tenga como raíz <rLoteDE>
             String xmlLimpio = dte.getXmlFirmado().replaceFirst("<\\?xml.*?\\?>", "").trim();
+            String xmlLote = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                             "<rLoteDE xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">\n" +
+                             xmlLimpio + "\n" +
+                             "</rLoteDE>";
+
+            // Diagnóstico: guardar el XML completo del lote ANTES de comprimir
+            // para verificar que los campos del XML coincidan con el CDC generado
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_xml_lote.xml"), xmlLote, StandardCharsets.UTF_8);
+                logger.info("XML del lote guardado en temp/DEBUG_xml_lote.xml para diagnóstico CDC");
+            } catch (Exception ignored) {}
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
                 java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry(dte.getCdc() + ".xml");
                 zos.putNextEntry(entry);
-                zos.write(xmlLimpio.getBytes(StandardCharsets.UTF_8));
+                zos.write(xmlLote.getBytes(StandardCharsets.UTF_8));
                 zos.closeEntry();
             }
             String base64Zip = java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
 
-            String dId = (dte.getId() != null) ? String.valueOf(dte.getId()) : "1";
+            String dId = "1"; // SIFEN requiere ID numérico para el lote, no un UUID
             String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                               "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
                               "<env:Header/>" +
@@ -228,16 +243,16 @@ public class SifenSoapClient {
             
             // 0300 significa lote recibido exitosamente
             if ("0300".equals(codRes)) {
-                String dNumTic = extraerEtiqueta(xmlRespuesta, "dNumTic", null);
-                if (dNumTic != null) {
-                    dte.setNumeroTicketLote(dNumTic);
+                String dProtConsLote = extraerEtiqueta(xmlRespuesta, "dProtConsLote", null);
+                if (dProtConsLote != null) {
+                    dte.setNumeroTicketLote(dProtConsLote);
                     dte.setEstado(EstadoDte.EN_PROCESO);
-                    dte.setMensajeUsuario("Lote recibido por SIFEN. Ticket: " + dNumTic);
-                    logger.info("Lote aceptado. Ticket: " + dNumTic);
+                    dte.setMensajeUsuario("Lote recibido por SIFEN. Ticket: " + dProtConsLote);
+                    logger.info("Lote aceptado. Ticket: " + dProtConsLote);
                     return true;
                 } else {
                     dte.setEstado(EstadoDte.ERROR_ENVIO);
-                    dte.setMensajeUsuario("SIFEN aceptó el lote pero no devolvió el número de Ticket.");
+                    dte.setMensajeUsuario("SIFEN aceptó el lote pero no devolvió el número de Ticket (dProtConsLote).");
                     return false;
                 }
             } else {
@@ -268,17 +283,23 @@ public class SifenSoapClient {
             SSLContext sslContext = construirSslContext(dte);
             HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siConsLoteDE");
 
-            String dId = (dte.getId() != null) ? String.valueOf(dte.getId()) : "1";
+            String dId = "1"; // SIFEN requiere numérico
             String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                               "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
                               "<env:Header/>" +
                               "<env:Body>" +
                               "<rEnviConsLoteDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
                               "<dId>" + dId + "</dId>" +
-                              "<dNumTic>" + dte.getNumeroTicketLote() + "</dNumTic>" +
+                              "<dProtConsLote>" + dte.getNumeroTicketLote() + "</dProtConsLote>" +
                               "</rEnviConsLoteDe>" +
                               "</env:Body>" +
                               "</env:Envelope>";
+
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_soap_request_consulta_lote.xml"), soapBody, StandardCharsets.UTF_8);
+            } catch(Exception ignored) {}
 
             byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
@@ -298,33 +319,33 @@ public class SifenSoapClient {
             
             dte.setXmlRespuestaSifen(xmlRespuesta);
             
-            // Parsear resultado del lote
-            String dCodResLote = extraerEtiqueta(xmlRespuesta, "dCodResLote", "DESCONOCIDO");
-            String dMsgResLote = extraerEtiqueta(xmlRespuesta, "dMsgResLote", "Sin descripcion");
+            // Parsear resultado del lote (SIFEN usa dCodResLot/dMsgResLot para el Lote)
+            String dCodResLote = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
+            String dMsgResLote = extraerEtiqueta(xmlRespuesta, "dMsgResLot", "Sin descripcion");
             
             logger.info("Resultado Consulta Lote SIFEN: " + dCodResLote + " - " + dMsgResLote);
             
-            if ("0300".equals(dCodResLote)) {
-                // El lote fue procesado y APROBADO
-                dte.setCodigoEstadoSifen(dCodResLote);
-                dte.setEstado(EstadoDte.APROBADO);
-                dte.setMensajeUsuario("Lote procesado y aprobado: " + dMsgResLote);
-                return true;
-            } else if ("0304".equals(dCodResLote)) {
+            if ("0304".equals(dCodResLote)) {
                 // Lote en proceso (Todavía no terminado)
                 dte.setCodigoEstadoSifen(dCodResLote);
                 dte.setMensajeUsuario("Lote en proceso de verificación por SIFEN. Intente más tarde.");
                 return false;
+            }
+
+            // Si el lote fue procesado (ej. 0300), se verifica el resultado interno del DTE (dCodRes)
+            String dCodResDoc = extraerEtiqueta(xmlRespuesta, "dCodRes", dCodResLote);
+            String dMsgResDoc = extraerEtiqueta(xmlRespuesta, "dMsgRes", dMsgResLote);
+            
+            dte.setCodigoEstadoSifen(dCodResDoc);
+            
+            if ("0300".equals(dCodResDoc)) {
+                dte.setEstado(EstadoDte.APROBADO);
+                dte.setMensajeUsuario("DTE aprobado exitosamente: " + dMsgResDoc);
+                return true;
             } else {
-                // Rechazado u otro error (ej: 0303 Rechazado, etc)
-                // Se busca el dCodRes dentro de gResProcLote para saber el rechazo exacto del DTE
-                String dCodResDoc = extraerEtiqueta(xmlRespuesta, "dCodRes", dCodResLote);
-                String dMsgResDoc = extraerEtiqueta(xmlRespuesta, "dMsgRes", dMsgResLote);
-                
-                dte.setCodigoEstadoSifen(dCodResDoc);
                 dte.setEstado(EstadoDte.RECHAZADO);
                 dte.setMensajeSifen(dMsgResDoc);
-                dte.setMensajeUsuario("Lote o DTE rechazado: " + dMsgResDoc);
+                dte.setMensajeUsuario("DTE rechazado (" + dCodResDoc + "): " + dMsgResDoc);
                 return false;
             }
 

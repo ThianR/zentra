@@ -78,7 +78,12 @@ public class DteXmlGenerator {
 
             TDE de = factory.createTDE();
             de.setId(cdc);
-            de.setDDVId(new BigInteger(cdc.substring(43)));
+            
+            // SIFEN v150: dDVId DEBE ser el último dígito del CDC (posición 44).
+            // Si hay discrepancia entre este tag y el Id del <DE>, SIFEN devuelve Error 1003.
+            String dvCdc = cdc.substring(43);
+            de.setDDVId(new BigInteger(dvCdc));
+            logger.info("Inyectando dDVId: " + dvCdc + " para CDC: " + cdc);
             
             ZonedDateTime zdt = ZonedDateTime.of(dte.getFechaCreacion(), ZoneId.systemDefault());
             GregorianCalendar gcal = GregorianCalendar.from(zdt);
@@ -422,7 +427,13 @@ public class DteXmlGenerator {
         TgEmis gEmis = factory.createTgEmis();
         gEmis.setDRucEm(emisor.getRuc());
         gEmis.setDDVEmi(new BigInteger(emisor.getDv() != null ? emisor.getDv() : "0"));
-        gEmis.setITipCont(BigInteger.valueOf(emisor.getTipoContribuyente() != null ? emisor.getTipoContribuyente() : 2));
+        // SIFEN v150: iTipCont debe coincidir con el valor usado en el CDC.
+        // Si el RUC es >= 80000000 es Persona Jurídica (2), de lo contrario
+        // se respeta el valor configurado en la entidad Empresa.
+        long rucNum = 0;
+        try { rucNum = Long.parseLong(emisor.getRuc().replaceAll("[^0-9]", "0")); } catch (Exception ignored) {}
+        int tipCont = (rucNum >= 80000000) ? 2 : (emisor.getTipoContribuyente() != null ? emisor.getTipoContribuyente() : 1);
+        gEmis.setITipCont(BigInteger.valueOf(tipCont));
         gEmis.setDNomEmi(emisor.getRazonSocial());
         gEmis.setDDirEmi(emisor.getDireccion() != null ? emisor.getDireccion() : "Calle Mock 123");
         gEmis.setDNumCas(new BigInteger(emisor.getNumeroCasa() != null ? emisor.getNumeroCasa() : "0"));

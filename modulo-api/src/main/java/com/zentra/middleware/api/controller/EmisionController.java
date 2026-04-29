@@ -328,6 +328,8 @@ public class EmisionController {
 
             String tipoEnvio = String.valueOf(payload.getOrDefault("tipoEnvio", "SYNC"));
             boolean exitoEnvio;
+            
+            // SIFEN restringe el uso del servicio Síncrono (siRecepDE) en Producción para grandes emisores.
             if ("ASYNC".equalsIgnoreCase(tipoEnvio)) {
                 exitoEnvio = sifenClient.enviarDteAsincrono(dte);
             } else {
@@ -372,17 +374,22 @@ public class EmisionController {
     @GetMapping("/consultar-lote/{id}")
     public ResponseEntity<?> consultarLote(@PathVariable String id) {
         try {
+            logger.info("Recibida solicitud de consulta de Lote para DTE con ID: " + id);
             DocumentoElectronico dte = documentoService.obtenerPorId(id);
             if (dte == null) {
+                logger.warning("No se encontró el DTE con ID: " + id);
                 return ResponseEntity.notFound().build();
             }
 
             if (dte.getNumeroTicketLote() == null || dte.getNumeroTicketLote().isBlank()) {
+                logger.warning("El DTE " + id + " no tiene un Ticket asociado.");
                 return ResponseEntity.badRequest().body(Map.of("message", "Este documento no tiene un Ticket de Lote asociado."));
             }
 
+            logger.info("Iniciando consulta a SIFEN para el Ticket: " + dte.getNumeroTicketLote());
             boolean exito = sifenClient.consultarLoteSifen(dte);
             documentoService.guardar(dte);
+            logger.info("Consulta finalizada. Nuevo estado: " + dte.getEstado() + " | SIFEN Code: " + dte.getCodigoEstadoSifen());
 
             Map<String, Object> respuesta = new java.util.HashMap<>();
             respuesta.put("id", dte.getId());
@@ -438,6 +445,7 @@ public class EmisionController {
                 m.put("estado", d.getEstado() != null ? d.getEstado().name() : "CREADO");
                 m.put("fechaCreacion", d.getFechaCreacion() != null ? d.getFechaCreacion().toString() : "");
                 m.put("cdc", d.getCdc() != null ? d.getCdc() : "");
+                m.put("numeroTicketLote", d.getNumeroTicketLote() != null ? d.getNumeroTicketLote() : "");
                 return m;
             }).toList();
             return ResponseEntity.ok(list);
@@ -446,6 +454,37 @@ public class EmisionController {
             return ResponseEntity.internalServerError().body(List.of());
         }
     }
+
+    @GetMapping("/documentos/{id}")
+    public ResponseEntity<?> obtenerDocumento(@PathVariable String id) {
+        try {
+            DocumentoElectronico d = documentoService.obtenerPorId(String.valueOf(id));
+            if (d == null) {
+                return ResponseEntity.notFound().build();
+            }
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", d.getId());
+            m.put("tipoDocumento", d.getTipoDocumento());
+            m.put("numeroComprobante", d.getNumeroComprobante() != null ? d.getNumeroComprobante() : "S/N");
+            m.put("rucReceptor", d.getRucReceptor() != null ? d.getRucReceptor() : "");
+            m.put("receptorRazonSocial", d.getReceptorRazonSocial() != null ? d.getReceptorRazonSocial() : "");
+            m.put("totalOperacion", d.getTotalOperacion() != null ? d.getTotalOperacion() : 0.0);
+            m.put("estado", d.getEstado() != null ? d.getEstado().name() : "CREADO");
+            m.put("fechaCreacion", d.getFechaCreacion() != null ? d.getFechaCreacion().toString() : "");
+            m.put("cdc", d.getCdc() != null ? d.getCdc() : "");
+            m.put("numeroTicketLote", d.getNumeroTicketLote() != null ? d.getNumeroTicketLote() : "");
+            m.put("codigoEstadoSifen", d.getCodigoEstadoSifen() != null ? d.getCodigoEstadoSifen() : "");
+            m.put("mensajeSifen", d.getMensajeSifen() != null ? d.getMensajeSifen() : "");
+            m.put("mensajeUsuario", d.getMensajeUsuario() != null ? d.getMensajeUsuario() : "");
+            m.put("xmlRespuestaSifen", d.getXmlRespuestaSifen() != null ? d.getXmlRespuestaSifen() : "");
+            return ResponseEntity.ok(m);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error obteniendo documento " + id, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Error: " + e.getMessage()));
+        }
+    }
+
+
 
     @GetMapping("/empresas")
     public ResponseEntity<?> listarEmpresas() {

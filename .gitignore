@@ -26,6 +26,10 @@ Thumbs.db
 
 # Certificados
 *.p12
+*.pfx
+*.crt
+*.key
+keystore/
 
 # Archivos temporales y de diagnóstico en tiempo de ejecución
 temp/*
@@ -41,3 +45,6 @@ last_*.txt
 .env
 .env.*
 !.env.example
+
+# Docs
+docs    
