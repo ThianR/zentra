@@ -1,0 +1,153 @@
+package com.zentra.middleware.api.controller;
+
+import com.zentra.middleware.core.model.Empresa;
+import com.zentra.middleware.core.repository.EmpresaRepository;
+import com.zentra.middleware.crypto.util.AesEncryptionUtil;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
+
+@RestController
+@RequestMapping("/api/v1/empresas")
+@Transactional
+public class EmpresaController {
+
+    private final EmpresaRepository empresaRepository;
+
+    public EmpresaController(EmpresaRepository empresaRepository) {
+        this.empresaRepository = empresaRepository;
+    }
+
+    @PostMapping("/{id}/certificado")
+    public ResponseEntity<?> cargarCertificado(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("password") String password) {
+        try {
+            Optional<Empresa> empresaOpt = empresaRepository.findById(id);
+            if (empresaOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Empresa empresa = empresaOpt.get();
+
+            // Validar que el certificado puede ser leído antes de guardar (Fase 4, Regla 3)
+            try {
+                java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
+                ks.load(file.getInputStream(), password.toCharArray());
+                
+                // Extraer fecha de vencimiento y alias
+                java.util.Enumeration<String> aliases = ks.aliases();
+                if (aliases.hasMoreElements()) {
+                    String alias = aliases.nextElement();
+                    java.security.cert.Certificate cert = ks.getCertificate(alias);
+                    if (cert instanceof java.security.cert.X509Certificate) {
+                        java.security.cert.X509Certificate x509 = (java.security.cert.X509Certificate) cert;
+                        java.util.Date notAfter = x509.getNotAfter();
+                        empresa.setFechaVencimientoCertificado(
+                            java.time.Instant.ofEpochMilli(notAfter.getTime())
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDate()
+                        );
+                        empresa.setAliasCertificado(alias);
+                    }
+                }
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body("Contraseña incorrecta o archivo P12/PFX corrupto.");
+            }
+
+            // Encriptar la contraseña (Fase 1 y 2)
+            String encryptedPassword = AesEncryptionUtil.encrypt(password);
+            
+            empresa.setCertificadoFisico(file.getBytes());
+            empresa.setPasswordCertificado(encryptedPassword);
+            
+            empresaRepository.save(empresa);
+
+            return ResponseEntity.ok().body("Certificado guardado exitosamente para la empresa.");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error al guardar el certificado: " + e.getMessage());
+        }
+    }
+    @GetMapping
+    public ResponseEntity<?> listarTodas() {
+        return ResponseEntity.ok(empresaRepository.findAll());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> obtenerPorId(@PathVariable String id) {
+        return empresaRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<?> crearEmpresa(@RequestBody Empresa empresa) {
+        if (empresaRepository.findByRuc(empresa.getRuc()).isPresent()) {
+            return ResponseEntity.status(409).body("La empresa con este RUC ya se encuentra registrada.");
+        }
+        if (empresa.getId() == null || empresa.getId().isEmpty()) {
+            empresa.setId(java.util.UUID.randomUUID().toString());
+        }
+        return ResponseEntity.ok(empresaRepository.save(empresa));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizarEmpresa(@PathVariable String id, @RequestBody Empresa empresaDetalles) {
+        Optional<Empresa> existenteConRuc = empresaRepository.findByRuc(empresaDetalles.getRuc());
+        if (existenteConRuc.isPresent() && !existenteConRuc.get().getId().equals(id)) {
+            return ResponseEntity.status(409).body("El RUC provisto ya está asociado a otra empresa.");
+        }
+
+        return empresaRepository.findById(id).map(empresa -> {
+            empresa.setRuc(empresaDetalles.getRuc());
+            empresa.setRazonSocial(empresaDetalles.getRazonSocial());
+            empresa.setDv(empresaDetalles.getDv());
+            
+            // Timbrado
+            empresa.setTimbrado(empresaDetalles.getTimbrado());
+            empresa.setFechaInicioTimbrado(empresaDetalles.getFechaInicioTimbrado());
+            empresa.setFechaVencimientoTimbrado(empresaDetalles.getFechaVencimientoTimbrado());
+            
+            // Establecimiento y Expedición
+            empresa.setCodEstablecimiento(empresaDetalles.getCodEstablecimiento());
+            empresa.setPuntoExpedicion(empresaDetalles.getPuntoExpedicion());
+            
+            // Actividad Económica
+            empresa.setCodActividadEconomica(empresaDetalles.getCodActividadEconomica());
+            empresa.setActividadEconomica(empresaDetalles.getActividadEconomica());
+            
+            // Localización
+            empresa.setDireccion(empresaDetalles.getDireccion());
+            empresa.setNumeroCasa(empresaDetalles.getNumeroCasa());
+            empresa.setCodDepartamento(empresaDetalles.getCodDepartamento());
+            empresa.setDepartamento(empresaDetalles.getDepartamento());
+            empresa.setCodDistrito(empresaDetalles.getCodDistrito());
+            empresa.setDistrito(empresaDetalles.getDistrito());
+            empresa.setCodCiudad(empresaDetalles.getCodCiudad());
+            empresa.setCiudad(empresaDetalles.getCiudad());
+            
+            // Contacto
+            empresa.setTelefono(empresaDetalles.getTelefono());
+            empresa.setEmail(empresaDetalles.getEmail());
+            
+            // Otros
+            empresa.setTipoContribuyente(empresaDetalles.getTipoContribuyente());
+            empresa.setAmbiente(empresaDetalles.getAmbiente());
+            empresa.setIdCsc(empresaDetalles.getIdCsc());
+            empresa.setValorCsc(empresaDetalles.getValorCsc());
+            
+            return ResponseEntity.ok(empresaRepository.save(empresa));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> eliminarEmpresa(@PathVariable String id) {
+        return empresaRepository.findById(id).map(empresa -> {
+            empresaRepository.delete(empresa);
+            return ResponseEntity.ok().build();
+        }).orElse(ResponseEntity.notFound().build());
+    }
+}

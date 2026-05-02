@@ -390,37 +390,48 @@ public class SifenSoapClient {
     private SSLContext construirSslContext(DocumentoElectronico dte) throws Exception {
         SSLContext sslContext;
 
-        if (dte.getEmisor() != null
-                && dte.getEmisor().getRutaCertificado() != null
-                && !dte.getEmisor().getRutaCertificado().isBlank()) {
-
+        if (dte.getEmisor() != null) {
+            byte[] p12Bytes = dte.getEmisor().getCertificadoFisico();
             String ruta = dte.getEmisor().getRutaCertificado();
-            String password = dte.getEmisor().getPasswordCertificado();
-            char[] p12Pass = password != null ? password.toCharArray() : new char[0];
+            String rawPass = dte.getEmisor().getPasswordCertificado();
 
-            KeyStore p12Store = KeyStore.getInstance("PKCS12");
-            try (FileInputStream fis = new FileInputStream(ruta)) {
-                p12Store.load(fis, p12Pass);
-            }
+            if (p12Bytes != null || (ruta != null && !ruta.isBlank())) {
+                String p12Pass;
+                try {
+                    // Try to decrypt the password
+                    p12Pass = com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+                } catch (Exception e) {
+                    p12Pass = rawPass;
+                }
+                char[] passwordChars = p12Pass != null ? p12Pass.toCharArray() : new char[0];
 
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(p12Store, p12Pass);
-
-            sslContext = SSLContext.getInstance("TLSv1.2");
-            TrustManager[] trustAll = new TrustManager[] {
-                    new X509TrustManager() {
-                        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
-                        }
-
-                        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
-                        }
-
-                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                            return new java.security.cert.X509Certificate[0];
-                        }
+                KeyStore p12Store = KeyStore.getInstance("PKCS12");
+                
+                if (p12Bytes != null) {
+                    try (java.io.InputStream is = new java.io.ByteArrayInputStream(p12Bytes)) {
+                        p12Store.load(is, passwordChars);
                     }
-            };
-            sslContext.init(kmf.getKeyManagers(), trustAll, new java.security.SecureRandom());
+                } else {
+                    try (java.io.FileInputStream fis = new java.io.FileInputStream(ruta)) {
+                        p12Store.load(fis, passwordChars);
+                    }
+                }
+
+                KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                kmf.init(p12Store, passwordChars);
+
+                sslContext = SSLContext.getInstance("TLSv1.2");
+                TrustManager[] trustAll = new TrustManager[] {
+                        new X509TrustManager() {
+                            public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                            public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                            public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[0]; }
+                        }
+                };
+                sslContext.init(kmf.getKeyManagers(), trustAll, new java.security.SecureRandom());
+            } else {
+                throw new Exception("El emisor no tiene configurada la ruta física ni el binario del certificado.");
+            }
         } else {
             sslContext = SSLContext.getDefault();
         }

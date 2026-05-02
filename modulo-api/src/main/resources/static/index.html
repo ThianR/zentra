@@ -25,7 +25,7 @@
                 <a href="#" class="nav-item" onclick="switchView('emision')"><i class="fas fa-file-invoice"></i> Nuevo
                     DTE</a>
                 <a href="#" class="nav-item"><i class="fas fa-list-ul"></i> Documentos</a>
-                <a href="#" class="nav-item"><i class="fas fa-building"></i> Empresas</a>
+                <a href="#" class="nav-item" onclick="switchView('empresas')"><i class="fas fa-building"></i> Empresas</a>
                 <a href="#" class="nav-item"><i class="fas fa-cog"></i> Configuración</a>
             </nav>
             <div class="sidebar-footer">
@@ -507,6 +507,41 @@
                     </form>
                 </div>
             </div>
+            
+            <!-- Vista de Gestión de Empresas -->
+            <div id="view-empresas" class="content-view">
+                <div class="view-header">
+                    <h2>Gestión de Empresas (SIFEN)</h2>
+                </div>
+                
+                <section class="content-table glass fade-in">
+                    <div class="table-header">
+                        <h3>Empresas Registradas</h3>
+                        <div class="filter-actions">
+                            <button class="btn btn-primary btn-sm" onclick="abrirModalEmpresa()"><i class="fas fa-plus"></i> Nueva Empresa</button>
+                            <button id="btnRefreshEmpresas" class="btn btn-outline btn-sm"><i class="fas fa-sync-alt"></i></button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="tableListaEmpresas">
+                            <thead>
+                                <tr>
+                                    <th>RUC</th>
+                                    <th>Razón Social</th>
+                                    <th>Ambiente</th>
+                                    <th>Certificado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyListaEmpresas">
+                                <tr>
+                                    <td colspan="5" class="text-center">Cargando empresas...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
@@ -564,6 +599,171 @@
                 </button>
                 <button class="btn btn-outline" onclick="cerrarModalDetalle()">
                     Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Crear / Editar Empresa -->
+    <div id="modalFormEmpresa" class="modal-overlay" style="display:none;">
+        <div class="modal-card glass modal-lg" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modalEmpresaTitle"><i class="fas fa-building"></i> Nueva Empresa</h3>
+                <button class="btn-icon-only" onclick="cerrarModalEmpresa()" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="formEmpresa" class="fade-in">
+                    <input type="hidden" id="empresaId">
+                    
+                    <!-- Sección 1: Identificación -->
+                    <div class="form-step-card">
+                        <div class="form-step-title"><i class="fas fa-id-card"></i> Identificación Fiscal</div>
+                        <div class="grid-row" style="grid-template-columns: 2fr 1fr;">
+                            <div class="form-group">
+                                <label>RUC (sin DV)</label>
+                                <div class="input-with-action">
+                                    <input type="text" id="empresaRuc" class="form-control" required placeholder="Ej: 80000000">
+                                    <button type="button" class="btn btn-primary" onclick="buscarRucEmpresa()" title="Consultar RUC">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>DV</label>
+                                <div class="input-with-action">
+                                    <input type="text" id="empresaDv" class="form-control text-center" maxlength="1" required placeholder="1">
+                                    <button type="button" class="btn btn-outline" onclick="autoCalcularDv()" title="Calcular DV">
+                                        <i class="fas fa-calculator"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-row cols-2" style="margin-top: 20px;">
+                            <div class="form-group span-2">
+                                <label>Razón Social / Nombre Fantasía</label>
+                                <input type="text" id="empresaRazonSocial" class="form-control" required placeholder="Empresa S.A.">
+                            </div>
+                            <div class="form-group span-2">
+                                <label>Cód. Actividad Económica</label>
+                                <select id="empresaCodActividadEconomica" class="form-select dynamic-ref" data-ref="ACTIVIDAD_ECONOMICA" required>
+                                    <option value="">Seleccione actividad...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 2: Timbrado y Puntos de Venta -->
+                    <div class="form-step-card">
+                        <div class="form-step-title"><i class="fas fa-file-signature"></i> Timbrado y Puntos de Venta</div>
+                        <div class="grid-row cols-3">
+                            <div class="form-group">
+                                <label>Nro. Timbrado</label>
+                                <input type="text" id="empresaTimbrado" class="form-control" required maxlength="8" placeholder="12345678">
+                            </div>
+                            <div class="form-group">
+                                <label>Vencimiento Timbrado</label>
+                                <input type="date" id="empresaFechaVencimientoTimbrado" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Ambiente SIFEN</label>
+                                <select id="empresaAmbiente" class="form-select">
+                                    <option value="TEST">Desarrollo / Test</option>
+                                    <option value="PRODUCCION">Producción</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Establecimiento</label>
+                                <input type="text" id="empresaCodEstablecimiento" class="form-control" maxlength="3" value="001" placeholder="001">
+                            </div>
+                            <div class="form-group">
+                                <label>Punto Expedición</label>
+                                <input type="text" id="empresaPuntoExpedicion" class="form-control" maxlength="3" value="001" placeholder="001">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo Contribuyente</label>
+                                <select id="empresaTipoContribuyente" class="form-select">
+                                    <option value="1">Persona Física</option>
+                                    <option value="2">Persona Jurídica</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 3: Localización y Contacto -->
+                    <div class="form-step-card">
+                        <div class="form-step-title"><i class="fas fa-map-marker-alt"></i> Localización y Contacto</div>
+                        <div class="grid-row cols-2">
+                            <div class="form-group span-2">
+                                <label>Dirección Comercial</label>
+                                <input type="text" id="empresaDireccion" class="form-control" required placeholder="Calle, Nro, Barrio">
+                            </div>
+                            <div class="form-group">
+                                <label>Departamento</label>
+                                <select id="empresaCodDepto" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                    <option value="">Cargando...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Ciudad / Distrito</label>
+                                <select id="empresaCodCiudad" class="form-select">
+                                    <option value="">Seleccione Depto.</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono de Contacto</label>
+                                <input type="text" id="empresaTelefono" class="form-control" placeholder="021xxxxxx">
+                            </div>
+                            <div class="form-group">
+                                <label>Email Administrativo</label>
+                                <input type="email" id="empresaEmail" class="form-control" placeholder="admin@empresa.com.py">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="cerrarModalEmpresa()">Cancelar</button>
+                <button class="btn btn-primary" id="btnSaveEmpresa" onclick="submitFormEmpresa()">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cargar Certificado -->
+    <div id="modalUploadCert" class="modal-overlay" style="display:none;" onclick="cerrarModalUpload(event)">
+        <div class="modal-card glass" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> Cargar Certificado P12/PFX</h3>
+                <button class="btn-icon-only" onclick="cerrarModalUpload()" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="formUploadCert">
+                    <input type="hidden" id="uploadCertEmpresaId">
+                    <div id="certLoadedInfo" class="info-box success" style="display:none; margin-bottom: 15px; border: 1px solid var(--accent-success); background: rgba(39, 174, 96, 0.1); color: var(--accent-success);">
+                        <i class="fas fa-check-circle"></i> <strong>Certificado Activo:</strong> Esta empresa ya tiene un certificado almacenado. Sube uno nuevo solo si deseas reemplazarlo.
+                    </div>
+                    <div class="form-group mb-12">
+                        <label>Archivo Certificado (.p12 o .pfx)</label>
+                        <input type="file" id="certFile" class="form-control" accept=".p12,.pfx" required>
+                    </div>
+                    <div class="form-group mb-12">
+                        <label>Contraseña del Certificado</label>
+                        <input type="password" id="certPassword" class="form-control" placeholder="Ingrese contraseña" required>
+                    </div>
+                </form>
+                <div class="info-box info mt-10">
+                    <i class="fas fa-lock"></i> La contraseña será encriptada (AES-256) antes de almacenarse en la base de datos.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="cerrarModalUpload()">Cancelar</button>
+                <button class="btn btn-primary" onclick="submitUploadCert()">
+                    <i class="fas fa-upload"></i> Subir Certificado
                 </button>
             </div>
         </div>

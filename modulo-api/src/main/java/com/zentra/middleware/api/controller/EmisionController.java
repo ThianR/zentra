@@ -29,9 +29,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/emision")
+@Transactional
 public class EmisionController {
 
     private static final Logger logger = Logger.getLogger(EmisionController.class.getName());
@@ -63,9 +65,27 @@ public class EmisionController {
         this.validatorService = validatorService;
         this.referenciaRepository = referenciaRepository;
         this.xsdValidatorService = xsdValidatorService; // Initialized field
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+        
+        HttpClient client;
+        try {
+            javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[] {
+                new javax.net.ssl.X509TrustManager() {
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                }
+            };
+            javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            
+            client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .sslContext(sc)
+                    .build();
+        } catch (Exception e) {
+            client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        }
+        this.httpClient = client;
     }
 
     @PostMapping("/generar")
@@ -495,6 +515,7 @@ public class EmisionController {
                 m.put("ruc", e.getRuc());
                 m.put("dv", e.getDv());
                 m.put("razonSocial", e.getRazonSocial());
+                m.put("codActividadEconomica", e.getCodActividadEconomica());
                 m.put("actividadEconomica", e.getActividadEconomica());
                 m.put("direccion", e.getDireccion());
                 m.put("telefono", e.getTelefono());
@@ -503,6 +524,13 @@ public class EmisionController {
                 m.put("codCiudad", e.getCodCiudad());
                 m.put("puntoExpedicion", e.getPuntoExpedicion());
                 m.put("codEstablecimiento", e.getCodEstablecimiento());
+                m.put("timbrado", e.getTimbrado());
+                m.put("fechaInicioTimbrado", e.getFechaInicioTimbrado() != null ? e.getFechaInicioTimbrado().toString() : null);
+                m.put("fechaVencimientoTimbrado", e.getFechaVencimientoTimbrado() != null ? e.getFechaVencimientoTimbrado().toString() : null);
+                m.put("tipoContribuyente", e.getTipoContribuyente());
+                m.put("ambiente", e.getAmbiente() != null ? e.getAmbiente().name() : null);
+                m.put("hasCertificado", e.getCertificadoFisico() != null);
+                m.put("fechaVencimientoCertificado", e.getFechaVencimientoCertificado() != null ? e.getFechaVencimientoCertificado().toString() : null);
                 return m;
             }).toList();
             return ResponseEntity.ok(list);

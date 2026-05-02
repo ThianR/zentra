@@ -49,17 +49,35 @@ public class XmlSignerService {
         String xmlGenerado = dte.getXmlGenerado();
         String cdc = dte.getCdc();
         
-        // Carga directa del certificado desde el emisor
+        // Carga de certificado (Memoria BD vs Archivo Físico)
+        byte[] p12Bytes = dte.getEmisor().getCertificadoFisico();
         String p12Path = dte.getEmisor().getRutaCertificado();
-        String p12Pass = dte.getEmisor().getPasswordCertificado();
+        String rawPass = dte.getEmisor().getPasswordCertificado();
+        
+        if (rawPass == null) {
+            throw new Exception("El emisor no tiene configurada la contraseña del certificado.");
+        }
 
-        if (p12Path == null || p12Pass == null) {
-            throw new Exception("El emisor no tiene configurada la ruta o el password del certificado P12.");
+        String p12Pass;
+        try {
+            // Intentamos desencriptar (Si falla, asumimos que es texto plano legacy de entorno local)
+            p12Pass = com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+        } catch (Exception e) {
+            p12Pass = rawPass;
         }
 
         java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
-        try (java.io.InputStream is = new java.io.FileInputStream(p12Path)) {
-            ks.load(is, p12Pass.toCharArray());
+        
+        if (p12Bytes != null) {
+            try (java.io.InputStream is = new java.io.ByteArrayInputStream(p12Bytes)) {
+                ks.load(is, p12Pass.toCharArray());
+            }
+        } else if (p12Path != null) {
+            try (java.io.InputStream is = new java.io.FileInputStream(p12Path)) {
+                ks.load(is, p12Pass.toCharArray());
+            }
+        } else {
+            throw new Exception("El emisor no tiene configurada la ruta física ni el binario del certificado.");
         }
 
         String alias = ks.aliases().nextElement();

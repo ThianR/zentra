@@ -57,7 +57,9 @@ public class DteXmlGenerator {
             String nro = partesNro[partesNro.length - 1].replaceAll("[^0-9]", "");
             if (nro.isEmpty()) nro = "0000001";
             
-            String fechaStr = dte.getFechaCreacion().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            ZonedDateTime zdtCreacion = ZonedDateTime.of(dte.getFechaCreacion(), ZoneId.systemDefault())
+                                              .withZoneSameInstant(ZoneId.of("America/Asuncion"));
+            String fechaStr = zdtCreacion.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String codSeg = String.format("%09d", (int)(Math.random() * 1000000000));
 
             // SIFEN v150: iTipCont (25) e iTipEmi (34) deben coincidir entre CDC y tags XML. 
@@ -85,8 +87,10 @@ public class DteXmlGenerator {
             de.setDDVId(new BigInteger(dvCdc));
             logger.info("Inyectando dDVId: " + dvCdc + " para CDC: " + cdc);
             
-            ZonedDateTime zdt = ZonedDateTime.of(dte.getFechaCreacion(), ZoneId.systemDefault());
-            GregorianCalendar gcal = GregorianCalendar.from(zdt);
+            ZonedDateTime zdtSystem = ZonedDateTime.of(dte.getFechaCreacion(), ZoneId.systemDefault());
+            // Se restan 5 minutos para compensar latencia y reloj del servidor SIFEN que puede estar atrasado (Evita Error 1004)
+            ZonedDateTime zdtAsuncion = zdtSystem.withZoneSameInstant(ZoneId.of("America/Asuncion")).minusMinutes(5);
+            GregorianCalendar gcal = GregorianCalendar.from(zdtAsuncion);
             XMLGregorianCalendar xmlCal = DatatypeFactory.newInstance().newXMLGregorianCalendar(gcal);
             xmlCal.setFractionalSecond(null);
             xmlCal.setTimezone(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
@@ -463,24 +467,26 @@ public class DteXmlGenerator {
 
         // PLAN 4: Actividad Económica tomada del emisor (BD) en lugar de valor mock hardcodeado.
         // La BD tiene el código real registrado en Marangatu para RUC 80014603-4.
+        // Actividad Económica: se prioriza el par código-descripción de la BD
         TgActEco gActEco = factory.createTgActEco();
-        String actEco = (emisor.getActividadEconomica() != null && !emisor.getActividadEconomica().isBlank())
-            ? emisor.getActividadEconomica()
-            : "45301";
-        // Si el campo tiene formato "codigo|descripcion" o es sólo el código numérico,
-        // separar; si no tiene pipe, usarlo como descripción y derivar código genérico.
-        if (actEco.matches("^\\d+$")) {
-            // Solo código numérico
-            gActEco.setCActEco(actEco);
-            gActEco.setDDesActEco("Actividad económica registrada en SET");
-        } else if (actEco.contains("|")) {
-            String[] partes = actEco.split("\\|", 2);
-            gActEco.setCActEco(partes[0].trim());
-            gActEco.setDDesActEco(partes[1].trim());
+        String codAct = emisor.getCodActividadEconomica();
+        String desAct = emisor.getActividadEconomica();
+
+        if (codAct != null && !codAct.isBlank() && codAct.matches("^\\d+$")) {
+            // Caso ideal: tenemos el código numérico y la descripción por separado
+            gActEco.setCActEco(codAct);
+            gActEco.setDDesActEco(desAct != null && !desAct.isBlank() ? desAct : "Actividad económica");
         } else {
-            // Es una descripción libre — usar código genérico hasta tener el real en BD
-            gActEco.setCActEco("45301");
-            gActEco.setDDesActEco(actEco);
+            // Fallback por compatibilidad con datos legacy o formatos combinados
+            String actEcoRaw = (desAct != null && !desAct.isBlank()) ? desAct : "45301";
+            if (actEcoRaw.contains("|")) {
+                String[] partes = actEcoRaw.split("\\|", 2);
+                gActEco.setCActEco(partes[0].trim());
+                gActEco.setDDesActEco(partes[1].trim());
+            } else {
+                gActEco.setCActEco("45301"); // Genérico: Comercio
+                gActEco.setDDesActEco(actEcoRaw);
+            }
         }
         gEmis.getGActEco().add(gActEco);
 

@@ -1,5 +1,6 @@
 package com.zentra.middleware.core.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.zentra.middleware.core.enums.Ambiente;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,7 +24,10 @@ public class Empresa {
     private String codEstablecimiento; // Ej: 001
     private String puntoExpedicion;      // Ej: 001
     private String timbrado; // Timbrado asignado por la SET
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private java.time.LocalDate fechaInicioTimbrado; // Fecha de inicio de vigencia del timbrado
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private java.time.LocalDate fechaVencimientoTimbrado; // Fecha de fin de vigencia del timbrado
     
     // Datos de Localización SIFEN
     private String direccion;
@@ -40,6 +44,7 @@ public class Empresa {
     private String email = "emisor@example.com";
     
     // Fiscal
+    private String codActividadEconomica; // Código de actividad según SET (ej: 45301)
     private String actividadEconomica = "Venta de Mercaderías y Servicios";
     private Integer tipoContribuyente = 2; // Jurídica por defecto
     
@@ -56,6 +61,7 @@ public class Empresa {
     @jakarta.persistence.Lob
     private byte[] certificadoFisico; // Archivo P12/PFX almacenado internamente
     
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private java.time.LocalDate fechaVencimientoCertificado;
     private String aliasCertificado;
 
@@ -83,6 +89,9 @@ public class Empresa {
     public java.time.LocalDate getFechaInicioTimbrado() { return fechaInicioTimbrado; }
     public void setFechaInicioTimbrado(java.time.LocalDate fechaInicioTimbrado) { this.fechaInicioTimbrado = fechaInicioTimbrado; }
 
+    public java.time.LocalDate getFechaVencimientoTimbrado() { return fechaVencimientoTimbrado; }
+    public void setFechaVencimientoTimbrado(java.time.LocalDate fechaVencimientoTimbrado) { this.fechaVencimientoTimbrado = fechaVencimientoTimbrado; }
+
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
     public String getNumeroCasa() { return numeroCasa; }
@@ -103,6 +112,10 @@ public class Empresa {
     public void setTelefono(String telefono) { this.telefono = telefono; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getCodActividadEconomica() { return codActividadEconomica; }
+    public void setCodActividadEconomica(String codActividadEconomica) { this.codActividadEconomica = codActividadEconomica; }
+
     public String getActividadEconomica() { return actividadEconomica; }
     public void setActividadEconomica(String actividadEconomica) { this.actividadEconomica = actividadEconomica; }
     public Integer getTipoContribuyente() { return tipoContribuyente; }

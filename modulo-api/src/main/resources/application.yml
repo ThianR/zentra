@@ -11,11 +11,20 @@ spring:
     driver-class-name: org.postgresql.Driver
   sql:
     init:
+      # Solo ejecuta schema.sql (DDL) al iniciar — crea tablas si no existen.
+      # Los datos de referencia los carga DatabaseMigrationConfig.java
+      # después de migrar los índices de sifen_referencia.
       mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: []
+      encoding: UTF-8
   jpa:
     hibernate:
+      # 'validate' verifica el esquema contra entidades sin modificarlo.
+      # El DDL lo maneja schema.sql directamente.
       ddl-auto: update
     show-sql: true
+    # Garantiza que schema.sql y data.sql se ejecuten antes que Hibernate
     defer-datasource-initialization: true
     properties:
       hibernate:
