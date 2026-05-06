@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- =====================================================================
+     resRecepEvento_v150.xsd — Respuesta del WS Recepción de Evento
+     Fuente: Manual Técnico SIFEN v1.5.0, Sección 12.3.6
+     Namespace: http://ekuatia.set.gov.py/sifen/xsd
+     ===================================================================== -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           elementFormDefault="qualified"
+           xmlns="http://ekuatia.set.gov.py/sifen/xsd"
+           targetNamespace="http://ekuatia.set.gov.py/sifen/xsd">
+
+    <!-- Elemento raíz de la respuesta del WS de eventos -->
+    <xs:element name="rResEvt" type="rResEvt"/>
+
+    <xs:complexType name="rResEvt">
+        <xs:sequence>
+            <!-- Código de respuesta general (ej: 0300 = Aprobado, 0400 = Rechazado) -->
+            <xs:element name="dCodRes" type="xs:string"/>
+            <xs:element name="dMsgRes" type="xs:string"/>
+            <!-- Fecha/hora de procesamiento por SIFEN -->
+            <xs:element name="dFecProc" type="xs:dateTime" minOccurs="0"/>
+            <!-- Resultados individuales por evento -->
+            <xs:element name="gResProc" type="tgResProc" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- =========================================================
+         gResProc — Resultado por evento individual procesado
+         ========================================================= -->
+    <xs:complexType name="tgResProc">
+        <xs:sequence>
+            <!-- CDC del DTE al que se aplicó el evento -->
+            <xs:element name="dId" type="xs:string" minOccurs="0"/>
+            <xs:element name="dCodRes" type="xs:string"/>
+            <xs:element name="dMsgRes" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+</xs:schema>

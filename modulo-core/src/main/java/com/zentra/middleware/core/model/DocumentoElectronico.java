@@ -53,8 +53,11 @@ public class DocumentoElectronico {
     /** Código de estado oficial de SIFEN (ej: '0300'=Aprobado, '0400'=Error). */
     private String codigoEstadoSifen;
     
-    /** Número de ticket de lote para envío asíncrono. */
+    /** Número de ticket de lote para envío asíncrono. (Mantenido por compatibilidad o transición) */
     private String numeroTicketLote;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    private LoteTransmision loteTransmision;
     
     private Integer tipoEmision;
 
@@ -234,4 +237,7 @@ public class DocumentoElectronico {
     
     public String getNumeroTicketLote() { return numeroTicketLote; }
     public void setNumeroTicketLote(String numeroTicketLote) { this.numeroTicketLote = numeroTicketLote; }
+    
+    public LoteTransmision getLoteTransmision() { return loteTransmision; }
+    public void setLoteTransmision(LoteTransmision loteTransmision) { this.loteTransmision = loteTransmision; }
 }

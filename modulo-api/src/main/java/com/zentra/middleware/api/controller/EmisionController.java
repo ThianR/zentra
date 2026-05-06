@@ -29,11 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/emision")
-@Transactional
 public class EmisionController {
 
     private static final Logger logger = Logger.getLogger(EmisionController.class.getName());
@@ -88,12 +86,27 @@ public class EmisionController {
         this.httpClient = client;
     }
 
-    @PostMapping("/generar")
-    @SuppressWarnings("null")
-    public ResponseEntity<Map<String, Object>> generarDte(@RequestBody Map<String, Object> payload) {
-        try {
-            logger.info("Recibida solicitud de generación DTE...");
+    public static class DteValidationException extends RuntimeException {
+        private final java.util.List<String> errores;
+        public DteValidationException(String message, java.util.List<String> errores) {
+            super(message);
+            this.errores = errores;
+        }
+        public java.util.List<String> getErrores() { return errores; }
+    }
 
+    private int safeInt(Object o, Integer defaultVal) {
+        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim())) return defaultVal != null ? defaultVal : 0;
+        try { return Integer.parseInt(o.toString()); } catch (Exception e) { return defaultVal != null ? defaultVal : 0; }
+    }
+
+    private double safeDouble(Object o, Double defaultVal) {
+        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim())) return defaultVal != null ? defaultVal : 0.0;
+        try { return Double.parseDouble(o.toString()); } catch (Exception e) { return defaultVal != null ? defaultVal : 0.0; }
+    }
+
+    @SuppressWarnings("unchecked")
+    public DocumentoElectronico procesarDteLocal(Map<String, Object> payload) throws Exception {
             @SuppressWarnings("unchecked")
             Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
             String rucEmisor = "80014603"; // RUC oficial de test para REPUESTOS RG S.A.
@@ -192,8 +205,7 @@ public class EmisionController {
             documentoService.eliminarSiEstaRechazado(java.util.Objects.requireNonNull(fulNum), tipoDoc);
 
             if (documentoService.existePorNumero(java.util.Objects.requireNonNull(fulNum), tipoDoc)) {
-                return ResponseEntity.status(409).body(Map.of("message",
-                        "El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente."));
+                throw new RuntimeException("El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente.");
             }
 
             dte.setNumeroComprobante(fulNum);
@@ -334,10 +346,7 @@ public class EmisionController {
             // --- VALIDACIÓN PREVIA AL GENERADOR XML ---
             DteValidatorService.ResultadoValidacion validacion = validatorService.validar(dte);
             if (!validacion.esValido()) {
-                logger.warning("Validación DTE fallida: " + validacion.getMensajeResumen());
-                return ResponseEntity.unprocessableEntity().body(
-                        Map.of("message", "El documento no cumple con las validaciones SIFEN.",
-                                "errores", validacion.getErrores()));
+                throw new DteValidationException("Validación fallida: " + validacion.getMensajeResumen(), validacion.getErrores());
             }
 
             xmlGenerator.generarXml(dte);
@@ -346,20 +355,30 @@ public class EmisionController {
             // --- VALIDACIÓN XSD LUEGO DE FIRMAR ---
             xsdValidatorService.validarXml(dte.getXmlFirmado());
 
+        // Forzar estado para emisión asíncrona por defecto o FIRMADO inicial
+        dte.setEstado(EstadoDte.FIRMADO);
+        documentoService.guardar(dte);
+        return dte;
+    }
+
+    @PostMapping("/generar")
+    public ResponseEntity<Map<String, Object>> generarDte(@RequestBody Map<String, Object> payload) {
+        try {
+            logger.info("Recibida solicitud de generación DTE unitaria...");
+            DocumentoElectronico dte = procesarDteLocal(payload);
+            
             String tipoEnvio = String.valueOf(payload.getOrDefault("tipoEnvio", "SYNC"));
             boolean exitoEnvio;
             
-            // SIFEN restringe el uso del servicio Síncrono (siRecepDE) en Producción para grandes emisores.
             if ("ASYNC".equalsIgnoreCase(tipoEnvio)) {
                 exitoEnvio = sifenClient.enviarDteAsincrono(dte);
             } else {
                 exitoEnvio = sifenClient.enviarDteSincrono(dte);
             }
-
+            
             documentoService.guardar(dte);
-            logger.info("Documento guardado con CDC: " + dte.getCdc());
-
-            // Preparar respuesta con resultado oficial de SIFEN
+            logger.info("Documento emitido con CDC: " + dte.getCdc());
+            
             Map<String, Object> respuesta = new java.util.HashMap<>();
             respuesta.put("id", dte.getId());
             respuesta.put("cdc", dte.getCdc() != null ? dte.getCdc() : "");
@@ -371,24 +390,62 @@ public class EmisionController {
             if ("ASYNC".equalsIgnoreCase(tipoEnvio) && dte.getNumeroTicketLote() != null) {
                 respuesta.put("ticket", dte.getNumeroTicketLote());
             }
-
+            
             if (exitoEnvio) {
-                respuesta.put("message",
-                        dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "Operación exitosa con SIFEN");
+                respuesta.put("message", dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "Operación exitosa con SIFEN");
                 return ResponseEntity.ok(respuesta);
             } else {
-                // Rechazado por SIFEN (ej: 0401) o falló conexión
-                String msg = dte.getMensajeUsuario() != null ? dte.getMensajeUsuario()
-                        : ("SIFEN devolvió estado: " + dte.getEstado().name() + " (Código: "
-                                + respuesta.get("codigoSifen") + ")");
+                String msg = dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : ("SIFEN devolvió estado: " + dte.getEstado().name());
                 respuesta.put("message", msg);
                 return ResponseEntity.status(422).body(respuesta);
             }
-
+        } catch (DteValidationException e) {
+            logger.warning("Validación DTE fallida: " + e.getMessage());
+            return ResponseEntity.unprocessableEntity().body(Map.of("message", "El documento no cumple con las validaciones SIFEN.", "errores", e.getErrores()));
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error emitiendo DTE", e);
             return ResponseEntity.status(500).body(Map.of("message", "Error interno: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/masivo")
+    public ResponseEntity<Map<String, Object>> generarMasivo(@RequestBody List<Map<String, Object>> payloadList) {
+        logger.info("Recibida solicitud de emisión MASIVA. Total documentos: " + payloadList.size());
+        int procesadosExitosamente = 0;
+        int conErrores = 0;
+        List<Map<String, Object>> resultados = new ArrayList<>();
+        
+        for (int i = 0; i < payloadList.size(); i++) {
+            Map<String, Object> payload = payloadList.get(i);
+            Map<String, Object> resItem = new java.util.HashMap<>();
+            resItem.put("indice", i);
+            try {
+                // El procesamiento transaccional individual garantiza que si uno falla el resto no hace rollback
+                DocumentoElectronico dte = procesarDteLocal(payload);
+                resItem.put("estado", dte.getEstado().name());
+                resItem.put("cdc", dte.getCdc());
+                resItem.put("idInterno", dte.getId());
+                procesadosExitosamente++;
+            } catch (DteValidationException e) {
+                resItem.put("estado", "ERROR_VALIDACION");
+                resItem.put("error", e.getMessage());
+                resItem.put("detalles", e.getErrores());
+                conErrores++;
+            } catch (Exception e) {
+                resItem.put("estado", "ERROR_INTERNO");
+                resItem.put("error", e.getMessage());
+                conErrores++;
+            }
+            resultados.add(resItem);
+        }
+        
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("totalRecibidos", payloadList.size());
+        response.put("procesadosExitosamente", procesadosExitosamente);
+        response.put("conErrores", conErrores);
+        response.put("resultados", resultados);
+        
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/consultar-lote/{id}")
@@ -531,6 +588,8 @@ public class EmisionController {
                 m.put("ambiente", e.getAmbiente() != null ? e.getAmbiente().name() : null);
                 m.put("hasCertificado", e.getCertificadoFisico() != null);
                 m.put("fechaVencimientoCertificado", e.getFechaVencimientoCertificado() != null ? e.getFechaVencimientoCertificado().toString() : null);
+                m.put("idCsc", e.getIdCsc());
+                m.put("valorCsc", e.getValorCsc());
                 return m;
             }).toList();
             return ResponseEntity.ok(list);
@@ -626,50 +685,5 @@ public class EmisionController {
         }
     }
 
-    private int safeInt(Object val, int def) {
-        if (val == null || String.valueOf(val).isEmpty() || "null".equals(String.valueOf(val)))
-            return def;
-        if (val instanceof Number)
-            return ((Number) val).intValue();
-        try {
-            String s = String.valueOf(val).trim();
-            if (s.contains("."))
-                return (int) Double.parseDouble(s);
-            return Integer.parseInt(s);
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private Integer safeInt(Object val, Integer def) {
-        if (val == null || String.valueOf(val).isEmpty() || "null".equals(String.valueOf(val)))
-            return def;
-        if (val instanceof Number)
-            return ((Number) val).intValue();
-        try {
-            String s = String.valueOf(val).trim();
-            if (s.contains("."))
-                return (int) Double.parseDouble(s);
-            return Integer.parseInt(s);
-        } catch (Exception e) {
-            return def;
-        }
-    }
-
-    private double safeDouble(Object val, double def) {
-        if (val == null || String.valueOf(val).isEmpty())
-            return def;
-        if (val instanceof Number)
-            return ((Number) val).doubleValue();
-        try {
-            String s = String.valueOf(val).trim();
-            // Si tiene coma, asumimos formato manual (ej: 1.000,50)
-            if (s.contains(",")) {
-                s = s.replace(".", "").replace(",", ".");
-            }
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return def;
-        }
-    }
 }
+

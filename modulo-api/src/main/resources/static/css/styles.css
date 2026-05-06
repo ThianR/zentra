@@ -859,3 +859,235 @@ input:checked + .switch-label .switch-text-prod { display: block; }
     max-height: 200px;
     overflow-y: auto;
 }
+
+/* ===== MÓDULO DE EVENTOS SIFEN — Fase E6 ===== */
+
+/* Botón de acción peligrosa (Cancelar DTE) */
+.btn-danger {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.35);
+}
+.btn-danger:hover {
+    background: rgba(231, 76, 60, 0.35);
+    color: #ff6b6b;
+}
+
+/* Botón de advertencia (Inutilización) */
+.btn-warning {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.35);
+}
+.btn-warning:hover {
+    background: rgba(255, 193, 7, 0.3);
+    color: #ffe066;
+}
+
+/* Variables semánticas adicionales */
+:root {
+    --accent-danger:  #e74c3c;
+    --accent-warning: #f39c12;
+    --accent-success: #2ecc71;
+    --text-muted:     #64748b;
+}
+
+/* Badge de tipo de evento */
+.badge-type {
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.badge-type.cancelacion {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+.badge-type.inutilizacion {
+    background: rgba(243, 156, 18, 0.15);
+    color: #f39c12;
+}
+
+/* Badge de estado — estados adicionales */
+.badge-status.pendiente {
+    background: rgba(100, 116, 139, 0.2);
+    color: #94a3b8;
+}
+.badge-status.warning {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+
+/* Texto con color atenuado */
+.text-muted { color: var(--text-muted); }
+
+/* Textarea dentro de formularios de eventos */
+.form-control[rows] {
+    resize: vertical;
+    min-height: 70px;
+    background-image: none;
+}
+
+/* Margen inferior en grupos de formulario */
+.mb-12 { margin-bottom: 12px; }
+.mt-10 { margin-top: 10px; }
+
+/* === Estilos para Vista de Lotes (U1) === */
+.chevron-lote {
+    margin-right: 8px;
+    font-size: 0.9em;
+    color: var(--accent-primary);
+    transition: transform 0.2s ease;
+}
+.lote-dtes-container {
+    padding: 15px 20px 20px 40px;
+    background: rgba(10, 15, 30, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.table-dtes-inner {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.table-dtes-inner th, .table-dtes-inner td {
+    padding: 8px 12px;
+    font-size: 0.85em;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.table-dtes-inner th {
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.table-dtes-inner tr:last-child td {
+    border-bottom: none;
+}
+
+/* === Clases Extra�das de Inline Styles (R1.2) === */
+
+/* Banner de alerta de lotes hu�rfanos */
+.alert-banner-danger {
+    background: rgba(231, 76, 60, 0.1);
+    border-left: 4px solid var(--accent-danger);
+    padding: 15px 20px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+.alert-banner-danger .alert-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.alert-banner-danger .btn-alert {
+    border-color: var(--accent-danger);
+    color: var(--accent-danger);
+}
+
+/* Zona de arrastre de archivos (Emisi�n Masiva) */
+.file-drop-zone {
+    border: 2px dashed var(--border-color);
+    padding: 30px;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: rgba(0,0,0,0.2);
+}
+.file-drop-zone:hover {
+    border-color: var(--accent-primary);
+    background: rgba(0, 150, 255, 0.05);
+}
+.file-drop-zone .upload-icon {
+    color: var(--accent-primary);
+    margin-bottom: 10px;
+}
+
+/* Panel de resultado de consulta CDC */
+.cdc-result-box {
+    flex: 1;
+    min-width: 300px;
+    padding: 10px 15px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.2);
+}
+.cdc-result-box .result-label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+.cdc-result-box .result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.cdc-result-box .result-message {
+    margin-top: 5px;
+    font-size: 0.9em;
+    line-height: 1.3;
+}
+
+/* Layout para panel de consulta CDC */
+.cdc-search-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+.cdc-search-panel .cdc-input-group {
+    flex: 1;
+    min-width: 300px;
+}
+.cdc-search-panel .cdc-input-group label {
+    font-weight: 500;
+    display: block;
+    margin-bottom: 8px;
+}
+.cdc-search-panel .cdc-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+/* Contenedor de formulario centrado */
+.form-centered { max-width: 800px; margin: 0 auto; margin-top: 2rem; }
+.form-centered-lg { max-width: 900px; margin: 0 auto; margin-top: 2rem; }
+
+/* Acciones de formulario flex */
+.form-actions-split {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Preview logo */
+.logo-preview-box {
+    border: 1px dashed var(--border-color);
+    padding: 10px;
+    border-radius: 8px;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-2);
+}
+
+/* Info box de certificado activo */
+.cert-active-info {
+    border: 1px solid var(--accent-success);
+    background: rgba(39, 174, 96, 0.1);
+    color: var(--accent-success);
+}
+
+/* Info box de advertencia de cancelaci�n */
+.info-box-danger {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid var(--accent-danger);
+    color: var(--accent-danger);
+    margin-bottom: 18px;
+}

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- =====================================================================
+     Evento_v150.xsd — Formato de Evento Emisor SIFEN v150
+     Fuente: Manual Técnico SIFEN v1.5.0, Sección 11.5.1
+     Namespace: http://ekuatia.set.gov.py/sifen/xsd
+     ===================================================================== -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+           elementFormDefault="qualified"
+           xmlns="http://ekuatia.set.gov.py/sifen/xsd"
+           targetNamespace="http://ekuatia.set.gov.py/sifen/xsd">
+
+    <xs:import namespace="http://www.w3.org/2000/09/xmldsig#"
+               schemaLocation="xmldsig-core-schema.xsd"/>
+
+    <!-- =========================================================
+         rGE — Raíz del Grupo de Gestión de Evento (Emisor)
+         Contenedor principal del evento. Se firma sobre el nodo
+         gGroupGestE cuyo atributo Id contiene el CDC del evento.
+         ========================================================= -->
+    <xs:complexType name="rGE">
+        <xs:sequence>
+            <xs:element name="gGroupGestE" type="tgGroupGestE"/>
+            <xs:element ref="ds:Signature" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:element name="rGE" type="rGE"/>
+
+    <!-- =========================================================
+         gGroupGestE — Grupo principal del Evento
+         ========================================================= -->
+    <xs:complexType name="tgGroupGestE">
+        <xs:sequence>
+            <xs:element name="dId" type="xs:string"/>
+            <!-- CDC del DTE afectado (44 dígitos) -->
+            <xs:element name="gGestEv" type="tgGestEv"/>
+        </xs:sequence>
+        <xs:attribute name="Id" type="xs:ID" use="required"/>
+    </xs:complexType>
+
+    <!-- =========================================================
+         gGestEv — Campos del Evento en sí
+         ========================================================= -->
+    <xs:complexType name="tgGestEv">
+        <xs:sequence>
+            <!-- Tipo de evento: 1=Cancelacion, 3=Inutilizacion, 2=Conformidad, 4=Disconformidad, 5=Desconocimiento, 6=NotifRec -->
+            <xs:element name="iTiEvt" type="xs:integer"/>
+            <xs:element name="dDesTiEvt" type="xs:string"/>
+            <!-- Fecha y hora del evento (formato: yyyy-MM-ddTHH:mm:ss) -->
+            <xs:element name="dFecHoraEvt" type="xs:dateTime"/>
+            
+            <xs:element name="gEvCan" type="tgEvCan" minOccurs="0"/>
+            <xs:element name="gEvInut" type="tgEvInut" minOccurs="0"/>
+            
+            <!-- Eventos de Receptor -->
+            <xs:element name="gEvConf" type="tgEvConf" minOccurs="0"/>
+            <xs:element name="gEvDisconf" type="tgEvDisconf" minOccurs="0"/>
+            <xs:element name="gEvDescon" type="tgEvDescon" minOccurs="0"/>
+            <xs:element name="gEvNotRec" type="tgEvNotRec" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- =========================================================
+         Eventos del Emisor (1 y 3)
+         ========================================================= -->
+    <xs:complexType name="tgEvCan">
+        <xs:sequence>
+            <xs:element name="mOtEve">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="5"/>
+                        <xs:maxLength value="500"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="tgEvInut">
+        <xs:sequence>
+            <xs:element name="dNumTim" type="xs:string"/>
+            <xs:element name="iTiDE" type="xs:integer"/>
+            <xs:element name="dDesTiDE" type="xs:string"/>
+            <xs:element name="dEst" type="xs:string"/>
+            <xs:element name="dPunExp" type="xs:string"/>
+            <xs:element name="dNumIniFolio" type="xs:integer"/>
+            <xs:element name="dNumFinFolio" type="xs:integer"/>
+            <xs:element name="mOtEve">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="5"/>
+                        <xs:maxLength value="500"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- =========================================================
+         Eventos del Receptor (2, 4, 5, 6)
+         ========================================================= -->
+    <xs:complexType name="tgEvConf">
+        <xs:sequence>
+            <xs:element name="mOtEve" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="tgEvDisconf">
+        <xs:sequence>
+            <xs:element name="mOtEve">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="5"/>
+                        <xs:maxLength value="500"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="tgEvDescon">
+        <xs:sequence>
+            <xs:element name="mOtEve">
+                <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                        <xs:minLength value="5"/>
+                        <xs:maxLength value="500"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="tgEvNotRec">
+        <xs:sequence>
+            <xs:element name="mOtEve" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+</xs:schema>

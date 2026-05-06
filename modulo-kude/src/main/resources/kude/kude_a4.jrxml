@@ -22,12 +22,26 @@
 	<parameter name="P_TOTAL_IVA_5" class="java.lang.Double"/>
 	<parameter name="P_TOTAL_IVA" class="java.lang.Double"/>
 	<parameter name="P_QR" class="java.lang.Object"/>
+	<parameter name="P_CANCELADO" class="java.lang.Boolean"/>
 	<field name="codigo" class="java.lang.String"/>
 	<field name="descripcion" class="java.lang.String"/>
 	<field name="cantidad" class="java.lang.Integer"/>
 	<field name="precioUnitario" class="java.lang.Double"/>
 	<field name="montoTotalItem" class="java.lang.Double"/>
 	<field name="tasaIva" class="java.lang.Double"/>
+	<background>
+		<band height="800" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="200" width="555" height="400" forecolor="#FFCCCC">
+					<printWhenExpression><![CDATA[$P{P_CANCELADO} != null && $P{P_CANCELADO}]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="Left">
+					<font fontName="SansSerif" size="50" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DOCUMENTO CANCELADO]]></text>
+			</staticText>
+		</band>
+	</background>
 	<title>
 		<band height="145" splitType="Stretch">
 			<rectangle radius="5">

@@ -2,7 +2,10 @@ package com.zentra.middleware.sifen;
 
 import com.zentra.middleware.core.enums.Ambiente;
 import com.zentra.middleware.core.model.DocumentoElectronico;
+import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.model.EstadoDte;
+import com.zentra.middleware.core.model.EventoDocumento;
+import com.zentra.middleware.core.enums.EstadoEvento;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Service;
@@ -46,6 +49,13 @@ public class SifenSoapClient {
     // Servicio: siConsLoteDE (Consulta de Lotes)
     private static final String ENDPOINT_CONSULTA_TEST = "https://sifen-test.set.gov.py/de/ws/consultas/consulta-lote.wsdl";
     private static final String ENDPOINT_CONSULTA_PROD = "https://sifen.set.gov.py/de/ws/consultas/consulta-lote.wsdl";
+
+    // Servicio: siRecepEvento (Recepción de Eventos: Cancelación, Inutilización)
+    private static final String ENDPOINT_EVENTO_TEST = "https://sifen-test.set.gov.py/de/ws/eventos/evento.wsdl";
+    private static final String ENDPOINT_EVENTO_PROD = "https://sifen.set.gov.py/de/ws/eventos/evento.wsdl";
+
+    // SOAPAction requerida por el WS de eventos SIFEN
+    private static final String SOAP_ACTION_EVENTO = "http://ekuatia.set.gov.py/sifen/xsd/siRecepEvento";
 
     private static final int TIMEOUT_CONEXION = 30000;
     private static final int TIMEOUT_LECTURA = 60000;
@@ -271,6 +281,97 @@ public class SifenSoapClient {
         }
     }
 
+    public boolean enviarLoteAsincrono(com.zentra.middleware.core.model.LoteTransmision lote, String xmlLote) {
+        if (lote.getEmpresa() == null) {
+            throw new IllegalStateException("El lote no tiene empresa emisora asociada.");
+        }
+
+        Ambiente ambiente = lote.getEmpresa().getAmbiente() != null ? lote.getEmpresa().getAmbiente() : Ambiente.TEST;
+        String endpoint = (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_LOTE_PROD : ENDPOINT_LOTE_TEST;
+        
+        logger.info("Transmitiendo LOTE ASÍNCRONO MULTIPLE a SIFEN [ambiente=" + ambiente + "] -> " + endpoint);
+
+        try {
+            SSLContext sslContext = construirSslContextDesdeEmpresa(lote.getEmpresa());
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siRecepLoteDE");
+
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_xml_lote_multiple_" + lote.getId() + ".xml"), xmlLote, StandardCharsets.UTF_8);
+            } catch (Exception ignored) {}
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
+                java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry("lote_" + lote.getId() + ".xml");
+                zos.putNextEntry(entry);
+                zos.write(xmlLote.getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+            String base64Zip = java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+
+            String dId = "1";
+            String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                              "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+                              "<env:Header/>" +
+                              "<env:Body>" +
+                              "<rEnvioLote xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                              "<dId>" + dId + "</dId>" +
+                              "<xDE>" + base64Zip + "</xDE>" +
+                              "</rEnvioLote>" +
+                              "</env:Body>" +
+                              "</env:Envelope>";
+
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_soap_request_lote_" + lote.getId() + ".xml"), soapBody, StandardCharsets.UTF_8);
+            } catch(Exception ignored) {}
+
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            int httpStatus;
+            try {
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                httpStatus = conn.getResponseCode();
+            }
+            
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+            
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            
+            if ("0300".equals(codRes)) {
+                String dProtConsLote = extraerEtiqueta(xmlRespuesta, "dProtConsLote", null);
+                if (dProtConsLote != null) {
+                    lote.setNumeroTicket(dProtConsLote);
+                    lote.setEstado(com.zentra.middleware.core.model.EstadoLote.ENVIADO);
+                    lote.setFechaEnvio(java.time.LocalDateTime.now());
+                    logger.info("Lote aceptado. Ticket: " + dProtConsLote);
+                    return true;
+                } else {
+                    lote.setEstado(com.zentra.middleware.core.model.EstadoLote.ERROR);
+                    logger.severe("SIFEN aceptó el lote pero no devolvió Ticket.");
+                    return false;
+                }
+            } else {
+                String msgRes = extraerMensaje(xmlRespuesta);
+                lote.setEstado(com.zentra.middleware.core.model.EstadoLote.ERROR);
+                logger.severe("Rechazo de lote SIFEN (" + codRes + "): " + msgRes);
+                return false;
+            }
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error en transmisión asíncrona múltiple: " + e.getMessage(), e);
+            lote.setEstado(com.zentra.middleware.core.model.EstadoLote.ERROR);
+            return false;
+        }
+    }
+
     public boolean consultarLoteSifen(DocumentoElectronico dte) {
         if (dte.getNumeroTicketLote() == null || dte.getNumeroTicketLote().isBlank()) {
             throw new IllegalStateException("El documento no tiene un número de Ticket asociado para consultar.");
@@ -356,8 +457,269 @@ public class SifenSoapClient {
         }
     }
 
+    public String consultarTicketLoteMultiple(com.zentra.middleware.core.model.LoteTransmision lote) {
+        if (lote.getNumeroTicket() == null || lote.getNumeroTicket().isBlank()) {
+            throw new IllegalStateException("El lote no tiene un número de Ticket asociado para consultar.");
+        }
+
+        Ambiente ambiente = lote.getEmpresa().getAmbiente() != null ? lote.getEmpresa().getAmbiente() : Ambiente.TEST;
+        String endpoint = (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_CONSULTA_PROD : ENDPOINT_CONSULTA_TEST;
+        logger.info("Consultando LOTE MULTIPLE Ticket " + lote.getNumeroTicket() + " -> " + endpoint);
+
+        try {
+            SSLContext sslContext = construirSslContextDesdeEmpresa(lote.getEmpresa());
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, "http://ekuatia.set.gov.py/sifen/xsd/siConsLoteDE");
+
+            String dId = "1";
+            String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                              "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+                              "<env:Header/>" +
+                              "<env:Body>" +
+                              "<rEnviConsLoteDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                              "<dId>" + dId + "</dId>" +
+                              "<dProtConsLote>" + lote.getNumeroTicket() + "</dProtConsLote>" +
+                              "</rEnviConsLoteDe>" +
+                              "</env:Body>" +
+                              "</env:Envelope>";
+
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.writeString(dirTemp.resolve("DEBUG_soap_request_consulta_lote_mult.xml"), soapBody, StandardCharsets.UTF_8);
+            } catch(Exception ignored) {}
+
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            int httpStatus;
+            try {
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                httpStatus = conn.getResponseCode();
+            }
+            
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+            
+            return xmlRespuesta;
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error en consulta de lote múltiple asíncrona: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
     private String resolverEndpoint(Ambiente ambiente) {
         return (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_PROD : ENDPOINT_TEST;
+    }
+
+    // =========================================================================
+    // Envío de Eventos SIFEN (Cancelación / Inutilización) — Fase E4
+    // =========================================================================
+
+    /**
+     * Envía un Evento SIFEN firmado al Web Service {@code siRecepEvento}.
+     *
+     * <p>Construye el SOAP Envelope con el XML del evento firmado y lo transmite
+     * mediante mTLS usando el certificado P12 de la empresa emisora.</p>
+     *
+     * <p>Actualiza el {@link EventoDocumento} con el resultado de SIFEN:
+     * código de respuesta, mensaje y estado final (APROBADO/RECHAZADO/ERROR_ENVIO).</p>
+     *
+     * @param evento   El evento con el XML firmado ya generado.
+     * @param ambiente Ambiente destino (PRODUCCION o TEST).
+     * @return {@code true} si SIFEN respondió con código 0300 (Aprobado).
+     */
+    public boolean enviarEvento(EventoDocumento evento, Ambiente ambiente) {
+        if (evento.getXmlFirmado() == null || evento.getXmlFirmado().isBlank()) {
+            throw new IllegalStateException("El evento no tiene XML firmado. No se puede enviar a SIFEN.");
+        }
+        if (evento.getEmpresa() == null) {
+            throw new IllegalStateException("El evento no tiene empresa emisora asociada.");
+        }
+
+        String endpoint = (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_EVENTO_PROD : ENDPOINT_EVENTO_TEST;
+        logger.info("[SifenSoapClient.enviarEvento] Transmitiendo evento [" + evento.getTipoEvento()
+            + "] a SIFEN [" + ambiente + "] -> " + endpoint);
+
+        try {
+            // Construir el contexto SSL con el certificado P12 de la empresa
+            SSLContext sslContext = construirSslContextDesdeEmpresa(evento.getEmpresa());
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext, SOAP_ACTION_EVENTO);
+
+            // Armar el SOAP Envelope para el evento
+            String soapBody = construirSoapEnvelopeEvento(evento);
+
+            // Diagnóstico en temp/
+            guardarDiagnosticoEvento(soapBody, "DEBUG_soap_evento_request.xml");
+            logger.info("[SifenSoapClient.enviarEvento] SOAP Evento:\n" + soapBody);
+
+            // Transmitir
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            int httpStatus;
+            try {
+                httpStatus = conn.getResponseCode();
+            } catch (IOException e) {
+                httpStatus = conn.getResponseCode();
+                logger.warning("[SifenSoapClient.enviarEvento] IOException al obtener status: " + e.getMessage());
+            }
+            logger.info("[SifenSoapClient.enviarEvento] HTTP Status: " + httpStatus);
+
+            // Leer la respuesta
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+
+            evento.setXmlRespuestaSifen(xmlRespuesta);
+            guardarDiagnosticoEvento(xmlRespuesta, "DEBUG_soap_evento_response.xml");
+            logger.info("[SifenSoapClient.enviarEvento] Respuesta SIFEN:\n" + xmlRespuesta);
+
+            // Parsear código y mensaje de resultado
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String msgRes = extraerEtiqueta(xmlRespuesta, "dMsgRes", "Sin descripcion");
+
+            evento.setCodigoSifen(codRes);
+            evento.setMensajeSifen(msgRes);
+            evento.setFechaRespuesta(java.time.LocalDateTime.now());
+
+            boolean aprobado = "0300".equals(codRes);
+            evento.setEstado(aprobado ? EstadoEvento.APROBADO : EstadoEvento.RECHAZADO);
+
+            if (aprobado) {
+                evento.setMensajeUsuario("Evento aprobado exitosamente por SIFEN.");
+                logger.info("[SifenSoapClient.enviarEvento] Evento APROBADO. Tipo=" + evento.getTipoEvento());
+            } else {
+                evento.setMensajeUsuario(mapearMensajeAmigable(codRes, msgRes));
+                logger.warning("[SifenSoapClient.enviarEvento] Evento RECHAZADO. Codigo=" + codRes + " | Msg=" + msgRes);
+            }
+
+            return aprobado;
+
+        } catch (Exception e) {
+            logger.log(java.util.logging.Level.SEVERE,
+                "[SifenSoapClient.enviarEvento] Error de transmision: " + e.getMessage(), e);
+            evento.setEstado(EstadoEvento.ERROR_ENVIO);
+            evento.setMensajeUsuario("Error de transmision al enviar evento: " + e.getMessage());
+            evento.setFechaRespuesta(java.time.LocalDateTime.now());
+            return false;
+        }
+    }
+
+    /**
+     * Construye el SOAP Envelope 1.2 para el WS {@code siRecepEvento}.
+     *
+     * <p>Estructura requerida por SIFEN v150, Sección 9.5:</p>
+     * <pre>
+     *   &lt;env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"&gt;
+     *     &lt;env:Header/&gt;
+     *     &lt;env:Body&gt;
+     *       &lt;rEnviEvt xmlns="http://ekuatia.set.gov.py/sifen/xsd"&gt;
+     *         [XML del evento firmado — sin declaración &lt;?xml?&gt;]
+     *       &lt;/rEnviEvt&gt;
+     *     &lt;/env:Body&gt;
+     *   &lt;/env:Envelope&gt;
+     * </pre>
+     *
+     * <p>El contenido del evento ya viene serializado dentro del elemento raíz
+     * {@code &lt;rEnviEvt&gt;}, por lo que se inserta directamente sin envoltura
+     * adicional (el XML firmado ya contiene ese nodo raíz).</p>
+     *
+     * @param evento El evento con su XML firmado listo para enviar.
+     * @return SOAP Envelope completo como cadena UTF-8.
+     */
+    private String construirSoapEnvelopeEvento(EventoDocumento evento) {
+        // Eliminar la declaración <?xml?> para embeber dentro del SOAP Body
+        String xmlFirmado = evento.getXmlFirmado()
+            .replaceFirst("<\\?xml.*?\\?>", "").trim();
+
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+               "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+               "<env:Header/>" +
+               "<env:Body>" +
+               xmlFirmado +
+               "</env:Body>" +
+               "</env:Envelope>";
+    }
+
+    /**
+     * Construye un {@link SSLContext} para mTLS usando el certificado P12 de
+     * la empresa emisora, sin necesitar un {@link DocumentoElectronico} como
+     * intermediario.
+     *
+     * <p>Reutiliza la misma lógica que {@link #construirSslContext(DocumentoElectronico)}
+     * pero acepta directamente la entidad {@link Empresa}.</p>
+     *
+     * @param empresa Empresa con el certificado P12 configurado.
+     * @return SSLContext configurado con la clave del cliente para mTLS.
+     * @throws Exception si el certificado no está configurado o no puede cargarse.
+     */
+    private SSLContext construirSslContextDesdeEmpresa(Empresa empresa) throws Exception {
+        byte[] p12Bytes = empresa.getCertificadoFisico();
+        String ruta     = empresa.getRutaCertificado();
+        String rawPass  = empresa.getPasswordCertificado();
+
+        if (p12Bytes == null && (ruta == null || ruta.isBlank())) {
+            throw new Exception("La empresa no tiene configurado el certificado P12 (ni bytes ni ruta).");
+        }
+
+        String p12Pass;
+        try {
+            p12Pass = com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+        } catch (Exception e) {
+            p12Pass = rawPass;
+        }
+        char[] passwordChars = p12Pass != null ? p12Pass.toCharArray() : new char[0];
+
+        KeyStore p12Store = KeyStore.getInstance("PKCS12");
+        if (p12Bytes != null) {
+            try (java.io.InputStream is = new java.io.ByteArrayInputStream(p12Bytes)) {
+                p12Store.load(is, passwordChars);
+            }
+        } else {
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(ruta)) {
+                p12Store.load(fis, passwordChars);
+            }
+        }
+
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(p12Store, passwordChars);
+
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        TrustManager[] trustAll = new TrustManager[] {
+            new X509TrustManager() {
+                public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a) {}
+                public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a) {}
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return new java.security.cert.X509Certificate[0];
+                }
+            }
+        };
+        sslContext.init(kmf.getKeyManagers(), trustAll, new java.security.SecureRandom());
+        return sslContext;
+    }
+
+    /**
+     * Guarda un XML de diagnóstico en el directorio {@code temp/}.
+     * No interrumpe el flujo si falla (best-effort).
+     *
+     * @param contenido  Contenido XML a guardar.
+     * @param nombreArchivo Nombre del archivo dentro de {@code temp/}.
+     */
+    private void guardarDiagnosticoEvento(String contenido, String nombreArchivo) {
+        try {
+            java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+            java.nio.file.Files.createDirectories(dirTemp);
+            java.nio.file.Files.writeString(
+                dirTemp.resolve(nombreArchivo),
+                contenido != null ? contenido : "",
+                StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
     }
 
 
@@ -505,6 +867,7 @@ public class SifenSoapClient {
         };
     }
 
+
     private String extraerEtiqueta(String xml, String etiqueta, String valorPorDefecto) {
         if (xml == null || xml.isBlank())
             return valorPorDefecto;
@@ -516,4 +879,96 @@ public class SifenSoapClient {
         }
         return valorPorDefecto;
     }
+
+    // --- Consulta individual de DTE por CDC (rEnviConsDe / siConsDe) ---
+    // Endpoint separado del de lotes; permite consultar cualquier DTE por su CDC directamente.
+    private static final String ENDPOINT_CONS_DTE_TEST = "https://sifen-test.set.gov.py/de/ws/consultas/consulta.wsdl";
+    private static final String ENDPOINT_CONS_DTE_PROD = "https://sifen.set.gov.py/de/ws/consultas/consulta.wsdl";
+
+    /**
+     * Consulta el estado oficial de un DTE en SIFEN usando su CDC (Código de Control).
+     * Este método se utiliza como medida preventiva para DTEs "huérfanos": documentos cuyo
+     * Ticket de Lote se perdió o cuyo Lote lleva más de 24 horas sin respuesta definitiva.
+     *
+     * @param dte El documento a consultar. Debe tener CDC y el certificado del emisor cargado.
+     * @return true si SIFEN confirma el estado APROBADO (0300), false en cualquier otro caso.
+     */
+    public boolean consultarDtePorCdc(DocumentoElectronico dte) {
+        if (dte.getCdc() == null || dte.getCdc().isBlank()) {
+            throw new IllegalStateException("El documento no tiene CDC para consultar en SIFEN.");
+        }
+
+        Ambiente ambiente = dte.getAmbiente() != null ? dte.getAmbiente() : Ambiente.TEST;
+        String endpoint = (ambiente == Ambiente.PRODUCCION) ? ENDPOINT_CONS_DTE_PROD : ENDPOINT_CONS_DTE_TEST;
+        logger.info("Consulta individual por CDC [" + dte.getCdc() + "] -> " + endpoint);
+
+        try {
+            SSLContext sslContext = construirSslContext(dte);
+            HttpsURLConnection conn = abrirConexion(endpoint, sslContext,
+                    "http://ekuatia.set.gov.py/sifen/xsd/siConsDe");
+
+            // Estructura SOAP según especificación SIFEN v150 para rEnviConsDe
+            String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                    "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
+                    "<env:Header/>" +
+                    "<env:Body>" +
+                    "<rEnviConsDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                    "<dId>1</dId>" +
+                    "<dCDC>" + dte.getCdc() + "</dCDC>" +
+                    "</rEnviConsDe>" +
+                    "</env:Body>" +
+                    "</env:Envelope>";
+
+            // Guardar SOAP de diagnóstico en temp/
+            try {
+                java.nio.file.Path dirTemp = java.nio.file.Paths.get(DIRECTORIO_TEMP);
+                java.nio.file.Files.createDirectories(dirTemp);
+                java.nio.file.Files.writeString(
+                        dirTemp.resolve("DEBUG_consulta_cdc_" + dte.getCdc() + ".xml"),
+                        soapBody, StandardCharsets.UTF_8);
+            } catch (Exception ignored) {}
+
+            byte[] soapBytes = soapBody.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(soapBytes);
+                os.flush();
+            }
+
+            // Ignoramos explícitamente el HTTP status ya que SIFEN puede devolver 500 con cuerpo válido
+            try { conn.getResponseCode(); } catch (IOException ignored) {}
+
+            String xmlRespuesta = leerRespuesta(conn);
+            conn.disconnect();
+
+            dte.setXmlRespuestaSifen(xmlRespuesta);
+
+            // Según especificación SIFEN v150: dCodRes = 0300 -> aprobado, 0400 -> rechazado
+            String dCodRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String dMsgRes = extraerEtiqueta(xmlRespuesta, "dMsgRes", "Sin descripcion");
+
+            dte.setCodigoEstadoSifen(dCodRes);
+            logger.info("Resultado consulta CDC [" + dte.getCdc() + "]: " + dCodRes + " - " + dMsgRes);
+
+            if ("0300".equals(dCodRes)) {
+                dte.setEstado(EstadoDte.APROBADO);
+                dte.setMensajeUsuario("DTE aprobado (consulta directa por CDC): " + dMsgRes);
+                return true;
+            } else if ("0304".equals(dCodRes)) {
+                // SIFEN aún no procesó el documento
+                dte.setMensajeUsuario("SIFEN indica que el DTE aún está en proceso de verificación.");
+                return false;
+            } else {
+                dte.setEstado(EstadoDte.RECHAZADO);
+                dte.setMensajeSifen(dMsgRes);
+                dte.setMensajeUsuario("DTE rechazado por SIFEN (" + dCodRes + "): " + dMsgRes);
+                return false;
+            }
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error en consulta individual por CDC: " + e.getMessage(), e);
+            dte.setMensajeUsuario("Error técnico al consultar CDC en SIFEN: " + e.getMessage());
+            return false;
+        }
+    }
 }
+

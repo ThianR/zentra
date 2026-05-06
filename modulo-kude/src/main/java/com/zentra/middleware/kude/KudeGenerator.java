@@ -65,6 +65,10 @@ public class KudeGenerator {
             // Logo Dinámico
             parameters.put("P_LOGO", loadLogo(dte));
 
+            // Control de Estado (Marca de Agua)
+            boolean estaCancelado = dte.getEstado() != null && dte.getEstado().name().equals("ANULADO");
+            parameters.put("P_CANCELADO", estaCancelado);
+
             // Generar QR
             String qrUrl = "https://kuatia.set.gov.py/consultas/qr?nDe=" + dte.getCdc();
             parameters.put("P_QR", generateQrImage(qrUrl));

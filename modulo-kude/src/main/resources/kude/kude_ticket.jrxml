@@ -19,10 +19,24 @@
 	<parameter name="P_CDC" class="java.lang.String"/>
 	<parameter name="P_QR" class="java.lang.Object"/>
 	<parameter name="P_LOGO" class="java.lang.Object"/>
+	<parameter name="P_CANCELADO" class="java.lang.Boolean"/>
 	<field name="descripcion" class="java.lang.String"/>
 	<field name="cantidad" class="java.lang.Integer"/>
 	<field name="precioUnitario" class="java.lang.Double"/>
 	<field name="montoTotalItem" class="java.lang.Double"/>
+	<background>
+		<band height="400" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="50" width="206" height="300" forecolor="#FFCCCC">
+					<printWhenExpression><![CDATA[$P{P_CANCELADO} != null && $P{P_CANCELADO}]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="Left">
+					<font fontName="SansSerif" size="30" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DOCUMENTO CANCELADO]]></text>
+			</staticText>
+		</band>
+	</background>
 	<title>
 		<band height="195" splitType="Stretch">
 			<image scaleImage="RetainShape" hAlign="Center" vAlign="Middle">

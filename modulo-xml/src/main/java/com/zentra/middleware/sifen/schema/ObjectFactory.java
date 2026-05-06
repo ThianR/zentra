@@ -475,6 +475,26 @@ public class ObjectFactory {
         return new TgCamRDE();
     }
 
+    // =========================================================================
+    // Clases de Eventos SIFEN v150 — Cancelación e Inutilización
+    // =========================================================================
+
+    /** Crea una instancia de {@link REnviEvt} — contenedor raíz del envío de eventos. */
+    public REnviEvt createREnviEvt() { return new REnviEvt(); }
+
+    /** Crea una instancia de {@link TgGroupGestE} — grupo principal del evento. */
+    public TgGroupGestE createTgGroupGestE() { return new TgGroupGestE(); }
+
+    /** Crea una instancia de {@link TgGestEv} — datos del evento (tipo, fecha). */
+    public TgGestEv createTgGestEv() { return new TgGestEv(); }
+
+    /** Crea una instancia de {@link TgEvCan} — datos de cancelación (tipo 1). */
+    public TgEvCan createTgEvCan() { return new TgEvCan(); }
+
+    /** Crea una instancia de {@link TgEvInut} — datos de inutilización (tipo 3). */
+    public TgEvInut createTgEvInut() { return new TgEvInut(); }
+
+
     /**
      * Create an instance of {@link SignatureType }
      * 

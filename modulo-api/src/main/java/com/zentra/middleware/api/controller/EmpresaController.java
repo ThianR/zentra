@@ -139,6 +139,15 @@ public class EmpresaController {
             empresa.setIdCsc(empresaDetalles.getIdCsc());
             empresa.setValorCsc(empresaDetalles.getValorCsc());
             
+            // Lotes y Personalización
+            if (empresaDetalles.getFrecuenciaLoteMinutos() != null) {
+                empresa.setFrecuenciaLoteMinutos(empresaDetalles.getFrecuenciaLoteMinutos());
+            }
+            if (empresaDetalles.getFrecuenciaConsultaTicketMinutos() != null) {
+                empresa.setFrecuenciaConsultaTicketMinutos(empresaDetalles.getFrecuenciaConsultaTicketMinutos());
+            }
+            empresa.setLogoBase64(empresaDetalles.getLogoBase64());
+            
             return ResponseEntity.ok(empresaRepository.save(empresa));
         }).orElse(ResponseEntity.notFound().build());
     }

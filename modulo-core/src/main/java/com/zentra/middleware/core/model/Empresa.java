@@ -58,6 +58,10 @@ public class Empresa {
     @Convert(converter = com.zentra.middleware.core.converter.AmbienteConverter.class)
     private Ambiente ambiente = Ambiente.TEST;
     
+    // Parámetros Batch (Lotes Asíncronos)
+    private Integer frecuenciaLoteMinutos = 15; // Cada cuántos minutos agrupar y enviar un lote
+    private Integer frecuenciaConsultaTicketMinutos = 5; // Frecuencia para consultar tickets pendientes
+    
     @jakarta.persistence.Lob
     private byte[] certificadoFisico; // Archivo P12/PFX almacenado internamente
     
@@ -141,4 +145,9 @@ public class Empresa {
 
     public String getLogoBase64() { return logoBase64; }
     public void setLogoBase64(String logoBase64) { this.logoBase64 = logoBase64; }
+
+    public Integer getFrecuenciaLoteMinutos() { return frecuenciaLoteMinutos; }
+    public void setFrecuenciaLoteMinutos(Integer frecuenciaLoteMinutos) { this.frecuenciaLoteMinutos = frecuenciaLoteMinutos; }
+    public Integer getFrecuenciaConsultaTicketMinutos() { return frecuenciaConsultaTicketMinutos; }
+    public void setFrecuenciaConsultaTicketMinutos(Integer frecuenciaConsultaTicketMinutos) { this.frecuenciaConsultaTicketMinutos = frecuenciaConsultaTicketMinutos; }
 }
