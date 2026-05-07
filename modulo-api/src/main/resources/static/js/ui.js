@@ -148,24 +148,75 @@ function getTipoLabel(val) {
     return labels[val] || 'DTE';
 }
 
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type} slide-up`;
+class ZentraNotifier {
+    constructor(containerId = 'toastContainer') {
+        this.container = document.getElementById(containerId);
+    }
+
+    success(msg, duration) { this._show(msg, 'success', 'check-circle', duration); }
+    error(msg, duration) { this._show(msg, 'error', 'exclamation-circle', duration); }
+    warning(msg, duration) { this._show(msg, 'warning', 'exclamation-triangle', duration); }
+    info(msg, duration) { this._show(msg, 'info', 'info-circle', duration); }
     
-    let icon = 'info-circle';
-    if (type === 'success') icon = 'check-circle';
-    if (type === 'error') icon = 'exclamation-circle';
-    if (type === 'warning') icon = 'exclamation-triangle';
+    // Reemplazo para alert() con mayor duración
+    alert(msg) { this._show(msg, 'warning', 'bell', 10000); }
 
-    toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${message}</span>`;
-    container.appendChild(toast);
+    _show(message, type, icon, duration = 4000) {
+        if (!this.container) {
+            this.container = document.getElementById('toastContainer');
+            if (!this.container) return;
+        }
 
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 500);
-    }, 4000);
+        const toast = document.createElement('div');
+        toast.className = `toast ${type} slide-up`;
+        
+        // Soporte para saltos de línea
+        const formattedMsg = String(message).replace(/\n/g, '<br>');
+        toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${formattedMsg}</span>`;
+        
+        this.container.appendChild(toast);
+
+        let timeoutId;
+        const startTimer = () => {
+            timeoutId = setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
+        };
+
+        startTimer();
+
+        // Pausar al pasar el mouse
+        toast.addEventListener('mouseenter', () => {
+            clearTimeout(timeoutId);
+            toast.style.opacity = '1';
+        });
+
+        // Reanudar al quitar el mouse
+        toast.addEventListener('mouseleave', () => {
+            startTimer();
+        });
+        
+        // Cerrar al hacer clic
+        toast.addEventListener('click', () => {
+            clearTimeout(timeoutId);
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 500);
+        });
+    }
 }
+
+// Instancia global
+window.Notifier = new ZentraNotifier();
+
+// Retrocompatibilidad
+window.showToast = function(message, type = 'info') {
+    if (window.Notifier[type]) {
+        window.Notifier[type](message);
+    } else {
+        window.Notifier.info(message);
+    }
+};
 
 // --- Carga unificada de empresas en selectores ---
 // Uso: const lista = await cargarEmpresasEnSelect('miSelectId');
@@ -189,4 +240,38 @@ async function cargarEmpresasEnSelect(selectId) {
         select.innerHTML = '<option value="">Error al cargar empresas</option>';
         return [];
     }
+}
+
+// --- B�squeda Global (Fase A6.2) ---
+
+function initGlobalSearch() {
+    const searchInput = document.getElementById('globalSearch');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', debounce((e) => {
+        const query = e.target.value.trim().toLowerCase();
+        if (query.length === 0) {
+            loadDocumentos();
+            return;
+        }
+        if (query.length < 3) return;
+        
+        loadDocumentos({ search: query });
+    }, 300));
+
+    // Atajo Ctrl+K
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'k') {
+            e.preventDefault();
+            searchInput.focus();
+        }
+    });
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
 }

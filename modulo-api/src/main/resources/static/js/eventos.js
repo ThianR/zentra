@@ -336,7 +336,23 @@ window.toggleRespuestaEvento = async function() {
 
 // Esta función es invocada desde la tabla de documentos (documentos.js)
 // cuando el usuario hace clic en el botón "Anular" de un DTE aprobado.
-window.iniciarCancelacionDte = function(docId, cdc) {
+window.iniciarCancelacionDte = async function(docId, cdc) {
+    if (!cdc) return showToast('El DTE no tiene CDC, no se puede cancelar.', 'error');
+    
+    // Verificar si ya fue cancelado previamente
+    try {
+        showToast('Verificando estado del DTE...', 'info');
+        const res = await fetch(`/api/v1/eventos/estado/${cdc}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.cancelado) {
+                return Notifier.alert(`El documento con CDC ${cdc.substring(0,10)}... ya se encuentra CANCELADO en los registros de SIFEN.\nNo es necesario enviarlo de nuevo.`);
+            }
+        }
+    } catch (e) {
+        console.warn("No se pudo verificar el estado previo de cancelación:", e);
+    }
+
     switchView('eventos');
     // Pequeño delay para asegurar que la vista esté visible antes del modal
     setTimeout(() => abrirModalCancelacion(docId, cdc), 300);

@@ -183,12 +183,13 @@ async function procesarEmisionMasiva() {
         const respuesta = await res.json();
         
         // Renderizar resultados
+        // Renderizar resultados
         mostrarResultadosMasivos(respuesta, payloadList);
         
         // Limpiar el textArea solo si hubo al menos un exito
-        if (respuesta.exitosos > 0) {
-            showToast(`Se encolaron ${respuesta.exitosos} documentos exitosamente`, 'success');
-            if (respuesta.errores === 0) {
+        if (respuesta.procesadosExitosamente > 0) {
+            showToast(`Se encolaron ${respuesta.procesadosExitosamente} documentos exitosamente`, 'success');
+            if (respuesta.conErrores === 0) {
                 document.getElementById('masivoJsonText').value = '';
                 document.getElementById('masivoFile').value = '';
                 document.getElementById('masivoFileName').textContent = 'Haga clic o arrastre un archivo .json aquí';
@@ -209,29 +210,27 @@ async function procesarEmisionMasiva() {
 
 function mostrarResultadosMasivos(res, payloadList) {
     document.getElementById('masivoResultPanel').style.display = 'block';
-    
+
     document.getElementById('resMasivoTotal').textContent = res.totalRecibidos || 0;
-    document.getElementById('resMasivoExito').textContent = res.exitosos || 0;
-    document.getElementById('resMasivoError').textContent = res.errores || 0;
-    
+    document.getElementById('resMasivoExito').textContent = res.procesadosExitosamente || 0;
+    document.getElementById('resMasivoError').textContent = res.conErrores || 0;
+
     const tbody = document.getElementById('tbodyMasivoResult');
     tbody.innerHTML = '';
-    
+
     if (res.resultados && res.resultados.length > 0) {
         res.resultados.forEach(item => {
             const tr = document.createElement('tr');
             
             let statusClass = 'pendiente';
-            if (item.estado === 'FIRMADO') statusClass = 'aprobado';
+            if (item.estado === 'FIRMADO' || item.estado === 'APROBADO' || item.estado === 'ENVIADO') statusClass = 'aprobado';
             else if (item.estado && item.estado.includes('ERROR')) statusClass = 'rechazado';
             
             let errorText = '';
             if (item.estado === 'ERROR_VALIDACION' || item.estado === 'ERROR_INTERNO') {
-                errorText = `<span class="text-error small-text">${item.errorDetalle || 'Error en validación de datos (Verifique la estructura)'}</span>`;
-                // Si la API devolvió la lista de errores dentro de errorDetalle
-                if (typeof item.errorDetalle === 'object') {
-                    errorText = `<span class="text-error small-text">${JSON.stringify(item.errorDetalle)}</span>`;
-                }
+                const msg = item.error || 'Error en validación de datos';
+                const detalles = item.detalles ? ` (${item.detalles.join(', ')})` : '';
+                errorText = `<span class="text-error small-text">${msg}${detalles}</span>`;
             } else {
                 errorText = `<span class="mono small-text" style="color:var(--accent-primary);">${item.cdc || '—'}</span>`;
             }

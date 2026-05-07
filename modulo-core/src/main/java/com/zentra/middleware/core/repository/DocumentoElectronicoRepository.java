@@ -17,4 +17,22 @@ public interface DocumentoElectronicoRepository extends JpaRepository<DocumentoE
     java.util.List<DocumentoElectronico> findAllByOrderByFechaCreacionDesc();
 
     java.util.Optional<DocumentoElectronico> findByCdc(String cdc);
+
+    // --- Consultas para Estadísticas ---
+
+    @org.springframework.data.jpa.repository.Query("SELECT CAST(d.fechaCreacion AS date) as fecha, d.estado, COUNT(d), COALESCE(SUM(d.totalOperacion),0) " +
+           "FROM DocumentoElectronico d WHERE d.fechaCreacion >= :desde GROUP BY CAST(d.fechaCreacion AS date), d.estado ORDER BY fecha DESC")
+    java.util.List<Object[]> resumenDiario(@org.springframework.data.repository.query.Param("desde") java.time.LocalDateTime desde);
+
+    @org.springframework.data.jpa.repository.Query("SELECT d.rucReceptor, d.receptorRazonSocial, COUNT(d), COALESCE(SUM(d.totalOperacion),0) " +
+           "FROM DocumentoElectronico d WHERE d.estado = 'APROBADO' GROUP BY d.rucReceptor, d.receptorRazonSocial ORDER BY COUNT(d) DESC")
+    java.util.List<Object[]> topReceptores(org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT FUNCTION('YEAR', d.fechaCreacion), FUNCTION('MONTH', d.fechaCreacion), COUNT(d), " +
+           "COALESCE(SUM(d.totalOperacion),0), COALESCE(SUM(d.totalIva),0) " +
+       "FROM DocumentoElectronico d WHERE d.fechaCreacion >= :desde GROUP BY FUNCTION('YEAR', d.fechaCreacion), FUNCTION('MONTH', d.fechaCreacion) ORDER BY 1 DESC, 2 DESC")
+    java.util.List<Object[]> facturacionMensual(@org.springframework.data.repository.query.Param("desde") java.time.LocalDateTime desde);
+
+    @org.springframework.data.jpa.repository.Query("SELECT d.estado, COUNT(d) FROM DocumentoElectronico d GROUP BY d.estado")
+    java.util.List<Object[]> resumenEstadoGlobal();
 }

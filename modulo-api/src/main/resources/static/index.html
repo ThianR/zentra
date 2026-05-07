@@ -8,6 +8,12 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Librerías Externas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body class="dark-theme">
@@ -51,7 +57,7 @@
                     </button>
                     <div class="header-search">
                         <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Buscar por CDC, RUC o Nro. Comprobante...">
+                        <input type="text" id="globalSearch" placeholder="Buscar por CDC, RUC o Nro. Comprobante...">
                     </div>
                 </div>
                 <div class="header-actions">
@@ -98,6 +104,35 @@
                     </div>
                 </div>
 
+                <!-- Indicadores de Salud y Alertas Inteligentes -->
+                <section class="dashboard-top-insights">
+                    <div class="health-card glass slide-up">
+                        <div class="gauge-container">
+                            <div class="gauge">
+                                <div class="gauge-body">
+                                    <div id="healthFill" class="gauge-fill"></div>
+                                    <div class="gauge-cover">
+                                        <span id="healthValue">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="health-info">
+                            <h4>Salud Fiscal</h4>
+                            <p id="healthStatus">Calculando...</p>
+                        </div>
+                    </div>
+
+                    <div id="smartAlerts" class="smart-alerts-card glass slide-up" style="animation-delay: 0.1s">
+                        <div class="alerts-header">
+                            <h4><i class="fas fa-lightbulb text-warning"></i> Insights & Alertas</h4>
+                        </div>
+                        <div id="alertsList" class="alerts-list">
+                            <div class="alert-item empty">Analizando comportamiento...</div>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="dashboard-stats">
                     <div class="stat-card glass slide-up">
                         <div class="stat-icon success"><i class="fas fa-check-circle"></i></div>
@@ -136,10 +171,95 @@
                     </div>
                 </section>
 
+                <!-- Sección de Gráficos Analíticos -->
+                <section id="seccionGraficos" class="dashboard-charts fade-in">
+                    <div class="chart-card glass">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-bar"></i> Emisiones por Día</h4>
+                            <select id="chartRangoDias" class="form-select form-select-sm">
+                                <option value="7">Últimos 7 días</option>
+                                <option value="15">Últimos 15 días</option>
+                                <option value="30" selected>Últimos 30 días</option>
+                            </select>
+                        </div>
+                        <div class="chart-container-inner">
+                            <canvas id="chartEmisionesDiarias"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card glass">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-pie"></i> Distribución por Estado</h4>
+                        </div>
+                        <div class="chart-container-inner">
+                            <canvas id="chartEstados"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card glass">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-users"></i> Top 10 Receptores</h4>
+                        </div>
+                        <div class="chart-container-inner">
+                            <canvas id="chartTopReceptores"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card glass">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-line"></i> Facturación Mensual</h4>
+                        </div>
+                        <div class="chart-container-inner">
+                            <canvas id="chartFacturacionMensual"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Barra de Filtros Avanzada -->
+                <section id="barraFiltros" class="filter-bar glass fade-in">
+                    <div class="filter-group">
+                        <label>Desde</label>
+                        <input type="date" id="filtroDesde" class="form-control form-control-sm">
+                    </div>
+                    <div class="filter-group">
+                        <label>Hasta</label>
+                        <input type="date" id="filtroHasta" class="form-control form-control-sm">
+                    </div>
+                    <div class="filter-group">
+                        <label>Estado</label>
+                        <select id="filtroEstado" class="form-select form-select-sm">
+                            <option value="">Todos los Estados</option>
+                            <option value="APROBADO">Aprobado</option>
+                            <option value="RECHAZADO">Rechazado</option>
+                            <option value="EN_PROCESO">En Proceso</option>
+                            <option value="ANULADO">Anulado</option>
+                            <option value="ERROR_ENVIO">Error de Envío</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Tipo DTE</label>
+                        <select id="filtroTipo" class="form-select form-select-sm">
+                            <option value="">Todos los Tipos</option>
+                            <option value="1">Factura</option>
+                            <option value="4">Autofactura</option>
+                            <option value="5">Nota de Crédito</option>
+                            <option value="6">Nota de Débito</option>
+                            <option value="7">Nota de Remisión</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions-bar">
+                        <button class="btn btn-primary btn-sm" onclick="aplicarFiltrosGlobales()">
+                            <i class="fas fa-search"></i> Filtrar
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="limpiarFiltrosGlobales()">
+                            <i class="fas fa-eraser"></i> Limpiar
+                        </button>
+                    </div>
+                </section>
+
                 <section class="content-table glass fade-in">
                     <div class="table-header">
                         <h3>Documentos Recientes</h3>
                         <div class="filter-actions">
+                            <button class="btn btn-outline btn-sm" onclick="exportarPdfDocumentos()" title="Exportar a PDF"><i class="fas fa-file-pdf"></i> PDF</button>
+                            <button class="btn btn-outline btn-sm" onclick="exportarExcelDocumentos()" title="Exportar a Excel"><i class="fas fa-file-excel"></i> Excel</button>
                             <button class="btn btn-outline btn-sm"><i class="fas fa-filter"></i> Filtrar</button>
                             <button id="btnRefresh" class="btn btn-outline btn-sm"><i
                                     class="fas fa-sync-alt"></i></button>
@@ -210,12 +330,6 @@
                                     <div class="form-group">
                                         <label>DV</label>
                                         <input type="text" id="emisorDv" class="form-control" maxlength="1" placeholder="-">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Tipo Contribuyente</label>
-                                        <select id="emisorTipoContribuyente" class="form-select dynamic-ref" data-ref="TIPO_CONTRIBUYENTE">
-                                            <option value="">Cargando...</option>
-                                        </select>
                                     </div>
                                     <div class="form-group span-2">
                                         <label>Razón Social (Mín. 4 carac.)</label>
@@ -294,24 +408,62 @@
                                         <option value="9">9 - Otros</option>
                                     </select>
                                 </div>
-                                <div class="form-group">
-                                    <label>Establecimiento - Punto Exp - Correlativo</label>
-                                    <div class="comprobante-group">
-                                        <input type="text" id="codEstablecimiento" value="001" maxlength="3"
-                                            class="form-control text-center" title="Establecimiento" placeholder="001"
-                                            onblur="this.value = this.value.padStart(3, '0')">
-                                        <input type="text" id="puntoExpedicion" value="001" maxlength="3"
-                                            class="form-control text-center" title="Punto de Expedición"
-                                            placeholder="001" onblur="this.value = this.value.padStart(3, '0')">
-                                        <input type="text" id="numeroComprobante" placeholder="0000001" maxlength="7"
-                                            class="form-control" title="Número de Comprobante"
-                                            onblur="this.value = this.value.padStart(7, '0')">
+                                <div class="form-group full-width">
+                                    <label>Timbrado y Seguridad (SIFEN)</label>
+                                    <div class="grid-row cols-3">
+                                        <div class="form-group">
+                                            <label>Nro. Timbrado</label>
+                                            <input type="text" id="timbrado" name="timbrado" maxlength="8" class="form-control" placeholder="Nro. Timbrado">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Vencimiento Timbrado</label>
+                                            <input type="date" id="fechaVencimientoTimbrado" class="form-control">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Ambiente SIFEN</label>
+                                            <select id="ambienteSifen" class="form-select">
+                                                <option value="1">Desarrollo / TEST</option>
+                                                <option value="2">Producción</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Timbrado Nro.</label>
-                                    <input type="text" id="timbrado" name="timbrado" maxlength="8"
-                                        class="form-control" placeholder="Nro. Timbrado">
+                                    <div class="grid-row cols-3 mt-12">
+                                        <div class="form-group">
+                                            <label title="Código de 3 dígitos del establecimiento">Establecimiento</label>
+                                            <input type="text" id="codEstablecimiento" value="001" maxlength="3" 
+                                                class="form-control text-center highlight-input" 
+                                                onblur="this.value = this.value.padStart(3, '0')"
+                                                placeholder="001">
+                                        </div>
+                                        <div class="form-group">
+                                            <label title="Código de 3 dígitos del punto de expedición">Punto Expedición</label>
+                                            <input type="text" id="puntoExpedicion" value="001" maxlength="3" 
+                                                class="form-control text-center highlight-input" 
+                                                onblur="this.value = this.value.padStart(3, '0')"
+                                                placeholder="001">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Tipo Contribuyente</label>
+                                            <select id="emisorTipoContribuyente" class="form-select dynamic-ref" data-ref="TIPO_CONTRIBUYENTE">
+                                                <option value="">Cargando...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid-row cols-2 mt-12">
+                                        <div class="form-group">
+                                            <label>ID CSC (Código de Seguridad)</label>
+                                            <input type="text" id="idCsc" class="form-control" placeholder="0001">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Valor CSC</label>
+                                            <input type="text" id="valorCsc" class="form-control" placeholder="73c9BeeA5AFb8fD17a3fD93a32A07A1a">
+                                        </div>
+                                    </div>
+                                    <!-- Comprobante Correlativo -->
+                                    <div class="form-group mt-12">
+                                        <label>Nro. Comprobante (Correlativo)</label>
+                                        <input type="text" id="numeroComprobante" placeholder="0000001" maxlength="7" class="form-control" onblur="this.value = this.value.padStart(7, '0')">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1255,9 +1407,11 @@
     <script src="js/emision.js?v=1.7.0"></script>
     <script src="js/empresas.js?v=1.7.0"></script>
     <script src="js/eventos.js?v=1.0.0"></script>
-    <script src="js/lotes.js?v=1.0.0"></script>
-    <script src="js/emision-masiva.js?v=1.0.0"></script>
-    <script src="js/app.js?v=1.7.0"></script>
+    <script src="js/lotes.js"></script>
+    <script src="js/emision-masiva.js"></script>
+    <script src="js/dashboard-analytics.js"></script>
+    <script src="js/reportes.js"></script>
+    <script src="js/app.js"></script>
 </body>
 
 </html>

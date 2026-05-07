@@ -1,4 +1,4 @@
-﻿// --- Form Logic ---
+// --- Form Logic ---
 
 function initForm() {
     const form = document.getElementById('formDte');
@@ -95,6 +95,18 @@ function populateEmisorData(ruc) {
 
     if (emp.codEstablecimiento) document.getElementById('codEstablecimiento').value = emp.codEstablecimiento;
     if (emp.puntoExpedicion) document.getElementById('puntoExpedicion').value = emp.puntoExpedicion;
+    
+    // Datos de Timbrado y Seguridad (Fase A6+)
+    if (emp.timbrado) document.getElementById('timbrado').value = emp.timbrado;
+    if (emp.fechaVencimientoTimbrado) document.getElementById('fechaVencimientoTimbrado').value = emp.fechaVencimientoTimbrado;
+    if (emp.ambiente) {
+        // Mapear "TEST" -> 1, "PROD" -> 2 si es necesario, o usar el valor directo
+        const ambValue = (emp.ambiente === 'PROD' || emp.ambiente === 'PRODUCCION') ? '2' : '1';
+        document.getElementById('ambienteSifen').value = ambValue;
+    }
+    if (emp.tipoContribuyente) document.getElementById('emisorTipoContribuyente').value = emp.tipoContribuyente;
+    if (emp.idCsc) document.getElementById('idCsc').value = emp.idCsc;
+    if (emp.valorCsc) document.getElementById('valorCsc').value = emp.valorCsc;
     
     showToast(`Emisor: ${emp.razonSocial} cargado`, 'info');
 }
@@ -288,39 +300,41 @@ function generateAutoCuotas() {
 }
 
 async function lookupRuc() {
-    const rucWithDv = document.getElementById('ducReceptor').value;
-    if (!rucWithDv) return;
+    const rucInput = document.getElementById('ducReceptor');
+    if (!rucInput) return;
 
-    const btnLookup = document.getElementById('btnLookupRuc');
-    const rucInput = document.getElementById('ducReceptor'); // Use ducReceptor as per existing code
+    let ruc = rucInput.value.trim();
+    if (!ruc) return;
+
+    // Si tiene guión, lo limpiamos para la consulta base si fuera necesario, 
+    // pero el backend ya maneja la limpieza.
     
-    const ruc = rucInput.value.split('-')[0].trim();
-    if (!ruc) return showToast('Ingrese un RUC válido', 'error');
+    const btnLookup = document.getElementById('btnLookupRuc');
+    const originalHtml = btnLookup.innerHTML;
     
     btnLookup.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btnLookup.disabled = true;
     
     try {
-        const response = await fetch(`https://turuc.com.py/api/contribuyente/${ruc}`);
-        if (response.ok) {
-            const json = await response.json();
-            // Handle both flat and nested (data.data) responses
-            const data = json.data ? json.data : json;
-            document.getElementById('razonSocialReceptor').value = data.razonSocial || data.razon_social || '';
-            showToast('Datos cargados desde TuRuc.com.py', 'success');
+        const response = await fetch(`/api/v1/emision/consultar-ruc?ruc=${encodeURIComponent(ruc)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        if (data && data.razonSocial) {
+            document.getElementById('razonSocialReceptor').value = data.razonSocial;
+            // Si el backend devolvió el DV, podríamos intentar ponerlo si tuviéramos un campo separado,
+            // pero ducReceptor suele incluir el DV en este flujo.
+            showToast('Datos del receptor recuperados', 'success');
         } else {
-            throw new Error(`Status: ${response.status}`);
+            showToast('No se encontraron datos para este RUC', 'warning');
         }
     } catch (error) {
         console.error('RUC Lookup error:', error);
-        // Fallback for demo when API fails (like CORS or offline)
-        if (ruc === '44444401') {
-             document.getElementById('razonSocialReceptor').value = 'CONTRIBUYENTE REAL S.A.';
-        } else {
-             document.getElementById('razonSocialReceptor').value = `CLIENTE MOCK (${ruc})`;
-        }
-        showToast('RUC cargado (Modo Simulado / Offline)', 'warning');
+        showToast('Error al consultar RUC en el servidor', 'error');
     } finally {
-        btnLookup.innerHTML = '<i class="fas fa-search"></i>';
+        btnLookup.innerHTML = originalHtml;
+        btnLookup.disabled = false;
     }
 }
 
@@ -499,7 +513,7 @@ async function submitDte() {
             puntoExpedicion: pexp,
             numero: nro,
             timbrado: timbrado,
-            ambiente: localStorage.getItem('zentra-env') === 'prod' ? 2 : 1,
+            ambiente: parseInt(document.getElementById('ambienteSifen').value) || 1,
             formatoKuDE: document.getElementById('kudeFormat') ? document.getElementById('kudeFormat').value : 'A4',
             iTiOpe: parseInt(document.getElementById('iTiOpe').value) || 1,
             iIndPres: parseInt(document.getElementById('iIndPres').value) || 1,
@@ -560,7 +574,7 @@ async function submitDte() {
             if (res.ticket) {
                 showToast(`Lote en proceso SIFEN. Ticket: ${res.ticket}`, 'info');
                 // Alerta prolongada para Lote
-                setTimeout(() => alert("El DTE se envió por lote.\nTicket SIFEN: " + res.ticket + "\nPuedes consultar su estado desde el Dashboard."), 500);
+                setTimeout(() => Notifier.alert("El DTE se envió por lote.\nTicket SIFEN: " + res.ticket + "\nPuedes consultar su estado desde el Dashboard."), 500);
             } else {
                 showToast(`DTE Emitido con éxito. CDC: ${res.cdc}`, 'success');
             }

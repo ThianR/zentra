@@ -11,16 +11,63 @@ function initDashboard() {
 
 // --- Data Loading ---
 
-async function loadDocumentos() {
+async function loadDocumentos(filtros = null) {
     const tbody = document.getElementById('tbodyDocumentos');
     try {
         const response = await fetch(API.emision + '/documentos');
-        const docs = await response.json();
+        let docs = await response.json();
         
+        // Aplicar filtros en memoria si existen
+        if (filtros) {
+            docs = docs.filter(doc => {
+                let cumple = true;
+                
+                // Filtro por fecha exacta (del gráfico)
+                if (filtros.fecha) {
+                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
+                    if (fDoc !== filtros.fecha) cumple = false;
+                }
+                
+                // Filtro por estado
+                if (filtros.estado && doc.estado !== filtros.estado) cumple = false;
+                
+                // Filtro por RUC (del gráfico top receptores)
+                if (filtros.ruc && doc.rucReceptor !== filtros.ruc) cumple = false;
+                
+                // Filtro por Tipo
+                if (filtros.tipo && String(doc.tipoDocumento) !== String(filtros.tipo)) cumple = false;
+                
+                // Rango de fechas (de la barra de filtros)
+                if (filtros.desde) {
+                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
+                    if (fDoc < filtros.desde) cumple = false;
+                }
+                if (filtros.hasta) {
+                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
+                    if (fDoc > filtros.hasta) cumple = false;
+                }
+                
+                // Búsqueda Global (Fase A6.2)
+                if (filtros.search) {
+                    const s = filtros.search.toLowerCase();
+                    const cdc = (doc.cdc || '').toLowerCase();
+                    const ruc = (doc.rucReceptor || '').toLowerCase();
+                    const nro = (doc.numeroComprobante || '').toLowerCase();
+                    const razon = (doc.receptorRazonSocial || '').toLowerCase();
+                    
+                    if (!cdc.includes(s) && !ruc.includes(s) && !nro.includes(s) && !razon.includes(s)) {
+                        cumple = false;
+                    }
+                }
+                
+                return cumple;
+            });
+        }
+
         updateStats(docs);
 
         if (docs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay documentos emitidos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay documentos que coincidan con los filtros</td></tr>';
             return;
         }
 
@@ -256,3 +303,46 @@ window.toggleRawXml = function() {
     box.style.display = box.style.display === 'none' ? 'block' : 'none';
 }
 
+// --- Gestión de Filtros ---
+
+window.aplicarFiltrosGlobales = function() {
+    const filtros = {
+        desde: document.getElementById('filtroDesde').value,
+        hasta: document.getElementById('filtroHasta').value,
+        estado: document.getElementById('filtroEstado').value,
+        tipo: document.getElementById('filtroTipo').value
+    };
+    
+    loadDocumentos(filtros);
+    showToast("Filtros aplicados", "info");
+};
+
+window.limpiarFiltrosGlobales = function() {
+    document.getElementById('filtroDesde').value = '';
+    document.getElementById('filtroHasta').value = '';
+    document.getElementById('filtroEstado').value = '';
+    document.getElementById('filtroTipo').value = '';
+    
+    loadDocumentos();
+    showToast("Filtros limpiados", "info");
+};
+
+/**
+ * Llamada desde los gráficos analíticos
+ */
+window.aplicarFiltrosManual = function(filtros) {
+    // Sincronizar UI de filtros si aplica
+    if (filtros.estado) document.getElementById('filtroEstado').value = filtros.estado;
+    if (filtros.tipo) document.getElementById('filtroTipo').value = filtros.tipo;
+    if (filtros.fecha) {
+        // La fecha del gráfico viene como YYYY-MM-DD, el input date también lo usa
+        document.getElementById('filtroDesde').value = filtros.fecha;
+        document.getElementById('filtroHasta').value = filtros.fecha;
+    }
+    
+    loadDocumentos(filtros);
+    showToast("Filtrado por selección de gráfico", "info");
+    
+    // Scroll suave a la tabla
+    document.querySelector('.content-table').scrollIntoView({ behavior: 'smooth' });
+};

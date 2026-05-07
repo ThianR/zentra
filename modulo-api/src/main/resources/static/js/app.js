@@ -1,4 +1,4 @@
-﻿// --- Estado Global ---
+// --- Estado Global ---
 window.sifenRefData = {};
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -6,7 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initEnvironment();
     initReferencias(); // Nueva carga dinámica de SIFEN
     initDashboard();
+    initDashboardAnalytics();
     initNavigation();
+    initGlobalSearch();
     initSidebar();
     initForm();
 });
