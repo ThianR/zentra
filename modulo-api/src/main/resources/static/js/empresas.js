@@ -5,7 +5,7 @@ async function loadEmpresasGrid() {
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/v1/emision/empresas');
+        const response = await fetch('/api/v1/empresas');
         const empresas = await response.json();
         
         if (empresas.length === 0) {

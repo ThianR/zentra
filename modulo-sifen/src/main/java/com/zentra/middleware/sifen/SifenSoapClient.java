@@ -248,7 +248,7 @@ public class SifenSoapClient {
             conn.disconnect();
             
             dte.setXmlRespuestaSifen(xmlRespuesta);
-            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
             dte.setCodigoEstadoSifen(codRes);
             
             // 0300 significa lote recibido exitosamente
@@ -343,7 +343,7 @@ public class SifenSoapClient {
             String xmlRespuesta = leerRespuesta(conn);
             conn.disconnect();
             
-            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
             
             if ("0300".equals(codRes)) {
                 String dProtConsLote = extraerEtiqueta(xmlRespuesta, "dProtConsLote", null);

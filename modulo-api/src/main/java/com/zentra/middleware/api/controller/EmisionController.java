@@ -14,6 +14,10 @@ import com.zentra.middleware.crypto.service.XmlSignerService;
 import com.zentra.middleware.sifen.SifenSoapClient;
 import com.zentra.middleware.kude.KudeGenerator;
 import com.zentra.middleware.core.repository.SifenReferenciaRepository;
+import com.zentra.middleware.core.repository.EmpresaRepository;
+import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
+import com.zentra.middleware.api.security.EmpresaContext;
+import com.zentra.middleware.core.service.HistorialSifenService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -44,7 +48,10 @@ public class EmisionController {
     private final DteValidatorService validatorService;
     private final SifenReferenciaRepository referenciaRepository;
     private final HttpClient httpClient;
-    private final XsdValidatorService xsdValidatorService; // Added field
+    private final XsdValidatorService xsdValidatorService;
+    private final EmpresaRepository empresaRepository;
+    private final DocumentoElectronicoRepository dteRepository;
+    private final HistorialSifenService historialSifenService;
 
     public EmisionController(
             DteXmlGenerator xmlGenerator,
@@ -54,7 +61,10 @@ public class EmisionController {
             DocumentoService documentoService,
             DteValidatorService validatorService,
             SifenReferenciaRepository referenciaRepository,
-            XsdValidatorService xsdValidatorService) { // Added to constructor parameters
+            XsdValidatorService xsdValidatorService,
+            EmpresaRepository empresaRepository,
+            DocumentoElectronicoRepository dteRepository,
+            HistorialSifenService historialSifenService) { // Added to constructor parameters
         this.xmlGenerator = xmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
@@ -63,6 +73,9 @@ public class EmisionController {
         this.validatorService = validatorService;
         this.referenciaRepository = referenciaRepository;
         this.xsdValidatorService = xsdValidatorService; // Initialized field
+        this.empresaRepository = empresaRepository;
+        this.dteRepository = dteRepository;
+        this.historialSifenService = historialSifenService;
         
         HttpClient client;
         try {
@@ -107,15 +120,16 @@ public class EmisionController {
 
     @SuppressWarnings("unchecked")
     public DocumentoElectronico procesarDteLocal(Map<String, Object> payload) throws Exception {
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null) {
+                throw new RuntimeException("Debe seleccionar una empresa activa para emitir.");
+            }
+            
+            Empresa emisor = empresaRepository.findById(empresaId)
+                    .orElseThrow(() -> new RuntimeException("Empresa activa no encontrada."));
+
             @SuppressWarnings("unchecked")
             Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
-            String rucEmisor = "80014603"; // RUC oficial de test para REPUESTOS RG S.A.
-            if (emiRaw != null && emiRaw.get("ruc") != null) {
-                rucEmisor = String.valueOf(emiRaw.get("ruc")).split("-")[0].replace(".", "");
-            }
-
-            String rucSafe = java.util.Objects.requireNonNull(rucEmisor);
-            Empresa emisor = documentoService.obtenerEmpresaPorRuc(rucSafe);
 
             if (emiRaw != null) {
                 // Actualizar campos del emisor con los datos enviados desde el frontend si
@@ -377,6 +391,7 @@ public class EmisionController {
             }
             
             documentoService.guardar(dte);
+            historialSifenService.registrar(dte, "ENVIO");
             logger.info("Documento emitido con CDC: " + dte.getCdc());
             
             Map<String, Object> respuesta = new java.util.HashMap<>();
@@ -466,6 +481,7 @@ public class EmisionController {
             logger.info("Iniciando consulta a SIFEN para el Ticket: " + dte.getNumeroTicketLote());
             boolean exito = sifenClient.consultarLoteSifen(dte);
             documentoService.guardar(dte);
+            historialSifenService.registrar(dte, "CONSULTA_LOTE");
             logger.info("Consulta finalizada. Nuevo estado: " + dte.getEstado() + " | SIFEN Code: " + dte.getCodigoEstadoSifen());
 
             Map<String, Object> respuesta = new java.util.HashMap<>();
@@ -510,7 +526,16 @@ public class EmisionController {
     @GetMapping("/documentos")
     public ResponseEntity<?> listarDocumentos() {
         try {
-            List<Map<String, Object>> list = documentoService.obtenerTodos().stream().map(d -> {
+            String empresaId = EmpresaContext.getEmpresaId();
+            List<DocumentoElectronico> documentos;
+            
+            if (empresaId != null) {
+                documentos = dteRepository.findByEmisorIdOrderByFechaCreacionDesc(empresaId);
+            } else {
+                return ResponseEntity.status(403).body(Map.of("error", "Debe seleccionar una empresa"));
+            }
+
+            List<Map<String, Object>> list = documentos.stream().map(d -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", d.getId());
                 m.put("tipoDocumento", d.getTipoDocumento());
@@ -561,12 +586,44 @@ public class EmisionController {
         }
     }
 
-
+    @GetMapping("/documentos/{id}/historial")
+    public ResponseEntity<?> obtenerHistorial(@PathVariable String id) {
+        try {
+            DocumentoElectronico d = documentoService.obtenerPorId(id);
+            if (d == null) {
+                return ResponseEntity.notFound().build();
+            }
+            // Verificar acceso por empresa
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null || d.getEmisor() == null || !d.getEmisor().getId().equals(empresaId)) {
+                return ResponseEntity.status(403).body(Map.of("error", "No tiene acceso a este documento"));
+            }
+            var historial = historialSifenService.obtenerHistorial(id);
+            List<Map<String, Object>> result = historial.stream().map(h -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", h.getId());
+                m.put("fechaRegistro", h.getFechaRegistro() != null ? h.getFechaRegistro().toString() : "");
+                m.put("operacion", h.getOperacion());
+                m.put("codigoEstado", h.getCodigoEstado() != null ? h.getCodigoEstado() : "");
+                m.put("mensajeRespuesta", h.getMensajeRespuesta() != null ? h.getMensajeRespuesta() : "");
+                m.put("xmlRespuesta", h.getXmlRespuesta() != null ? h.getXmlRespuesta() : "");
+                return m;
+            }).toList();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error obteniendo historial del documento " + id, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Error: " + e.getMessage()));
+        }
+    }
 
     @GetMapping("/empresas")
     public ResponseEntity<?> listarEmpresas() {
         try {
-            List<Map<String, Object>> list = documentoService.obtenerTodasLasEmpresas().stream().map(e -> {
+            String clienteId = EmpresaContext.getClienteId();
+            if (clienteId == null) {
+                return ResponseEntity.status(401).body("No autorizado");
+            }
+            List<Map<String, Object>> list = empresaRepository.findByClienteId(clienteId).stream().map(e -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", e.getId());
                 m.put("ruc", e.getRuc());

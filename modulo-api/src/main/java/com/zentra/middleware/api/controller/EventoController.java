@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import com.zentra.middleware.api.security.EmpresaContext;
+
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -97,7 +99,12 @@ public class EventoController {
 
         String cdc       = extraerString(payload, "cdc");
         String motivo    = extraerString(payload, "motivo");
-        String empresaId = extraerString(payload, "empresaId");
+        
+        // Priorizar empresaId del contexto, fallback al payload si no existe
+        String empresaId = EmpresaContext.getEmpresaId();
+        if (empresaId == null || empresaId.isBlank()) {
+            empresaId = extraerString(payload, "empresaId");
+        }
 
         // — Validación de campos obligatorios —
         if (cdc == null || cdc.length() != 44) {
@@ -205,7 +212,10 @@ public class EventoController {
     public ResponseEntity<Map<String, Object>> inutilizarNumeracion(@RequestBody Map<String, Object> payload) {
         logger.info("[EventoController.inutilizarNumeracion] Solicitud recibida.");
 
-        String  empresaId       = extraerString(payload, "empresaId");
+        String  empresaId       = EmpresaContext.getEmpresaId();
+        if (empresaId == null || empresaId.isBlank()) {
+            empresaId = extraerString(payload, "empresaId");
+        }
         String  timbrado        = extraerString(payload, "timbrado");
         Integer tipoDocumento   = extraerInt(payload, "tipoDocumento");
         String  establecimiento = extraerString(payload, "establecimiento");
@@ -327,7 +337,10 @@ public class EventoController {
         String  cdc        = extraerString(payload, "cdc");
         Integer tipoEvtInt = extraerInt(payload, "tipoEvento");
         String  motivo     = extraerString(payload, "motivo");
-        String  empresaId  = extraerString(payload, "empresaId");
+        String  empresaId  = EmpresaContext.getEmpresaId();
+        if (empresaId == null || empresaId.isBlank()) {
+            empresaId = extraerString(payload, "empresaId");
+        }
 
         // — Validaciones básicas —
         if (cdc == null || cdc.length() != 44)
@@ -428,8 +441,11 @@ public class EventoController {
      */
     @GetMapping
     @Transactional(readOnly = true)
-    public ResponseEntity<List<Map<String, Object>>> listarEventos() {
-        List<EventoDocumento> eventos = eventoService.obtenerTodos();
+    public ResponseEntity<?> listarEventos() {
+        String empresaId = EmpresaContext.getEmpresaId();
+        if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+        
+        List<EventoDocumento> eventos = eventoService.obtenerTodos(empresaId);
         List<Map<String, Object>> respuesta = eventos.stream()
             .map(this::construirRespuesta)
             .collect(Collectors.toList());
@@ -451,7 +467,9 @@ public class EventoController {
                 .body(Map.of("error", "El CDC debe tener exactamente 44 dígitos."));
         }
 
-        List<EventoDocumento> eventos = eventoService.obtenerPorCdc(cdc);
+        List<EventoDocumento> eventos = eventoService.obtenerPorCdc(cdc).stream()
+            .filter(e -> e.getEmpresa() != null && e.getEmpresa().getId().equals(EmpresaContext.getEmpresaId()))
+            .collect(Collectors.toList());
         boolean cancelado = eventoService.estaCancelado(cdc);
 
         return ResponseEntity.ok(Map.of(
@@ -473,6 +491,9 @@ public class EventoController {
     public ResponseEntity<Map<String, Object>> obtenerEvento(@PathVariable String id) {
         try {
             EventoDocumento evento = eventoService.obtenerPorId(id);
+            if (evento.getEmpresa() == null || !evento.getEmpresa().getId().equals(EmpresaContext.getEmpresaId())) {
+                return ResponseEntity.status(403).build();
+            }
             return ResponseEntity.ok(construirRespuestaDetalle(evento));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

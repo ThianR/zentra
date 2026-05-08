@@ -2,6 +2,7 @@ package com.zentra.middleware.api.controller;
 
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.zentra.middleware.api.security.EmpresaContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,8 +27,11 @@ public class EstadisticaController {
     public ResponseEntity<?> getResumenDiario(
             @RequestParam(required = false, defaultValue = "30") int dias) {
         try {
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+            
             LocalDateTime desde = LocalDateTime.now().minusDays(dias).withHour(0).withMinute(0).withSecond(0);
-            List<Object[]> data = dteRepository.resumenDiario(desde);
+            List<Object[]> data = dteRepository.resumenDiario(empresaId, desde);
             
             List<Map<String, Object>> result = new ArrayList<>();
             for (Object[] row : data) {
@@ -48,7 +52,10 @@ public class EstadisticaController {
     @GetMapping("/resumen-estado")
     public ResponseEntity<?> getResumenEstado() {
         try {
-            List<Object[]> data = dteRepository.resumenEstadoGlobal();
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+            
+            List<Object[]> data = dteRepository.resumenEstadoGlobal(empresaId);
             
             long aprobados = 0, rechazados = 0, pendientes = 0, enProceso = 0, anulados = 0;
             
@@ -80,7 +87,10 @@ public class EstadisticaController {
     @GetMapping("/top-receptores")
     public ResponseEntity<?> getTopReceptores(@RequestParam(required = false, defaultValue = "10") int limit) {
         try {
-            List<Object[]> data = dteRepository.topReceptores(PageRequest.of(0, limit));
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+            
+            List<Object[]> data = dteRepository.topReceptores(empresaId, PageRequest.of(0, limit));
             List<Map<String, Object>> result = new ArrayList<>();
             for (Object[] row : data) {
                 Map<String, Object> map = new HashMap<>();
@@ -100,8 +110,11 @@ public class EstadisticaController {
     @GetMapping("/facturacion-mensual")
     public ResponseEntity<?> getFacturacionMensual(@RequestParam(required = false, defaultValue = "6") int meses) {
         try {
+            String empresaId = EmpresaContext.getEmpresaId();
+            if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+            
             LocalDateTime desde = LocalDateTime.now().minusMonths(meses).withDayOfMonth(1).withHour(0).withMinute(0);
-            List<Object[]> data = dteRepository.facturacionMensual(desde);
+            List<Object[]> data = dteRepository.facturacionMensual(empresaId, desde);
             
             List<Map<String, Object>> result = new ArrayList<>();
             for (Object[] row : data) {

@@ -63,6 +63,22 @@ public class DatabaseMigrationConfig {
             logger.info("[DB Init] Agregando columna cod_actividad_economica a empresas...");
             jdbc.execute("ALTER TABLE empresas ADD COLUMN cod_actividad_economica VARCHAR(20)");
         }
+
+        // Migración de OID a BYTEA para certificado_fisico
+        String tipoCert = jdbc.queryForObject(
+            "SELECT data_type FROM information_schema.columns WHERE table_name='empresas' AND column_name='certificado_fisico'",
+            String.class
+        );
+        if ("oid".equalsIgnoreCase(tipoCert)) {
+            logger.info("[DB Init] Migrando columna certificado_fisico de OID a BYTEA...");
+            try {
+                jdbc.execute("ALTER TABLE empresas ALTER COLUMN certificado_fisico TYPE bytea USING lo_get(certificado_fisico)");
+            } catch (Exception e) {
+                logger.warn("[DB Init] Error migrando certificado_fisico con lo_get, vaciando columna por seguridad: " + e.getMessage());
+                jdbc.execute("ALTER TABLE empresas DROP COLUMN certificado_fisico");
+                jdbc.execute("ALTER TABLE empresas ADD COLUMN certificado_fisico BYTEA");
+            }
+        }
     }
 
     /**

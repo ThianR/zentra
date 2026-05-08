@@ -1,39 +1,141 @@
--- Esquema inicial para Zentra MVP (Plan A)
+-- =============================================================================
+-- ZENTRA SIFEN Middleware - Esquema de Base de Datos Completo (PostgreSQL)
+-- v1.5.0 compatible con SIFEN Paraguay
+-- =============================================================================
 
 CREATE TABLE IF NOT EXISTS empresas (
-    id VARCHAR(36) PRIMARY KEY,
-    ruc VARCHAR(20) NOT NULL UNIQUE,
-    dv VARCHAR(1),
-    razon_social VARCHAR(255),
-    cod_establecimiento VARCHAR(3),
-    punto_expedicion VARCHAR(3),
-    timbrado VARCHAR(8),
-    ruta_certificado VARCHAR(255),
-    password_certificado VARCHAR(255),
-    id_csc VARCHAR(10) DEFAULT '0001',
-    valor_csc VARCHAR(255),
-    ambiente INT DEFAULT 2,
-    certificado_fisico BYTEA,
+    id                          VARCHAR(36)  PRIMARY KEY,
+    ruc                         VARCHAR(20)  UNIQUE,
+    dv                          VARCHAR(1),
+    razon_social                VARCHAR(255),
+    tipo_contribuyente          INTEGER,
+    cod_establecimiento         VARCHAR(3),
+    punto_expedicion            VARCHAR(3),
+    timbrado                    VARCHAR(8),
+    fecha_inicio_timbrado       DATE,
+    fecha_vencimiento_timbrado    DATE,
+    direccion                   VARCHAR(500),
+    numero_casa                 VARCHAR(10),
+    cod_departamento            INTEGER,
+    departamento                VARCHAR(100),
+    cod_distrito                INTEGER,
+    distrito                    VARCHAR(100),
+    cod_ciudad                  INTEGER,
+    ciudad                      VARCHAR(100),
+    telefono                    VARCHAR(30),
+    email                       VARCHAR(150),
+    cod_actividad_economica     VARCHAR(20),
+    actividad_economica         VARCHAR(500),
+    ruta_certificado            VARCHAR(500),
+    password_certificado        VARCHAR(255),
+    alias_certificado           VARCHAR(100),
+    certificado_fisico          BYTEA,
     fecha_vencimiento_certificado DATE,
-    alias_certificado VARCHAR(100),
-    logo_base64 TEXT
+    ambiente                    INTEGER      DEFAULT 2,
+    id_csc                      VARCHAR(10)  DEFAULT '0001',
+    valor_csc                   VARCHAR(255),
+    logo_base64                 TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sifen_referencia (
+    id              BIGSERIAL    PRIMARY KEY,
+    tipo            VARCHAR(60)  NOT NULL,
+    codigo          VARCHAR(20)  NOT NULL,
+    descripcion     VARCHAR(255) NOT NULL,
+    padre_codigo    VARCHAR(20),
+    valor_aux       VARCHAR(100),
+    descripcion_aux VARCHAR(255),
+    orden           INTEGER      NOT NULL DEFAULT 0,
+    activo          BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS documentos_electronicos (
-    id VARCHAR(36) PRIMARY KEY,
-    cdc VARCHAR(44) UNIQUE,
-    tipo_documento VARCHAR(2),
-    estado VARCHAR(20),
-    emisor_id VARCHAR(36) REFERENCES empresas(id),
-    numero_comprobante VARCHAR(20),
-    xml_generado TEXT,
-    xml_firmado TEXT,
-    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id                          VARCHAR(36)  PRIMARY KEY,
+    cdc                         VARCHAR(44)  UNIQUE,
+    tipo_documento              VARCHAR(2),
+    tipo_emision                INTEGER,
+    tipo_operacion              INTEGER,
+    tipo_receptor               INTEGER,
+    tipo_transaccion            INTEGER,
+    estado                      VARCHAR(20),
+    ambiente                    INTEGER,
+    emisor_id                   VARCHAR(36)  REFERENCES empresas(id),
+    ruc_emisor                  VARCHAR(20),
+    dv_emisor                   VARCHAR(1),
+    razon_social_emisor         VARCHAR(255),
+    actividad_economica_emisor  VARCHAR(500),
+    timbrado                    VARCHAR(8),
+    numero_comprobante          VARCHAR(20),
+    numero_ticket_lote          VARCHAR(20),
+    codigo_seguridad            VARCHAR(9),
+    codigo_estado_sifen         VARCHAR(10),
+    indicador_presencia         INTEGER,
+    motivo_emision              INTEGER,
+    naturaleza_vendedor         INTEGER,
+    condicion_operacion         INTEGER,
+    formato_kude                INTEGER,
+    direccion_emisor            VARCHAR(500),
+    telefono_emisor             VARCHAR(30),
+    ruc_receptor                VARCHAR(20),
+    receptor_razon_social       VARCHAR(255),
+    receptor_email              VARCHAR(150),
+    receptor_telefono           VARCHAR(30),
+    receptor_direccion          VARCHAR(500),
+    c_pais_receptor             VARCHAR(3),
+    total_operacion             NUMERIC(18,2),
+    total_gravada10             NUMERIC(18,2),
+    total_gravada5              NUMERIC(18,2),
+    total_exenta                NUMERIC(18,2),
+    total_iva                   NUMERIC(18,2),
+    total_iva10                 NUMERIC(18,2),
+    total_iva5                  NUMERIC(18,2),
+    descuento_global            NUMERIC(18,2),
+    porcentaje_descuento_global NUMERIC(5,2),
+    xml_generado                TEXT,
+    xml_firmado                 TEXT,
+    xml_respuesta_sifen         TEXT,
+    mensaje_sifen               VARCHAR(500),
+    mensaje_usuario             VARCHAR(500),
+    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- Datos de prueba (Seeds)
+CREATE TABLE IF NOT EXISTS documentos_items (
+    id              VARCHAR(36)  PRIMARY KEY,
+    documento_id    VARCHAR(36)  REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
+    codigo          VARCHAR(50),
+    descripcion     VARCHAR(500),
+    cantidad        NUMERIC(14,4),
+    unidad_medida   INTEGER,
+    precio_unitario NUMERIC(18,2),
+    monto_descuento NUMERIC(18,2),
+    monto_total_item NUMERIC(18,2),
+    tasa_iva        NUMERIC(5,2),
+    monto_iva_item  NUMERIC(18,2)
+);
 
-INSERT INTO empresas (id, ruc, dv, razon_social, cod_establecimiento, punto_expedicion, timbrado, id_csc, valor_csc, ambiente)
-VALUES ('80014603', '80014603', '4', 'REPUESTOS RG S.A.', '001', '001', '16770994', '0001', '73c9BeeA5AFb8fD17a3fD93a32A07A1a', 1)
-ON CONFLICT (ruc) DO NOTHING;
+CREATE TABLE IF NOT EXISTS documento_historial_sifen (
+    id                  VARCHAR(36)  PRIMARY KEY,
+    documento_id        VARCHAR(36)  NOT NULL REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
+    operacion           VARCHAR(50)  NOT NULL,
+    codigo_estado       VARCHAR(10),
+    mensaje_respuesta   VARCHAR(500),
+    xml_respuesta       TEXT,
+    fecha_registro      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
+CREATE TABLE IF NOT EXISTS documentos_papelera (
+    id                      VARCHAR(36)  PRIMARY KEY,
+    documento_id_original   VARCHAR(36),
+    cdc                     VARCHAR(44),
+    numero_comprobante      VARCHAR(20),
+    tipo_documento          VARCHAR(2),
+    ruc_receptor            VARCHAR(20),
+    razon_social_receptor   VARCHAR(255),
+    monto_total             NUMERIC(18,2),
+    estado_original         VARCHAR(255),
+    xml_generado            TEXT,
+    xml_firmado             TEXT,
+    xml_respuesta_sifen     TEXT,
+    motivo_eliminacion      VARCHAR(255),
+    fecha_eliminacion       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);

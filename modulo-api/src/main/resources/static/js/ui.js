@@ -1,4 +1,4 @@
-// --- Constantes Centralizadas de API ---
+﻿// --- Constantes Centralizadas de API ---
 const API = {
     empresas:       '/api/v1/empresas',
     emision:        '/api/v1/emision',
@@ -141,9 +141,9 @@ function getTipoLabel(val) {
     const labels = { 
         '1': 'Factura', 
         '4': 'Autofactura',  // Corregido: 4 es Autofactura
-        '5': 'Nota de Crédito', // Corregido: 5 es NC
-        '6': 'Nota de Débito',  // Corregido: 6 es ND
-        '7': 'Remisión' 
+        '5': 'Nota de CrÃ©dito', // Corregido: 5 es NC
+        '6': 'Nota de DÃ©bito',  // Corregido: 6 es ND
+        '7': 'RemisiÃ³n' 
     };
     return labels[val] || 'DTE';
 }
@@ -158,7 +158,7 @@ class ZentraNotifier {
     warning(msg, duration) { this._show(msg, 'warning', 'exclamation-triangle', duration); }
     info(msg, duration) { this._show(msg, 'info', 'info-circle', duration); }
     
-    // Reemplazo para alert() con mayor duración
+    // Reemplazo para alert() con mayor duraciÃ³n
     alert(msg) { this._show(msg, 'warning', 'bell', 10000); }
 
     _show(message, type, icon, duration = 4000) {
@@ -170,7 +170,7 @@ class ZentraNotifier {
         const toast = document.createElement('div');
         toast.className = `toast ${type} slide-up`;
         
-        // Soporte para saltos de línea
+        // Soporte para saltos de lÃ­nea
         const formattedMsg = String(message).replace(/\n/g, '<br>');
         toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${formattedMsg}</span>`;
         
@@ -242,7 +242,7 @@ async function cargarEmpresasEnSelect(selectId) {
     }
 }
 
-// --- B�squeda Global (Fase A6.2) ---
+// --- Búsqueda Global (Fase A6.2) ---
 
 function initGlobalSearch() {
     const searchInput = document.getElementById('globalSearch');

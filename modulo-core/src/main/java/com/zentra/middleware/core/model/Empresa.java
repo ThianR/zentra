@@ -1,11 +1,13 @@
 package com.zentra.middleware.core.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zentra.middleware.core.enums.Ambiente;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Convert;
 import java.util.UUID;
@@ -16,6 +18,11 @@ public class Empresa {
 
     @Id
     private String id = UUID.randomUUID().toString();
+
+    /** Cliente (tenant) propietario de esta empresa */
+    @ManyToOne
+    @JsonIgnore
+    private Cliente cliente;
 
     private String ruc;
     private String razonSocial;
@@ -50,6 +57,7 @@ public class Empresa {
     
     // Ruta al certificado P12 (simplificado para el MVP - Deprecated en Plan B)
     private String rutaCertificado;
+    @JsonIgnore
     private String passwordCertificado;
 
     // SIFEN: Seguridad, KuDE y Autenticación (Plan B Multi-Tenant)
@@ -62,7 +70,8 @@ public class Empresa {
     private Integer frecuenciaLoteMinutos = 15; // Cada cuántos minutos agrupar y enviar un lote
     private Integer frecuenciaConsultaTicketMinutos = 5; // Frecuencia para consultar tickets pendientes
     
-    @jakarta.persistence.Lob
+    @jakarta.persistence.Column(name = "certificado_fisico", columnDefinition = "bytea")
+    @JsonIgnore
     private byte[] certificadoFisico; // Archivo P12/PFX almacenado internamente
     
     @JsonFormat(pattern = "yyyy-MM-dd")
@@ -150,4 +159,12 @@ public class Empresa {
     public void setFrecuenciaLoteMinutos(Integer frecuenciaLoteMinutos) { this.frecuenciaLoteMinutos = frecuenciaLoteMinutos; }
     public Integer getFrecuenciaConsultaTicketMinutos() { return frecuenciaConsultaTicketMinutos; }
     public void setFrecuenciaConsultaTicketMinutos(Integer frecuenciaConsultaTicketMinutos) { this.frecuenciaConsultaTicketMinutos = frecuenciaConsultaTicketMinutos; }
+
+    public Cliente getCliente() { return cliente; }
+    public void setCliente(Cliente cliente) { this.cliente = cliente; }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("hasCertificado")
+    public boolean hasCertificado() {
+        return certificadoFisico != null && certificadoFisico.length > 0;
+    }
 }

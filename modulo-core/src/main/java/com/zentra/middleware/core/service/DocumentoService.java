@@ -2,7 +2,9 @@ package com.zentra.middleware.core.service;
 
 import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.model.Empresa;
+import com.zentra.middleware.core.model.DocumentoPapelera;
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
+import com.zentra.middleware.core.repository.DocumentoPapeleraRepository;
 import com.zentra.middleware.core.repository.EmpresaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +20,14 @@ public class DocumentoService {
 
     private final DocumentoElectronicoRepository repository;
     private final EmpresaRepository empresaRepository;
+    private final DocumentoPapeleraRepository papeleraRepository;
 
-    public DocumentoService(DocumentoElectronicoRepository repository, EmpresaRepository empresaRepository) {
+    public DocumentoService(DocumentoElectronicoRepository repository, 
+                            EmpresaRepository empresaRepository,
+                            DocumentoPapeleraRepository papeleraRepository) {
         this.repository = repository;
         this.empresaRepository = empresaRepository;
+        this.papeleraRepository = papeleraRepository;
     }
 
     public List<DocumentoElectronico> obtenerTodos() {
@@ -52,6 +58,10 @@ public class DocumentoService {
         repository.findByNumeroComprobanteAndTipoDocumento(numero, tipo).ifPresent(dte -> {
             if (dte.getEstado() == com.zentra.middleware.core.model.EstadoDte.RECHAZADO 
                 || dte.getEstado() == com.zentra.middleware.core.model.EstadoDte.ERROR_ENVIO) {
+                
+                // Archivar en papelera antes de borrar
+                papeleraRepository.save(new DocumentoPapelera(dte, "Re-generación por rechazo/error SIFEN"));
+                
                 repository.delete(dte);
                 repository.flush();
             }

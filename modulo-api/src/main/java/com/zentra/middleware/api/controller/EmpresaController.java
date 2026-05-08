@@ -3,6 +3,9 @@ package com.zentra.middleware.api.controller;
 import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.repository.EmpresaRepository;
 import com.zentra.middleware.crypto.util.AesEncryptionUtil;
+import com.zentra.middleware.api.security.EmpresaContext;
+import com.zentra.middleware.core.model.Cliente;
+import com.zentra.middleware.core.repository.ClienteRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmpresaController {
 
     private final EmpresaRepository empresaRepository;
+    private final ClienteRepository clienteRepository;
 
-    public EmpresaController(EmpresaRepository empresaRepository) {
+    public EmpresaController(EmpresaRepository empresaRepository, ClienteRepository clienteRepository) {
         this.empresaRepository = empresaRepository;
+        this.clienteRepository = clienteRepository;
     }
 
     @PostMapping("/{id}/certificado")
@@ -32,6 +37,11 @@ public class EmpresaController {
                 return ResponseEntity.notFound().build();
             }
             Empresa empresa = empresaOpt.get();
+
+            String clienteId = EmpresaContext.getClienteId();
+            if (empresa.getCliente() == null || !empresa.getCliente().getId().equals(clienteId)) {
+                return ResponseEntity.status(403).body("No tiene acceso a esta empresa");
+            }
 
             // Validar que el certificado puede ser leído antes de guardar (Fase 4, Regla 3)
             try {
@@ -73,35 +83,59 @@ public class EmpresaController {
     }
     @GetMapping
     public ResponseEntity<?> listarTodas() {
-        return ResponseEntity.ok(empresaRepository.findAll());
+        String clienteId = EmpresaContext.getClienteId();
+        if (clienteId == null) {
+            return ResponseEntity.status(401).body("No autorizado");
+        }
+        return ResponseEntity.ok(empresaRepository.findByClienteId(clienteId));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<?> obtenerPorId(@PathVariable String id) {
+        String clienteId = EmpresaContext.getClienteId();
         return empresaRepository.findById(id)
+                .filter(e -> e.getCliente() != null && e.getCliente().getId().equals(clienteId))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
     public ResponseEntity<?> crearEmpresa(@RequestBody Empresa empresa) {
+        String clienteId = EmpresaContext.getClienteId();
+        if (clienteId == null) {
+            return ResponseEntity.status(401).body("No autorizado");
+        }
+
         if (empresaRepository.findByRuc(empresa.getRuc()).isPresent()) {
             return ResponseEntity.status(409).body("La empresa con este RUC ya se encuentra registrada.");
         }
         if (empresa.getId() == null || empresa.getId().isEmpty()) {
             empresa.setId(java.util.UUID.randomUUID().toString());
         }
+        
+        Optional<Cliente> optCliente = clienteRepository.findById(clienteId);
+        if (optCliente.isPresent()) {
+            empresa.setCliente(optCliente.get());
+        } else {
+            return ResponseEntity.status(404).body("Cliente no encontrado.");
+        }
+        
         return ResponseEntity.ok(empresaRepository.save(empresa));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizarEmpresa(@PathVariable String id, @RequestBody Empresa empresaDetalles) {
+        String clienteId = EmpresaContext.getClienteId();
+        
         Optional<Empresa> existenteConRuc = empresaRepository.findByRuc(empresaDetalles.getRuc());
         if (existenteConRuc.isPresent() && !existenteConRuc.get().getId().equals(id)) {
             return ResponseEntity.status(409).body("El RUC provisto ya está asociado a otra empresa.");
         }
 
         return empresaRepository.findById(id).map(empresa -> {
+            if (empresa.getCliente() == null || !empresa.getCliente().getId().equals(clienteId)) {
+                return ResponseEntity.status(403).body("No tiene acceso a esta empresa");
+            }
             empresa.setRuc(empresaDetalles.getRuc());
             empresa.setRazonSocial(empresaDetalles.getRazonSocial());
             empresa.setDv(empresaDetalles.getDv());
@@ -154,7 +188,11 @@ public class EmpresaController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> eliminarEmpresa(@PathVariable String id) {
+        String clienteId = EmpresaContext.getClienteId();
         return empresaRepository.findById(id).map(empresa -> {
+            if (empresa.getCliente() == null || !empresa.getCliente().getId().equals(clienteId)) {
+                return ResponseEntity.status(403).build();
+            }
             empresaRepository.delete(empresa);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());

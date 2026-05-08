@@ -42,34 +42,37 @@ public class LoteSenderJob {
 
     // Ejecuta cada 1 minuto
     @Scheduled(fixedDelay = 60000)
+    @org.springframework.transaction.annotation.Transactional
     public void agruparYEnviarLotes() {
         // Buscar DTEs pendientes de envío agrupados (FIRMADOS)
-        List<DocumentoElectronico> pendientes = dteRepository.findAll().stream()
-                .filter(d -> d.getEstado() == EstadoDte.FIRMADO && d.getTipoEmision() == 2) // 2 es Asíncrono
-                .collect(Collectors.toList());
+        // tipoEmision 2 es Asíncrono según la lógica del sistema
+        List<DocumentoElectronico> pendientes = dteRepository.findByEstadoAndTipoEmision(EstadoDte.FIRMADO, 2);
 
         if (pendientes.isEmpty()) {
-            return; // Nada que hacer
+            return;
         }
 
-        Map<Empresa, List<DocumentoElectronico>> porEmpresa = pendientes.stream()
+        // Agrupamos por ID de empresa para evitar problemas con proxies JPA y hashCode
+        Map<String, List<DocumentoElectronico>> porEmpresaId = pendientes.stream()
                 .filter(d -> d.getEmisor() != null)
-                .collect(Collectors.groupingBy(DocumentoElectronico::getEmisor));
+                .collect(Collectors.groupingBy(d -> d.getEmisor().getId()));
 
-        for (Map.Entry<Empresa, List<DocumentoElectronico>> entry : porEmpresa.entrySet()) {
-            Empresa empresa = entry.getKey();
+        for (Map.Entry<String, List<DocumentoElectronico>> entry : porEmpresaId.entrySet()) {
+            String empresaId = entry.getKey();
             List<DocumentoElectronico> dtesEmpresa = entry.getValue();
+
+            Empresa empresa = empresaRepository.findById(empresaId).orElse(null);
+            if (empresa == null) continue;
 
             int frecuencia = empresa.getFrecuenciaLoteMinutos() != null ? empresa.getFrecuenciaLoteMinutos() : 15;
 
             // Verificamos si ya pasó el tiempo desde el último lote enviado
-            List<LoteTransmision> ultimosLotes = loteRepository.findByEmpresaIdOrderByFechaEnvioDesc(empresa.getId());
+            List<LoteTransmision> ultimosLotes = loteRepository.findByEmpresaIdOrderByFechaEnvioDesc(empresaId);
             if (!ultimosLotes.isEmpty()) {
                 LoteTransmision ultimo = ultimosLotes.get(0);
                 if (ultimo.getFechaEnvio() != null) {
                     LocalDateTime proximoEnvio = ultimo.getFechaEnvio().plusMinutes(frecuencia);
                     if (LocalDateTime.now().isBefore(proximoEnvio) && dtesEmpresa.size() < 50) {
-                        // Aún no es tiempo y no llegamos al tope de 50. Esperamos.
                         continue;
                     }
                 }
@@ -79,7 +82,6 @@ public class LoteSenderJob {
             for (int i = 0; i < dtesEmpresa.size(); i += 50) {
                 int end = Math.min(i + 50, dtesEmpresa.size());
                 List<DocumentoElectronico> chunk = dtesEmpresa.subList(i, end);
-
                 procesarLote(empresa, chunk);
             }
         }

@@ -39,6 +39,9 @@ public class DocumentoElectronico {
     @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<ItemDocumento> items = new ArrayList<>();
 
+    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<HistorialSifen> historial = new ArrayList<>();
+
 
     @Column(columnDefinition = "TEXT")
     private String xmlGenerado;
@@ -119,6 +122,9 @@ public class DocumentoElectronico {
     public DocumentoElectronico() {}
 
     // Getters y Setters
+    public List<HistorialSifen> getHistorial() { return historial; }
+    public void setHistorial(List<HistorialSifen> historial) { this.historial = historial; }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getCdc() { return cdc; }

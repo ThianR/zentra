@@ -122,6 +122,10 @@ async function loadDocumentos(filtros = null) {
                     <button class="btn btn-xs btn-primary" onclick="consultarLoteSifen('${doc.id}')" title="Consultar Lote en SIFEN">
                         <i class="fas fa-sync-alt"></i>
                     </button>` : ''}
+                    ${(doc.estado === 'RECHAZADO' && doc.cdc) ? `
+                    <button class="btn btn-xs btn-secondary" onclick="consultarCdcSifen('${doc.cdc}')" title="Consultar CDC en SIFEN">
+                        <i class="fas fa-search"></i>
+                    </button>` : ''}
                     <button class="btn btn-xs btn-outline" onclick="descargarKude('${doc.id}')" title="Descargar KuDE (A4)">
                         <i class="fas fa-file-pdf"></i>
                     </button>
@@ -191,20 +195,46 @@ async function updateStats(docs) {
 // --- KuDE Handling ---
 
 async function descargarKude(id) {
-    window.open(`/api/v1/emision/kude/${id}`, '_blank');
+    try {
+        const res = await fetch(`/api/v1/emision/kude/${id}?formato=A4`);
+        if (!res.ok) throw new Error('Error al generar el KuDE');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(new Blob([blob], {type: 'application/pdf'}));
+        window.open(url, '_blank');
+    } catch(e) {
+        showToast(e.message, 'error');
+    }
 }
 
 async function descargarTicket(id) {
-    const win = window.open(`/api/v1/emision/kude/${id}?formato=TICKET`, '_blank');
+    try {
+        const res = await fetch(`/api/v1/emision/kude/${id}?formato=TICKET`);
+        if (!res.ok) throw new Error('Error al generar el Ticket');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(new Blob([blob], {type: 'application/pdf'}));
+        window.open(url, '_blank');
+    } catch(e) {
+        showToast(e.message, 'error');
+    }
 }
 
-window.descargarXml = function(id) {
-    const link = document.createElement('a');
-    link.href = `/api/v1/emision/xml/${id}`;
-    link.download = `dte_${id}.xml`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+window.descargarXml = async function(id) {
+    try {
+        const res = await fetch(`/api/v1/emision/xml/${id}`);
+        if (!res.ok) throw new Error('Error al descargar el XML');
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `dte_${id}.xml`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 window.consultarLoteSifen = async function(id) {
@@ -252,18 +282,80 @@ window.abrirModalDetalle = async function(id) {
         document.getElementById('mdCodigo').textContent = doc.codigoEstadoSifen || '—';
         document.getElementById('mdTicket').textContent = doc.numeroTicketLote || '(sin ticket)';
         document.getElementById('mdCdc').textContent = doc.cdc || '—';
-        document.getElementById('mdMensajeSifen').textContent = doc.mensajeSifen || '—';
-        document.getElementById('mdMensajeUsuario').textContent = doc.mensajeUsuario || '—';
+        document.getElementById('mdMensajeSifen').innerHTML = doc.mensajeSifen || '—';
+        document.getElementById('mdMensajeUsuario').innerHTML = doc.mensajeUsuario || '—';
         document.getElementById('mdRespuestaXml').textContent = doc.xmlRespuestaSifen || '(sin respuesta)';
 
-        // Mostrar botón de consulta si tiene ticket y no está aprobado/rechazado
+        // Mostrar botón de consulta de Lote
         const btnConsultar = document.getElementById('mdBtnConsultar');
-        const puedeConsultar = doc.numeroTicketLote &&
-            doc.estado !== 'APROBADO' && doc.estado !== 'RECHAZADO';
-        btnConsultar.style.display = puedeConsultar ? 'inline-flex' : 'none';
+        const puedeConsultarLote = doc.numeroTicketLote && doc.estado !== 'APROBADO' && doc.estado !== 'RECHAZADO';
+        btnConsultar.style.display = puedeConsultarLote ? 'inline-flex' : 'none';
+
+        // Mostrar botón de consulta CDC si está rechazado y tiene CDC
+        const btnConsultarCdc = document.getElementById('mdBtnConsultarCdc');
+        const puedeConsultarCdc = doc.estado === 'RECHAZADO' && doc.cdc;
+        btnConsultarCdc.style.display = puedeConsultarCdc ? 'inline-flex' : 'none';
+
+        // Cargar historial de transacciones SIFEN
+        cargarHistorialSifen(id);
     } catch(e) {
         showToast('Error cargando detalle: ' + e.message, 'error');
     }
+}
+
+async function cargarHistorialSifen(documentoId) {
+    const tbody = document.getElementById('mdHistorialBody');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:8px; opacity:0.5;">Cargando...</td></tr>';
+    // Ocultar el contenedor al recargar
+    document.getElementById('mdHistorialContainer').style.display = 'none';
+    try {
+        const res = await fetch(`/api/v1/emision/documentos/${documentoId}/historial`);
+        if (!res.ok) throw new Error('No se pudo obtener el historial');
+        const historial = await res.json();
+
+        if (!historial || historial.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:8px; opacity:0.5;">Sin registros de historial</td></tr>';
+            return;
+        }
+
+        // Mapa de etiquetas para las operaciones
+        const opLabels = {
+            'ENVIO': '📤 Envío',
+            'CONSULTA_LOTE': '🔄 Consulta Lote',
+            'CONSULTA_CDC': '🔍 Consulta CDC'
+        };
+
+        tbody.innerHTML = '';
+        historial.forEach(h => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+
+            // Formatear fecha
+            let fechaStr = h.fechaRegistro || '';
+            if (fechaStr) {
+                const d = new Date(fechaStr);
+                fechaStr = d.toLocaleDateString('es-PY') + ' ' + d.toLocaleTimeString('es-PY', {hour:'2-digit', minute:'2-digit'});
+            }
+
+            const opLabel = opLabels[h.operacion] || h.operacion;
+            const codigoClass = h.codigoEstado === '0300' ? 'color: #4ade80;' : (h.codigoEstado ? 'color: #f87171;' : '');
+
+            tr.innerHTML = `
+                <td style="padding: 6px 8px; white-space: nowrap;">${fechaStr}</td>
+                <td style="padding: 6px 8px;">${opLabel}</td>
+                <td style="padding: 6px 8px; font-weight: 600; ${codigoClass}">${h.codigoEstado || '—'}</td>
+                <td style="padding: 6px 8px;">${h.mensajeRespuesta || '—'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:8px; color:#f87171;">Error al cargar historial</td></tr>';
+    }
+}
+
+window.toggleHistorialSifen = function() {
+    const container = document.getElementById('mdHistorialContainer');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
 }
 
 window.cerrarModalDetalle = function(event) {
@@ -271,6 +363,48 @@ window.cerrarModalDetalle = function(event) {
     if (!event || event.target === document.getElementById('modalDetalleDte')) {
         document.getElementById('modalDetalleDte').style.display = 'none';
         _modalDocId = null;
+    }
+}
+
+window.consultarCdcSifen = async function(cdc) {
+    try {
+        showToast('Consultando estado del CDC en SIFEN...', 'info');
+        const res = await fetch(`/api/lotes/consultar-cdc/${cdc}`);
+        const data = await res.json();
+
+        if (res.ok) {
+            showToast(`✓ ${data.mensajeUsuario || 'Documento aprobado por SIFEN'}`, 'success');
+        } else {
+            showToast(`Estado SIFEN: ${data.mensajeUsuario || data.message}`, 'warning');
+        }
+        loadDocumentos();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+window.consultarCdcSifenModal = async function() {
+    const cdc = document.getElementById('mdCdc').textContent;
+    if (!cdc || cdc === '—') return;
+    const btnConsultarCdc = document.getElementById('mdBtnConsultarCdc');
+    btnConsultarCdc.disabled = true;
+    btnConsultarCdc.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
+    try {
+        const res = await fetch(`/api/lotes/consultar-cdc/${cdc}`);
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`✓ ${data.mensajeUsuario || 'Documento aprobado por SIFEN'}`, 'success');
+        } else {
+            showToast(`SIFEN: ${data.mensajeUsuario || data.message}`, 'warning');
+        }
+        // Refrescar el modal con los datos actualizados
+        abrirModalDetalle(_modalDocId);
+        loadDocumentos();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
+    } finally {
+        btnConsultarCdc.disabled = false;
+        btnConsultarCdc.innerHTML = '<i class="fas fa-search"></i> Consultar CDC en SIFEN';
     }
 }
 
@@ -294,7 +428,7 @@ window.consultarLoteSifenModal = async function() {
         showToast('Error: ' + e.message, 'error');
     } finally {
         btnConsultar.disabled = false;
-        btnConsultar.innerHTML = '<i class="fas fa-sync-alt"></i> Consultar Estado en SIFEN';
+        btnConsultar.innerHTML = '<i class="fas fa-sync-alt"></i> Consultar Lote en SIFEN';
     }
 }
 

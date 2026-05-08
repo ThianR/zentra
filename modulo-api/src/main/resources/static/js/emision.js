@@ -48,7 +48,7 @@ async function loadEmpresasEmisoras() {
     if (!select) return;
     
     try {
-        const response = await fetch('/api/v1/emision/empresas');
+        const response = await fetch('/api/v1/empresas');
         const empresas = await response.json();
         
         window.zentraEmpresas = empresas;

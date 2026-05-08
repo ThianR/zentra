@@ -322,8 +322,8 @@ public class EventoService {
      * @return Lista de todos los eventos.
      */
     @Transactional(readOnly = true)
-    public List<EventoDocumento> obtenerTodos() {
-        return eventoRepository.findAllByOrderByFechaCreacionDesc();
+    public List<EventoDocumento> obtenerTodos(String empresaId) {
+        return eventoRepository.findByEmpresaIdOrderByFechaCreacionDesc(empresaId);
     }
 
     /**

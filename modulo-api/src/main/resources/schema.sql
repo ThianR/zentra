@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     ruta_certificado            VARCHAR(500),
     password_certificado        VARCHAR(255),
     alias_certificado           VARCHAR(100),
-    certificado_fisico          OID,
+    certificado_fisico          BYTEA,
     fecha_vencimiento_certificado DATE,
     ambiente                    INTEGER      DEFAULT 2,
     id_csc                      VARCHAR(10)  DEFAULT '0001',
@@ -172,4 +172,39 @@ CREATE TABLE IF NOT EXISTS documento_cuotas (
     numero_cuota        INTEGER,
     fecha_vencimiento   DATE,
     monto               NUMERIC(18,2)
+);
+
+-- -----------------------------------------------------------------------------
+-- Tabla: documento_historial_sifen
+-- BitÃ¡cora de interacciones con el WebService (ENVIO, CONSULTA, etc.)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS documento_historial_sifen (
+    id                  VARCHAR(36)  PRIMARY KEY,
+    documento_id        VARCHAR(36)  NOT NULL REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
+    operacion           VARCHAR(50)  NOT NULL,
+    codigo_estado       VARCHAR(10),
+    mensaje_respuesta   VARCHAR(500),
+    xml_respuesta       TEXT,
+    fecha_registro      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- -----------------------------------------------------------------------------
+-- Tabla: documentos_papelera
+-- Respaldo de documentos eliminados (ej: rechazados que fueron re-generados)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS documentos_papelera (
+    id                      VARCHAR(36)  PRIMARY KEY,
+    documento_id_original   VARCHAR(36),
+    cdc                     VARCHAR(44),
+    numero_comprobante      VARCHAR(20),
+    tipo_documento          VARCHAR(2),
+    ruc_receptor            VARCHAR(20),
+    razon_social_receptor   VARCHAR(255),
+    monto_total             NUMERIC(18,2),
+    estado_original         VARCHAR(255),
+    xml_generado            TEXT,
+    xml_firmado             TEXT,
+    xml_respuesta_sifen     TEXT,
+    motivo_eliminacion      VARCHAR(255),
+    fecha_eliminacion       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );

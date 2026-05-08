@@ -5,12 +5,14 @@ import com.zentra.middleware.core.model.LoteTransmision;
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import com.zentra.middleware.core.repository.LoteTransmisionRepository;
 import com.zentra.middleware.sifen.SifenSoapClient;
+import com.zentra.middleware.core.service.HistorialSifenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.zentra.middleware.api.security.EmpresaContext;
 
 import java.util.List;
 import java.util.Map;
@@ -32,10 +34,16 @@ public class LoteController {
     @Autowired
     private SifenSoapClient sifenSoapClient;
 
+    @Autowired
+    private HistorialSifenService historialSifenService;
+
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> listarLotes() {
-        List<LoteTransmision> lotes = loteRepository.findAll();
+    public ResponseEntity<?> listarLotes() {
+        String empresaId = EmpresaContext.getEmpresaId();
+        if (empresaId == null) return ResponseEntity.status(403).body(Map.of("error", "Empresa no seleccionada"));
+        
+        List<LoteTransmision> lotes = loteRepository.findByEmpresaIdOrderByFechaEnvioDesc(empresaId);
         List<Map<String, Object>> result = lotes.stream().map(lote -> {
             Map<String, Object> map = new java.util.HashMap<>();
             map.put("id", lote.getId());
@@ -78,9 +86,15 @@ public class LoteController {
             return ResponseEntity.notFound().build();
         }
 
+        String empresaId = EmpresaContext.getEmpresaId();
+        if (empresaId == null || dte.getEmisor() == null || !dte.getEmisor().getId().equals(empresaId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "No tiene acceso a este documento"));
+        }
+
         try {
             boolean aprobado = sifenSoapClient.consultarDtePorCdc(dte);
             dteRepository.save(dte);
+            historialSifenService.registrar(dte, "CONSULTA_CDC");
 
             Map<String, Object> respuesta = new java.util.HashMap<>();
             respuesta.put("cdc", dte.getCdc());

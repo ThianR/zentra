@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="js/auth.js?v=1.8.0"></script>
 </head>
 
 <body class="dark-theme">
@@ -61,6 +62,14 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <div class="active-tenant-info" id="btnChangeEmpresa" title="Cambiar Empresa" style="cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--bg-input); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <i class="fas fa-building" style="color: var(--accent-primary);"></i>
+                        <span id="active-empresa-info" style="font-size: 0.85rem; font-weight: 600;">Cargando...</span>
+                        <i class="fas fa-exchange-alt" style="margin-left: 5px; color: var(--text-secondary); font-size: 0.75rem;"></i>
+                    </div>
+                    <button class="btn-logout" onclick="logout()" title="Cerrar Sesión" style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 5px; font-size: 1.1rem;">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
                     <div class="env-selector">
                         <span class="env-label-text">ENTORNO:</span>
                         <div class="switch-container">
@@ -1255,11 +1264,35 @@
                     <strong>Respuesta XML SIFEN:</strong>
                     <pre id="mdRespuestaXml"></pre>
                 </div>
+
+                <!-- Sección: Historial de Transacciones con SIFEN -->
+                <div id="mdHistorialSection" style="margin-top: 1rem;">
+                    <button class="btn btn-xs btn-outline" onclick="toggleHistorialSifen()" style="margin-bottom: 0.5rem;">
+                        <i class="fas fa-history"></i> Historial de Transacciones SIFEN
+                    </button>
+                    <div id="mdHistorialContainer" style="display:none;">
+                        <table class="table-mini" style="width:100%; font-size: 0.8rem; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.05); text-align: left;">
+                                    <th style="padding: 6px 8px;">Fecha</th>
+                                    <th style="padding: 6px 8px;">Operación</th>
+                                    <th style="padding: 6px 8px;">Código</th>
+                                    <th style="padding: 6px 8px;">Mensaje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mdHistorialBody">
+                                <tr><td colspan="4" style="text-align:center; padding:8px; opacity:0.5;">Sin registros</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
-                <button id="mdBtnConsultar" class="btn btn-primary" style="display:none;"
-                    onclick="consultarLoteSifenModal()">
-                    <i class="fas fa-sync-alt"></i> Consultar Estado en SIFEN
+                <button id="mdBtnConsultarCdc" class="btn btn-secondary" style="display:none;" onclick="consultarCdcSifenModal()">
+                    <i class="fas fa-search"></i> Consultar CDC en SIFEN
+                </button>
+                <button id="mdBtnConsultar" class="btn btn-primary" style="display:none;" onclick="consultarLoteSifenModal()">
+                    <i class="fas fa-sync-alt"></i> Consultar Lote en SIFEN
                 </button>
                 <button class="btn btn-outline" onclick="toggleRawXml()">
                     <i class="fas fa-code"></i> Ver XML
@@ -1402,7 +1435,28 @@
         </div>
     </div>
 
-    <script src="js/ui.js?v=1.7.0"></script>
+    <!-- Modal Selección de Empresa (Multi-Tenant) -->
+    <div id="modalCambioEmpresa" class="modal-overlay" style="display:none;">
+        <div class="modal-card glass" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-exchange-alt"></i> Cambiar de Empresa</h3>
+                <span class="close" onclick="cerrarModalCambio()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">Seleccione la empresa con la que desea trabajar actualmente:</p>
+                <div id="listaEmpresasSelector" class="company-selection-grid">
+                    <!-- Dinámico -->
+                    <div class="text-center">Cargando empresas...</div>
+                </div>
+                <div class="default-checkbox" style="margin-top: 15px; border-top: 1px solid var(--border-glass); padding-top: 15px;">
+                    <input type="checkbox" id="chk-switch-default">
+                    <label for="chk-switch-default" style="font-size: 0.85rem; color: var(--text-secondary);">Establecer como empresa predeterminada para el inicio de sesión</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/ui.js?v=1.1.0"></script>
     <script src="js/documentos.js?v=1.7.0"></script>
     <script src="js/emision.js?v=1.7.0"></script>
     <script src="js/empresas.js?v=1.7.0"></script>
