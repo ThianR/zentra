@@ -157,40 +157,68 @@ public class XmlSignerService {
 
         // --- Bloque QR (exclusivo de DTEs, no aplica en eventos) ---
         String pVersion  = "150";
-        java.time.LocalDateTime fecha = dte.getFechaCreacion() != null
-            ? dte.getFechaCreacion() : java.time.LocalDateTime.now();
-        String dFeEmiDE  = fecha.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
-        String dRucRec   = dte.getRucReceptor() != null ? dte.getRucReceptor() : "0";
-        long dTotGralOpe = dte.getTotalOperacion() != null ? Math.round(dte.getTotalOperacion()) : 0L;
-        long dTotIVA     = dte.getTotalIva()       != null ? Math.round(dte.getTotalIva())       : 0L;
+        String dFeEmiDE = "";
+        java.util.regex.Matcher mFecha = java.util.regex.Pattern.compile("<dFeEmiDE>([^<]+)</dFeEmiDE>").matcher(xmlFirmado);
+        if (mFecha.find()) {
+            dFeEmiDE = mFecha.group(1).trim();
+            // SIFEN requiere AAAA-MM-DDThh:mm:ss, sin el offset de zona horaria (-04:00)
+            if (dFeEmiDE.length() > 19) {
+                dFeEmiDE = dFeEmiDE.substring(0, 19);
+            }
+        } else {
+            java.time.LocalDateTime fecha = dte.getFechaCreacion() != null
+                ? dte.getFechaCreacion() : java.time.LocalDateTime.now();
+            dFeEmiDE = fecha.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
+        }
+        String dRucRec = "";
+        java.util.regex.Matcher mRuc = java.util.regex.Pattern.compile("<dRucRec>([^<]+)</dRucRec>").matcher(xmlFirmado);
+        if (mRuc.find()) {
+            dRucRec = mRuc.group(1).trim();
+        } else {
+            java.util.regex.Matcher mIden = java.util.regex.Pattern.compile("<dNumIDRec>([^<]+)</dNumIDRec>").matcher(xmlFirmado);
+            if (mIden.find()) {
+                dRucRec = mIden.group(1).trim();
+            } else {
+                dRucRec = "0";
+            }
+        }
+        
+        String dTotGralOpe = "";
+        java.util.regex.Matcher mOpe = java.util.regex.Pattern.compile("<dTotGralOpe>([^<]+)</dTotGralOpe>").matcher(xmlFirmado);
+        if (mOpe.find()) dTotGralOpe = mOpe.group(1).trim();
+        else dTotGralOpe = dte.getTotalOperacion() != null ? String.valueOf(Math.round(dte.getTotalOperacion())) : "0";
+
+        String dTotIVA = "";
+        java.util.regex.Matcher mIva = java.util.regex.Pattern.compile("<dTotIVA>([^<]+)</dTotIVA>").matcher(xmlFirmado);
+        if (mIva.find()) dTotIVA = mIva.group(1).trim();
+        else dTotIVA = dte.getTotalIva() != null ? String.valueOf(Math.round(dte.getTotalIva())) : "0";
+
         int cItems       = dte.getItems()           != null ? dte.getItems().size()               : 0;
 
         String digestHex = extraerDigestValueHex(xmlFirmado);
         String IdCSC     = dte.getEmisor().getIdCsc() != null ? dte.getEmisor().getIdCsc() : "0001";
 
-        StringBuilder urlParaHash = new StringBuilder("https://ekuatia.set.gov.py/consultas/qr");
-        urlParaHash.append("?nVersion=").append(pVersion)
-                   .append("&Id=").append(cdc)
-                   .append("&dFeEmiDE=").append(toHex(dFeEmiDE))
-                   .append("&dRucRec=").append(dRucRec)
-                   .append("&dTotGralOpe=").append(dTotGralOpe)
-                   .append("&dTotIVA=").append(dTotIVA)
-                   .append("&cItems=").append(cItems)
-                   .append("&DigestValue=").append(digestHex)
-                   .append("&IdCSC=").append(IdCSC);
+        StringBuilder qrParams = new StringBuilder();
+        qrParams.append("nVersion=").append(pVersion)
+                .append("&Id=").append(cdc)
+                .append("&dFeEmiDE=").append(toHex(dFeEmiDE))
+                .append("&dRucRec=").append(dRucRec)
+                .append("&dTotGralOpe=").append(dTotGralOpe)
+                .append("&dTotIVA=").append(dTotIVA)
+                .append("&cItems=").append(cItems)
+                .append("&DigestValue=").append(digestHex)
+                .append("&IdCSC=").append(IdCSC);
 
         String secretCSC     = dte.getEmisor().getValorCsc() != null
             ? dte.getEmisor().getValorCsc() : "ABCD0000000000000000000000000000";
-        String realHashQr    = sha256Hex(urlParaHash + secretCSC);
+        String realHashQr    = sha256Hex(qrParams.toString() + secretCSC);
 
         StringBuilder dCarQR = new StringBuilder(
             dte.getAmbiente() == com.zentra.middleware.core.enums.Ambiente.PRODUCCION
                 ? "https://ekuatia.set.gov.py/consultas/qr"
                 : "https://sifen-test.set.gov.py/consultas/qr");
         dCarQR.append("?")
-              .append(urlParaHash.toString()
-                  .replace("https://ekuatia.set.gov.py/consultas/qr?", "")
-                  .replace("&", "&amp;"))
+              .append(qrParams.toString().replace("&", "&amp;"))
               .append("&amp;cHashQR=").append(realHashQr);
 
         String qrBlock = "<gCamFuFD><dCarQR>" + dCarQR + "</dCarQR></gCamFuFD>";
@@ -453,7 +481,18 @@ public class XmlSignerService {
             "<DigestValue>([^<]+)</DigestValue>");
         java.util.regex.Matcher m = p.matcher(xml);
         if (m.find()) {
-            return toHex(m.group(1).trim());
+            try {
+                String b64 = m.group(1).trim();
+                // SIFEN requiere el HEX de los bytes reales, no del string Base64
+                byte[] bytes = java.util.Base64.getDecoder().decode(b64);
+                StringBuilder sb = new StringBuilder();
+                for (byte b : bytes) {
+                    sb.append(String.format("%02x", b & 0xff));
+                }
+                return sb.toString();
+            } catch (Exception e) {
+                logger.warning("Error decodificando DigestValue: " + e.getMessage());
+            }
         }
         return "";
     }

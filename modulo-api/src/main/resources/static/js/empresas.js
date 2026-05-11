@@ -100,6 +100,7 @@ window.abrirFormEmpresa = async function(empresa = null) {
         document.getElementById('empresaDv').value = empresa.dv || '';
         document.getElementById('empresaRazonSocial').value = empresa.razonSocial || '';
         document.getElementById('empresaTimbrado').value = empresa.timbrado || '';
+        document.getElementById('empresaFechaInicioTimbrado').value = empresa.fechaInicioTimbrado || '';
         document.getElementById('empresaFechaVencimientoTimbrado').value = empresa.fechaVencimientoTimbrado || '';
         
         // Asignar actividad (el select ya cargó por await loadDynamicRefs)
@@ -249,6 +250,7 @@ window.submitFormEmpresa = async function() {
         dv: dv,
         razonSocial: razonSocial,
         timbrado: document.getElementById('empresaTimbrado').value,
+        fechaInicioTimbrado: document.getElementById('empresaFechaInicioTimbrado').value || null,
         fechaVencimientoTimbrado: document.getElementById('empresaFechaVencimientoTimbrado').value || null,
         codActividadEconomica: codActEcon,
         actividadEconomica: actDesc,

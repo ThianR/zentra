@@ -70,7 +70,8 @@ public class EventoService {
         validarMotivo(motivo);
 
         // Regla 1: El DTE referenciado debe existir
-        DocumentoElectronico dte = documentoRepository.findById(buscarIdPorCdc(cdc))
+        String idDte = java.util.Objects.requireNonNull(buscarIdPorCdc(cdc));
+        DocumentoElectronico dte = documentoRepository.findById(idDte)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No existe un DTE con CDC: " + cdc));
 
@@ -312,7 +313,8 @@ public class EventoService {
      */
     @Transactional(readOnly = true)
     public EventoDocumento obtenerPorId(String id) {
-        return eventoRepository.findById(id)
+        String nonNullId = java.util.Objects.requireNonNull(id);
+        return eventoRepository.findById(nonNullId)
                 .orElseThrow(() -> new RuntimeException("Evento no encontrado: " + id));
     }
 
@@ -357,7 +359,8 @@ public class EventoService {
      */
     @Transactional(readOnly = true)
     public Empresa obtenerEmpresaPorId(String empresaId) {
-        return empresaRepository.findById(empresaId)
+        String nonNullId = java.util.Objects.requireNonNull(empresaId);
+        return empresaRepository.findById(nonNullId)
                 .orElseThrow(() -> new RuntimeException("Empresa no encontrada: " + empresaId));
     }
 

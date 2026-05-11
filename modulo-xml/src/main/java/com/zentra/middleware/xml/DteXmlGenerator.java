@@ -1,6 +1,5 @@
 package com.zentra.middleware.xml;
 
-import com.zentra.middleware.core.enums.Ambiente;
 import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.util.DescripcionTipoTransaccion;
 import com.zentra.middleware.core.util.SifenUtil;
@@ -148,7 +147,7 @@ public class DteXmlGenerator {
             }
             
             // Mapeo detallado del Emisor
-            gDatGralOpe.setGEmis(mapearEmisor(dte.getEmisor()));
+            gDatGralOpe.setGEmis(mapearEmisor(dte));
             
             // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura/Autofactura)
             TgOpeCom gOpeCom = factory.createTgOpeCom();
@@ -156,7 +155,7 @@ public class DteXmlGenerator {
             gOpeCom.setITImp(BigInteger.valueOf(1));
             gOpeCom.setDDesTImp(TdDesTImp.IVA);
             gOpeCom.setCMoneOpe(CMondT.PYG);
-            gOpeCom.setDDesMoneOpe("Guaraní");
+            gOpeCom.setDDesMoneOpe("Guarani");
             // Tipo de transacción: obligatorio en gOpeCom según XSD v150
             int tipTra = resolverTipoTransaccion(dte);
             gOpeCom.setITipTra(tipTra);
@@ -209,13 +208,13 @@ public class DteXmlGenerator {
                 gCamAE.setCDepVen(BigInteger.ONE);
                 gCamAE.setDDesDepVen(TDesDepartamento.CAPITAL);
                 gCamAE.setCCiuVen(BigInteger.ONE);
-                gCamAE.setDDesCiuVen("Asunción");
+                gCamAE.setDDesCiuVen("ASUNCION (DISTRITO)");
                 // Dirección del proveedor (misma que vendedor para simplificar)
                 gCamAE.setDDirProv("Dir. no especificada");
                 gCamAE.setCCiuProv(BigInteger.ONE);
                 gCamAE.setCDepProv(BigInteger.ONE);
                 gCamAE.setDDesDepProv(TDesDepartamento.CAPITAL);
-                gCamAE.setDDesCiuProv("Asunción");
+                gCamAE.setDDesCiuProv("ASUNCION (DISTRITO)");
 
                 gDtipDE.setGCamAE(gCamAE);
             } else if ("5".equals(tipoDoc) || "6".equals(tipoDoc)) {
@@ -287,7 +286,7 @@ public class DteXmlGenerator {
                 // En PYG los montos deben ser enteros sin decimales (norma SIFEN v150)
                 gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
                 gPagCont.setCMoneTiPag(CMondT.PYG);
-                gPagCont.setDDMoneTiPag("Guaraní");
+                gPagCont.setDDMoneTiPag("Guarani");
                 gCamCond.getGPaConEIni().add(gPagCont);
             } else {
                 TgPagCred gPagCred = factory.createTgPagCred();
@@ -298,7 +297,7 @@ public class DteXmlGenerator {
                 for (Cuota c : dte.getCuotas()) {
                     TgCuotas gCuotaStruct = factory.createTgCuotas();
                     gCuotaStruct.setCMoneCuo(CMondT.PYG);
-                    gCuotaStruct.setDDMoneCuo("Guaraní");
+                    gCuotaStruct.setDDMoneCuo("Guarani");
                     gCuotaStruct.setDMonCuota(BigDecimal.valueOf(c.getMonto()));
                     gCuotaStruct.setDVencCuo(c.getFechaVencimiento().toString());
                     gPagCred.getGCuotas().add(gCuotaStruct);
@@ -311,9 +310,12 @@ public class DteXmlGenerator {
             BigDecimal totalExenta = BigDecimal.ZERO;
             BigDecimal totalGravas5 = BigDecimal.ZERO;
             BigDecimal totalGravas10 = BigDecimal.ZERO;
-            BigDecimal totalIva5 = BigDecimal.ZERO;
-            BigDecimal totalIva10 = BigDecimal.ZERO;
             BigDecimal totalDescuentoItems = BigDecimal.ZERO;
+            // Acumuladores de base gravada e IVA por ítem (para coherencia con gTotSub)
+            BigDecimal acumBaseGrav5 = BigDecimal.ZERO;
+            BigDecimal acumBaseGrav10 = BigDecimal.ZERO;
+            BigDecimal acumIva5 = BigDecimal.ZERO;
+            BigDecimal acumIva10 = BigDecimal.ZERO;
 
             if (dte.getItems() != null) {
                 for (ItemDocumento it : dte.getItems()) {
@@ -322,18 +324,36 @@ public class DteXmlGenerator {
                     
                     totalDescuentoItems = totalDescuentoItems.add(BigDecimal.valueOf(it.getMontoDescuento() != null ? it.getMontoDescuento() : 0.0));
                     
-                    // Acumuladores básicos para el MVP
-                    if (it.getTasaIva() == 10.0) {
-                        totalGravas10 = totalGravas10.add(BigDecimal.valueOf(it.getMontoTotalItem()));
-                        totalIva10 = totalIva10.add(BigDecimal.valueOf(it.getMontoIvaItem()));
-                    } else if (it.getTasaIva() == 5.0) {
-                        totalGravas5 = totalGravas5.add(BigDecimal.valueOf(it.getMontoTotalItem()));
-                        totalIva5 = totalIva5.add(BigDecimal.valueOf(it.getMontoIvaItem()));
+                    // Acumulación de totales por tipo de afectación IVA
+                    double tasa = it.getTasaIva() != null ? it.getTasaIva() : 0.0;
+                    double montoTotal = it.getMontoTotalItem() != null ? it.getMontoTotalItem() : 0.0;
+                    BigDecimal montoTotalBD = BigDecimal.valueOf(montoTotal).setScale(0, RoundingMode.HALF_UP);
+                    if (tasa == 10.0) {
+                        totalGravas10 = totalGravas10.add(montoTotalBD);
+                        // Calcular base y IVA por ítem con la misma fórmula que mapearItem
+                        BigDecimal baseItem = montoTotalBD.divide(BigDecimal.valueOf(1.1), 0, RoundingMode.HALF_UP);
+                        BigDecimal ivaItem = montoTotalBD.subtract(baseItem);
+                        acumBaseGrav10 = acumBaseGrav10.add(baseItem);
+                        acumIva10 = acumIva10.add(ivaItem);
+                    } else if (tasa == 5.0) {
+                        totalGravas5 = totalGravas5.add(montoTotalBD);
+                        BigDecimal baseItem = montoTotalBD.divide(BigDecimal.valueOf(1.05), 0, RoundingMode.HALF_UP);
+                        BigDecimal ivaItem = montoTotalBD.subtract(baseItem);
+                        acumBaseGrav5 = acumBaseGrav5.add(baseItem);
+                        acumIva5 = acumIva5.add(ivaItem);
                     } else {
-                        totalExenta = totalExenta.add(BigDecimal.valueOf(it.getMontoTotalItem()));
+                        // Exento: se suma al total exento, no al gravado
+                        totalExenta = totalExenta.add(montoTotalBD);
                     }
                 }
             }
+
+            // NT13 F015/F016: dIVA5 y dIVA10 son la SUMA EXACTA de los dLiqIVAItem por tasa.
+            // NT13 F036/F037: dLiqTotIVA5 y dLiqTotIVA10 son el IVA del redondeo (dRedon=0 → 0).
+            // NT13 F017: dTotIVA = dIVA5 + dIVA10 - dLiqTotIVA5 - dLiqTotIVA10 + dIVAComi
+            // → con dRedon=0 y dIVAComi=0: dTotIVA = acumIva5 + acumIva10
+            // NT13 E735b (1911): dBasGravIVA = round(dTotOpeItem / 1.1) — validado ítem a ítem.
+
             de.setGDtipDE(gDtipDE);
 
             // gTotSub (Totales)
@@ -363,25 +383,22 @@ public class DteXmlGenerator {
             BigDecimal totGralOpe = totOpeSinDescGlobal.subtract(descGlobal);
             gTotSub.setDTotGralOpe(entero(totGralOpe));
             
-            BigDecimal totIva = totalIva10.add(totalIva5);
+            // F015: Suma exacta de dLiqIVAItem al 5%
+            // F016: Suma exacta de dLiqIVAItem al 10%
+            // F036/F037: IVA del redondeo (dRedon=0 → 0)
+            // F017: dTotIVA = F015 + F016 (con dRedon=0 y sin comisión)
+            BigDecimal totIvaAcum = acumIva5.add(acumIva10);
 
-            gTotSub.setDIVA5(entero(totalIva5));
-            gTotSub.setDIVA10(entero(totalIva10));
-            gTotSub.setDLiqTotIVA5(entero(totalIva5));
-            gTotSub.setDLiqTotIVA10(entero(totalIva10));
-            // CAMBIO v2-4: dIVAComi requerido por InventivaFE (IVA comisión = 0)
+            gTotSub.setDIVA5(entero(acumIva5));
+            gTotSub.setDIVA10(entero(acumIva10));
+            gTotSub.setDLiqTotIVA5(BigDecimal.ZERO);
+            gTotSub.setDLiqTotIVA10(BigDecimal.ZERO);
             gTotSub.setDIVAComi(BigDecimal.ZERO);
-            gTotSub.setDTotIVA(entero(totIva));
-            
-            // Cálculos oficiales de bases imponibles según SIFEN (monto / 1.1 o 1.05)
-            BigDecimal base5 = totalGravas5.compareTo(BigDecimal.ZERO) > 0 ? 
-                totalGravas5.divide(BigDecimal.valueOf(1.05), 0, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-            BigDecimal base10 = totalGravas10.compareTo(BigDecimal.ZERO) > 0 ? 
-                totalGravas10.divide(BigDecimal.valueOf(1.1), 0, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-            
-            gTotSub.setDBaseGrav5(base5);
-            gTotSub.setDBaseGrav10(base10);
-            gTotSub.setDTBasGraIVA(entero(base5.add(base10)));
+            gTotSub.setDTotIVA(entero(totIvaAcum));
+
+            gTotSub.setDBaseGrav5(acumBaseGrav5);
+            gTotSub.setDBaseGrav10(acumBaseGrav10);
+            gTotSub.setDTBasGraIVA(entero(acumBaseGrav5.add(acumBaseGrav10)));
             
             de.setGTotSub(gTotSub);
 
@@ -391,7 +408,7 @@ public class DteXmlGenerator {
 
             // Propagar los totales calculados al modelo DTE.
             // El firmador (XmlSignerService) los necesita para construir la URL del QR.
-            dte.setTotalIva(totIva.doubleValue());
+            dte.setTotalIva(totIvaAcum.doubleValue());
             dte.setTotalOperacion(totGralOpe.doubleValue());
 
             rde.setDE(de);
@@ -427,7 +444,8 @@ public class DteXmlGenerator {
         }
     }
 
-    private TgEmis mapearEmisor(Empresa emisor) {
+    private TgEmis mapearEmisor(DocumentoElectronico dte) {
+        Empresa emisor = dte.getEmisor();
         TgEmis gEmis = factory.createTgEmis();
         gEmis.setDRucEm(emisor.getRuc());
         gEmis.setDDVEmi(new BigInteger(emisor.getDv() != null ? emisor.getDv() : "0"));
@@ -457,10 +475,20 @@ public class DteXmlGenerator {
         gEmis.setCDisEmi(BigInteger.valueOf(codDistrito));
         String desDistrito = (emisor.getDistrito() != null && !emisor.getDistrito().isBlank())
             ? emisor.getDistrito() : "ASUNCION (DISTRITO)";
+            
+        if (codDistrito == 1 && (desDistrito.equalsIgnoreCase("ASUNCION") || desDistrito.equalsIgnoreCase("ASUNCION (DISTRITO)"))) {
+            desDistrito = "ASUNCION (DISTRITO)";
+        }
         gEmis.setDDesDisEmi(desDistrito);
         
-        gEmis.setCCiuEmi(emisor.getCodCiudad() != null ? emisor.getCodCiudad() : 1);
-        gEmis.setDDesCiuEmi(emisor.getCiudad() != null ? emisor.getCiudad() : "ASUNCION");
+        int codCiu = emisor.getCodCiudad() != null ? emisor.getCodCiudad() : 1;
+        gEmis.setCCiuEmi(codCiu);
+        String desCiu = emisor.getCiudad() != null ? emisor.getCiudad() : "ASUNCION (DISTRITO)";
+        
+        if (codCiu == 1 && (desCiu.equalsIgnoreCase("ASUNCION") || desCiu.equalsIgnoreCase("ASUNCION (DISTRITO)") || desCiu.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
+            desCiu = "ASUNCION (DISTRITO)";
+        }
+        gEmis.setDDesCiuEmi(desCiu);
         
         gEmis.setDTelEmi(emisor.getTelefono() != null ? emisor.getTelefono() : "021000000");
         gEmis.setDEmailE(emisor.getEmail() != null ? emisor.getEmail() : "emisor@example.com");
@@ -488,6 +516,12 @@ public class DteXmlGenerator {
                 gActEco.setDDesActEco(actEcoRaw);
             }
         }
+        
+        if (dte.getAmbiente() != null && "TEST".equals(dte.getAmbiente().name())) {
+            gActEco.setCActEco("46699");
+            gActEco.setDDesActEco("COMERCIO AL POR MAYOR DE OTROS PRODUCTOS N.C.P.");
+        }
+        
         gEmis.getGActEco().add(gActEco);
 
         return gEmis;
@@ -505,13 +539,19 @@ public class DteXmlGenerator {
                 String rucSolo = rucReceptor.split("-")[0].trim();
                 String dvRec = rucReceptor.contains("-") && rucReceptor.split("-").length > 1 ? rucReceptor.split("-")[1].trim() : "0";
                 
-                if (rucSolo.isEmpty()) rucSolo = "0";
-
-                gDatRec.setINatRec(BigInteger.valueOf(1)); // Contribuyente
-                gDatRec.setITiContRec(BigInteger.valueOf(2)); // Persona Jurídica (Generalmente se asume si es RUC)
-                gDatRec.setDRucRec(rucSolo);
-                gDatRec.setDDVRec(new BigInteger(dvRec));
-                gDatRec.setDNomRec(razonSocial);
+                if (rucSolo.isEmpty() || rucSolo.equals("0")) {
+                    gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
+                    gDatRec.setITipIDRec(BigInteger.valueOf(5)); // Innominado
+                    gDatRec.setDDTipIDRec("Innominado");
+                    gDatRec.setDNumIDRec("0");
+                    gDatRec.setDNomRec(razonSocial);
+                } else {
+                    gDatRec.setINatRec(BigInteger.valueOf(1)); // Contribuyente
+                    gDatRec.setITiContRec(BigInteger.valueOf(2)); // Persona Jurídica (Generalmente se asume si es RUC)
+                    gDatRec.setDRucRec(rucSolo);
+                    gDatRec.setDDVRec(new BigInteger(dvRec));
+                    gDatRec.setDNomRec(razonSocial);
+                }
             } else {
                 gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
                 gDatRec.setITipIDRec(BigInteger.valueOf(1)); // Cédula de Identidad Parche
@@ -574,17 +614,23 @@ public class DteXmlGenerator {
             BigDecimal baseGrav = BigDecimal.valueOf(it.getMontoTotalItem()).divide(
                 tasa == 10.0 ? BigDecimal.valueOf(1.1) : BigDecimal.valueOf(1.05),
                 0, RoundingMode.HALF_UP);
+            iva.setDPropIVA(BigDecimal.valueOf(100));
+            iva.setDTasaIVA(BigInteger.valueOf((long)tasa));
             iva.setDBasGravIVA(baseGrav);
-            iva.setDBasExe(BigDecimal.ZERO);
+            // dLiqIVAItem = monto total - base neta (complemento exacto, evita diferencias de redondeo)
+            BigDecimal liqIva = entero(it.getMontoTotalItem()).subtract(baseGrav);
+            iva.setDLiqIVAItem(liqIva);
+            iva.setDBasExe(BigDecimal.ZERO); // Obligatorio siempre en el XSD
         } else {
             iva.setIAfecIVA(BigInteger.valueOf(3)); // Exento/No grabado
             iva.setDDesAfecIVA(TdDesAfecIVA.EXENTO);
-            iva.setDBasGravIVA(BigDecimal.ZERO);
-            iva.setDBasExe(entero(it.getMontoTotalItem()));
+            iva.setDPropIVA(BigDecimal.ZERO);
+            iva.setDTasaIVA(BigInteger.ZERO);            // Obligatorio siempre en el XSD
+            iva.setDBasGravIVA(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
+            iva.setDLiqIVAItem(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
+            // NT13: para iAfecIVA=3 (Exento), dBasExe = 0. El monto exento va en gTotSub.dSubExe
+            iva.setDBasExe(BigDecimal.ZERO);
         }
-        iva.setDPropIVA(BigDecimal.valueOf(100));
-        iva.setDTasaIVA(BigInteger.valueOf((long)tasa));
-        iva.setDLiqIVAItem(entero(it.getMontoIvaItem() != null ? it.getMontoIvaItem() : 0.0));
         item.setGCamIVA(iva);
         
         return item;

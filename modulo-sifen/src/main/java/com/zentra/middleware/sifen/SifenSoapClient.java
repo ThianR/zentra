@@ -6,8 +6,6 @@ import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.model.EstadoDte;
 import com.zentra.middleware.core.model.EventoDocumento;
 import com.zentra.middleware.core.enums.EstadoEvento;
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Service;
 
 import javax.net.ssl.*;
@@ -19,12 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.zentra.middleware.sifen.schema.REnviDeRequest;
-import javax.xml.parsers.DocumentBuilderFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.xml.sax.InputSource;
 
 /**
  * Cliente para comunicación SOAP con los servidores de SIFEN (SET Paraguay).
@@ -237,18 +229,20 @@ public class SifenSoapClient {
                 os.flush();
             }
 
-            int httpStatus;
             try {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             } catch (IOException e) {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             }
             
             String xmlRespuesta = leerRespuesta(conn);
             conn.disconnect();
             
             dte.setXmlRespuestaSifen(xmlRespuesta);
-            String codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", null);
+            if (codRes == null) {
+                codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "SIN_COD");
+            }
             dte.setCodigoEstadoSifen(codRes);
             
             // 0300 significa lote recibido exitosamente
@@ -333,17 +327,19 @@ public class SifenSoapClient {
                 os.flush();
             }
 
-            int httpStatus;
             try {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             } catch (IOException e) {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             }
             
             String xmlRespuesta = leerRespuesta(conn);
             conn.disconnect();
             
-            String codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", null);
+            if (codRes == null) {
+                codRes = extraerEtiqueta(xmlRespuesta, "dCodResLot", "SIN_COD");
+            }
             
             if ("0300".equals(codRes)) {
                 String dProtConsLote = extraerEtiqueta(xmlRespuesta, "dProtConsLote", null);
@@ -408,11 +404,10 @@ public class SifenSoapClient {
                 os.flush();
             }
 
-            int httpStatus;
             try {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             } catch (IOException e) {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             }
             
             String xmlRespuesta = leerRespuesta(conn);
@@ -421,7 +416,7 @@ public class SifenSoapClient {
             dte.setXmlRespuestaSifen(xmlRespuesta);
             
             // Parsear resultado del lote (SIFEN usa dCodResLot/dMsgResLot para el Lote)
-            String dCodResLote = extraerEtiqueta(xmlRespuesta, "dCodResLot", "DESCONOCIDO");
+            String dCodResLote = extraerEtiqueta(xmlRespuesta, "dCodResLot", "SIN_COD");
             String dMsgResLote = extraerEtiqueta(xmlRespuesta, "dMsgResLot", "Sin descripcion");
             
             logger.info("Resultado Consulta Lote SIFEN: " + dCodResLote + " - " + dMsgResLote);
@@ -493,11 +488,10 @@ public class SifenSoapClient {
                 os.flush();
             }
 
-            int httpStatus;
             try {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             } catch (IOException e) {
-                httpStatus = conn.getResponseCode();
+                conn.getResponseCode();
             }
             
             String xmlRespuesta = leerRespuesta(conn);
@@ -581,7 +575,7 @@ public class SifenSoapClient {
             logger.info("[SifenSoapClient.enviarEvento] Respuesta SIFEN:\n" + xmlRespuesta);
 
             // Parsear código y mensaje de resultado
-            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String codRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "SIN_COD");
             String msgRes = extraerEtiqueta(xmlRespuesta, "dMsgRes", "Sin descripcion");
 
             evento.setCodigoSifen(codRes);
@@ -849,7 +843,7 @@ public class SifenSoapClient {
     }
 
     private String extraerCodigo(String xml) {
-        return extraerEtiqueta(xml, "dCodRes", "DESCONOCIDO");
+        return extraerEtiqueta(xml, "dCodRes", "SIN_COD");
     }
 
     private String extraerMensaje(String xml) {
@@ -907,15 +901,15 @@ public class SifenSoapClient {
             HttpsURLConnection conn = abrirConexion(endpoint, sslContext,
                     "http://ekuatia.set.gov.py/sifen/xsd/siConsDe");
 
-            // Estructura SOAP según especificación SIFEN v150 para rEnviConsDe
+            // Estructura SOAP según especificación SIFEN v150 para consulta individual por CDC
             String soapBody = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                     "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
                     "<env:Header/>" +
                     "<env:Body>" +
-                    "<rEnviConsDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                    "<rConsDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
                     "<dId>1</dId>" +
                     "<dCDC>" + dte.getCdc() + "</dCDC>" +
-                    "</rEnviConsDe>" +
+                    "</rConsDe>" +
                     "</env:Body>" +
                     "</env:Envelope>";
 
@@ -943,7 +937,7 @@ public class SifenSoapClient {
             dte.setXmlRespuestaSifen(xmlRespuesta);
 
             // Según especificación SIFEN v150: dCodRes = 0300 -> aprobado, 0400 -> rechazado
-            String dCodRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "DESCONOCIDO");
+            String dCodRes = extraerEtiqueta(xmlRespuesta, "dCodRes", "SIN_COD");
             String dMsgRes = extraerEtiqueta(xmlRespuesta, "dMsgRes", "Sin descripcion");
 
             dte.setCodigoEstadoSifen(dCodRes);

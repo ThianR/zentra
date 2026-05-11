@@ -2,15 +2,13 @@ package com.zentra.middleware.xml;
 
 import com.zentra.middleware.core.enums.Ambiente;
 import com.zentra.middleware.core.model.DocumentoElectronico;
+import com.zentra.middleware.core.util.SifenUtil;
 import com.zentra.middleware.core.model.ItemDocumento;
 import com.zentra.middleware.core.model.Empresa;
-import com.zentra.middleware.core.model.EstadoDte;
-import com.zentra.middleware.core.util.SifenUtil;
 // Se omiten dependencias de otros módulos (crypto, sifen) para evitar fallos de compilación cruzada en este módulo.
 
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 

@@ -37,6 +37,16 @@ public class DatabaseMigrationConfig {
         migrarConstraintSifenReferencia();
         migrarColumnasEmpresa();
         cargarDatosReferencia();
+        forzarAmbienteEmpresa();
+    }
+
+    private void forzarAmbienteEmpresa() {
+        logger.info("[DB Init] Forzando ambiente de empresas a TEST (1) según cambio de Enum SIFEN...");
+        try {
+            jdbc.execute("UPDATE empresas SET ambiente = 1 WHERE ruc IN ('80144342', '80014603')");
+        } catch (Exception e) {
+            logger.warn("[DB Init] Error actualizando ambiente de empresas: " + e.getMessage());
+        }
     }
 
     /**
@@ -138,9 +148,12 @@ public class DatabaseMigrationConfig {
         populator.setSeparator(";");
         populator.setIgnoreFailedDrops(true);
         populator.setContinueOnError(false);
-        org.springframework.jdbc.datasource.init.DatabasePopulatorUtils.execute(populator, dataSource);
+        if (dataSource != null) {
+            org.springframework.jdbc.datasource.init.DatabasePopulatorUtils.execute(populator, dataSource);
+        }
         
-        long total = jdbc.queryForObject("SELECT COUNT(*) FROM sifen_referencia", Long.class);
+        Long totalRes = jdbc.queryForObject("SELECT COUNT(*) FROM sifen_referencia", Long.class);
+        long total = totalRes != null ? totalRes : 0L;
         logger.info("[DB Init] Sincronización finalizada: {} registros en sifen_referencia.", total);
     }
 }

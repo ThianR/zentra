@@ -61,7 +61,8 @@ public class LoteSenderJob {
             String empresaId = entry.getKey();
             List<DocumentoElectronico> dtesEmpresa = entry.getValue();
 
-            Empresa empresa = empresaRepository.findById(empresaId).orElse(null);
+            String nonNullId = java.util.Objects.requireNonNull(empresaId);
+            Empresa empresa = empresaRepository.findById(nonNullId).orElse(null);
             if (empresa == null) continue;
 
             int frecuencia = empresa.getFrecuenciaLoteMinutos() != null ? empresa.getFrecuenciaLoteMinutos() : 15;

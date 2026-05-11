@@ -9,8 +9,8 @@ import java.util.Arrays;
  */
 public enum Ambiente {
 
-    PRODUCCION(1),
-    TEST(2);
+    TEST(1),
+    PRODUCCION(2);
 
     private final int codigo;
 

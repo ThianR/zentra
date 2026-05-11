@@ -158,7 +158,7 @@ public class EventoController {
             eventoService.registrarEnvio(evento);
 
             // 8. Transmitir al WS siRecepEvento de SIFEN
-            boolean aprobado = sifenClient.enviarEvento(evento, ambiente);
+            sifenClient.enviarEvento(evento, ambiente);
 
             // 9. Persistir la respuesta de SIFEN (ya actualizada en el objeto evento por SifenSoapClient)
             eventoService.registrarRespuesta(
@@ -285,7 +285,7 @@ public class EventoController {
             eventoService.registrarEnvio(evento);
 
             // 7. Transmitir
-            boolean aprobado = sifenClient.enviarEvento(evento, ambiente);
+            sifenClient.enviarEvento(evento, ambiente);
 
             // 8. Persistir resultado
             eventoService.registrarRespuesta(
@@ -405,7 +405,7 @@ public class EventoController {
             eventoService.registrarEnvio(evento);
 
             // 8. Transmitir al WS siRecepEvento de SIFEN
-            boolean aprobado = sifenClient.enviarEvento(evento, ambiente);
+            sifenClient.enviarEvento(evento, ambiente);
 
             // 9. Persistir la respuesta de SIFEN
             eventoService.registrarRespuesta(

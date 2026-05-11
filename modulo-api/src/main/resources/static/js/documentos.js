@@ -16,6 +16,9 @@ async function loadDocumentos(filtros = null) {
     try {
         const response = await fetch(API.emision + '/documentos');
         let docs = await response.json();
+        const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
+        const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
+        if (docs && docs.length > 0) docs = docs.filter(doc => doc.ambiente === expectedAmbiente);
         
         // Aplicar filtros en memoria si existen
         if (filtros) {
@@ -480,3 +483,67 @@ window.aplicarFiltrosManual = function(filtros) {
     // Scroll suave a la tabla
     document.querySelector('.content-table').scrollIntoView({ behavior: 'smooth' });
 };
+
+// --- Últimos Comprobantes Dashboard ---
+
+window.loadUltimosComprobantesPorTipo = async function() {
+    try {
+        const response = await fetch(API.emision + '/documentos');
+        let docs = await response.json();
+        
+        // Filtrar por ambiente activo en sesi�n
+        const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
+        const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
+        if (docs && docs.length > 0) docs = docs.filter(doc => doc.ambiente === expectedAmbiente);
+        
+        // Ordenar por fecha descendente
+        docs.sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
+        
+        // Separar por tipo y tomar los primeros 5
+        const facturas = docs.filter(d => String(d.tipoDocumento) === '1').slice(0, 5);
+        const ncnd = docs.filter(d => String(d.tipoDocumento) === '5' || String(d.tipoDocumento) === '6').slice(0, 5);
+        const autofacturas = docs.filter(d => String(d.tipoDocumento) === '4').slice(0, 5);
+        const remisiones = docs.filter(d => String(d.tipoDocumento) === '7').slice(0, 5);
+        
+        renderMiniDocsList('listRecentFacturas', facturas);
+        renderMiniDocsList('listRecentNotasCredito', ncnd);
+        renderMiniDocsList('listRecentAutofacturas', autofacturas);
+        renderMiniDocsList('listRecentRemisiones', remisiones);
+        
+    } catch (e) {
+        console.error("Error al cargar últimos comprobantes:", e);
+        showToast("Error al cargar últimos comprobantes", "error");
+    }
+}
+
+function renderMiniDocsList(containerId, docs) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    if (docs.length === 0) {
+        container.innerHTML = '<div class="text-center" style="opacity: 0.6; padding: 20px;">Sin documentos recientes</div>';
+        return;
+    }
+    
+    container.innerHTML = docs.map(doc => {
+        let statusColor = '#94a3b8'; // PENDIENTE
+        if (doc.estado === 'APROBADO') statusColor = '#2ecc71';
+        else if (doc.estado === 'RECHAZADO' || doc.estado === 'ERROR_ENVIO') statusColor = '#e74c3c';
+        else if (doc.estado === 'EN_PROCESO') statusColor = '#f39c12';
+        
+        // Al hacer click, cambiar a vista-lista-dtes y abrir modal de detalle
+        return `
+            <div class="mini-doc-item" style="cursor:pointer;" onclick="switchView('lista-dtes'); setTimeout(() => abrirModalDetalle('${doc.id}'), 100);" title="Ver detalle de comprobante">
+                <div class="mini-doc-info">
+                    <span class="mini-doc-nro">${doc.numeroComprobante || 'S/N'}</span>
+                    <span class="mini-doc-receptor">${doc.receptorRazonSocial || doc.rucReceptor || 'Consumidor Final'}</span>
+                </div>
+                <div class="mini-doc-status">
+                    <span style="font-size: 0.8rem; font-weight: bold; color: ${statusColor}">${doc.estado || 'PENDIENTE'}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary)">${formatDate(doc.fechaCreacion)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+

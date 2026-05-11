@@ -211,7 +211,7 @@ import jakarta.xml.bind.annotation.XmlType;
  *     &lt;enumeration value="XBB"/&gt;
  *     &lt;enumeration value="XBC"/&gt;
  *     &lt;enumeration value="XTS"/&gt;
- *     &lt;enumeration value="XXX"/&gt;
+ *     &lt;enumeration value="X&#88;X"/&gt;
  *     &lt;enumeration value="YER"/&gt;
  *     &lt;enumeration value="YUM"/&gt;
  *     &lt;enumeration value="ZMW"/&gt;

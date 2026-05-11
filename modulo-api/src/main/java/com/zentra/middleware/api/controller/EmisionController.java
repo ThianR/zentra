@@ -52,6 +52,7 @@ public class EmisionController {
     private final EmpresaRepository empresaRepository;
     private final DocumentoElectronicoRepository dteRepository;
     private final HistorialSifenService historialSifenService;
+    private final com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository;
 
     public EmisionController(
             DteXmlGenerator xmlGenerator,
@@ -64,7 +65,8 @@ public class EmisionController {
             XsdValidatorService xsdValidatorService,
             EmpresaRepository empresaRepository,
             DocumentoElectronicoRepository dteRepository,
-            HistorialSifenService historialSifenService) { // Added to constructor parameters
+            HistorialSifenService historialSifenService,
+            com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository) { // Added to constructor parameters
         this.xmlGenerator = xmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
@@ -76,6 +78,7 @@ public class EmisionController {
         this.empresaRepository = empresaRepository;
         this.dteRepository = dteRepository;
         this.historialSifenService = historialSifenService;
+        this.padronRucRepository = padronRucRepository;
         
         HttpClient client;
         try {
@@ -118,7 +121,6 @@ public class EmisionController {
         try { return Double.parseDouble(o.toString()); } catch (Exception e) { return defaultVal != null ? defaultVal : 0.0; }
     }
 
-    @SuppressWarnings("unchecked")
     public DocumentoElectronico procesarDteLocal(Map<String, Object> payload) throws Exception {
             String empresaId = EmpresaContext.getEmpresaId();
             if (empresaId == null) {
@@ -216,17 +218,23 @@ public class EmisionController {
 
             String tipoDoc = dte.getTipoDocumento() != null ? dte.getTipoDocumento() : "1";
             // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
-            documentoService.eliminarSiEstaRechazado(java.util.Objects.requireNonNull(fulNum), tipoDoc);
+            String nonNullNum = java.util.Objects.requireNonNull(fulNum);
+            String nonNullTipo = java.util.Objects.requireNonNull(tipoDoc);
+            documentoService.eliminarSiEstaRechazado(nonNullNum, nonNullTipo);
 
-            if (documentoService.existePorNumero(java.util.Objects.requireNonNull(fulNum), tipoDoc)) {
+            if (documentoService.existePorNumero(nonNullNum, nonNullTipo)) {
                 throw new RuntimeException("El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente.");
             }
 
             dte.setNumeroComprobante(fulNum);
             dte.setTimbrado(emisor.getTimbrado() != null ? emisor.getTimbrado() : "16770994");
 
-            // Forzar siempre Ambiente de PRODUCCION según los requerimientos
-            dte.setAmbiente(com.zentra.middleware.core.enums.Ambiente.PRODUCCION);
+            // Tomar el ambiente del UI (si se envía), sino de la empresa emisora
+            if (payload.get("ambiente") != null) {
+                dte.setAmbiente(com.zentra.middleware.core.enums.Ambiente.valueOf(String.valueOf(payload.get("ambiente"))));
+            } else {
+                dte.setAmbiente(emisor.getAmbiente());
+            }
             dte.setFormatoKuDE(String.valueOf(payload.getOrDefault("formatoKuDE", "A4")));
             
             if (payload.get("fechaCreacion") != null) {
@@ -297,20 +305,21 @@ public class EmisionController {
                     item.setMontoDescuento(0.0);
 
                     if (item.getTasaIva() == 10.0) {
-                        // IVA PYG: siempre entero (monto / 11, redondeado)
-                        long liqIva = Math.round(subtotal / 11.0);
+                        // Base neta: monto / 1.1 (consistente con generador XML)
+                        long baseNeta = Math.round(subtotal / 1.1);
+                        long liqIva = Math.round(subtotal) - baseNeta;
                         item.setMontoIvaItem((double) liqIva);
                         item.setMontoTotalItem((double) Math.round(subtotal));
                         grav10 += item.getMontoTotalItem();
                         iva10 += liqIva;
                     } else if (item.getTasaIva() == 5.0) {
-                        // IVA 5% PYG: siempre entero (monto / 21, redondeado)
-                        long liqIva = Math.round(subtotal / 21.0);
+                        // Base neta: monto / 1.05 (consistente con generador XML)
+                        long baseNeta = Math.round(subtotal / 1.05);
+                        long liqIva = Math.round(subtotal) - baseNeta;
                         item.setMontoIvaItem((double) liqIva);
                         item.setMontoTotalItem((double) Math.round(subtotal));
                         grav5 += item.getMontoTotalItem();
                         iva5 += liqIva;
-
                     } else {
                         item.setMontoIvaItem(0.0);
                         exenta += subtotal;
@@ -379,7 +388,7 @@ public class EmisionController {
     public ResponseEntity<Map<String, Object>> generarDte(@RequestBody Map<String, Object> payload) {
         try {
             logger.info("Recibida solicitud de generación DTE unitaria...");
-            DocumentoElectronico dte = procesarDteLocal(payload);
+            DocumentoElectronico dte = java.util.Objects.requireNonNull(procesarDteLocal(payload));
             
             String tipoEnvio = String.valueOf(payload.getOrDefault("tipoEnvio", "SYNC"));
             boolean exitoEnvio;
@@ -467,7 +476,8 @@ public class EmisionController {
     public ResponseEntity<?> consultarLote(@PathVariable String id) {
         try {
             logger.info("Recibida solicitud de consulta de Lote para DTE con ID: " + id);
-            DocumentoElectronico dte = documentoService.obtenerPorId(id);
+            String nonNullId = java.util.Objects.requireNonNull(id);
+            DocumentoElectronico dte = documentoService.obtenerPorId(nonNullId);
             if (dte == null) {
                 logger.warning("No se encontró el DTE con ID: " + id);
                 return ResponseEntity.notFound().build();
@@ -548,6 +558,7 @@ public class EmisionController {
                 m.put("fechaCreacion", d.getFechaCreacion() != null ? d.getFechaCreacion().toString() : "");
                 m.put("cdc", d.getCdc() != null ? d.getCdc() : "");
                 m.put("numeroTicketLote", d.getNumeroTicketLote() != null ? d.getNumeroTicketLote() : "");
+                m.put("ambiente", d.getAmbiente() != null ? d.getAmbiente().name() : "TEST");
                 return m;
             }).toList();
             return ResponseEntity.ok(list);
@@ -560,7 +571,8 @@ public class EmisionController {
     @GetMapping("/documentos/{id}")
     public ResponseEntity<?> obtenerDocumento(@PathVariable String id) {
         try {
-            DocumentoElectronico d = documentoService.obtenerPorId(String.valueOf(id));
+            String nonNullId = java.util.Objects.requireNonNull(id);
+            DocumentoElectronico d = documentoService.obtenerPorId(nonNullId);
             if (d == null) {
                 return ResponseEntity.notFound().build();
             }
@@ -589,7 +601,8 @@ public class EmisionController {
     @GetMapping("/documentos/{id}/historial")
     public ResponseEntity<?> obtenerHistorial(@PathVariable String id) {
         try {
-            DocumentoElectronico d = documentoService.obtenerPorId(id);
+            String nonNullId = java.util.Objects.requireNonNull(id);
+            DocumentoElectronico d = documentoService.obtenerPorId(nonNullId);
             if (d == null) {
                 return ResponseEntity.notFound().build();
             }
@@ -714,10 +727,18 @@ public class EmisionController {
                         .ok(Map.of("razonSocial", "EMPRESA DE PRUEBA SIFEN DEMO", "ruc", "80000001", "dv", "7"));
             }
 
-            String rucParaConsulta = ruc.contains("-") ? ruc.substring(0, ruc.indexOf("-")) : ruc;
-            rucParaConsulta = rucParaConsulta.replaceAll("[^0-9]", "").trim();
+            String rucBase = ruc.contains("-") ? ruc.substring(0, ruc.indexOf("-")) : ruc;
+            rucBase = rucBase.replaceAll("[^0-9]", "").trim();
+            
+            java.util.Optional<com.zentra.middleware.core.model.PadronRuc> padronOpt = padronRucRepository.findById(java.util.Objects.requireNonNull(rucBase));
+            if (padronOpt.isPresent()) {
+                com.zentra.middleware.core.model.PadronRuc p = padronOpt.get();
+                return ResponseEntity.ok(Map.of("razonSocial", p.getRazonSocial(), "ruc", p.getRuc() + "-" + p.getDv(), "dv", p.getDv()));
+            }
+            
+            String dv = ruc.contains("-") ? ruc.substring(ruc.indexOf("-") + 1).trim() : String.valueOf(calcularDV(rucBase));
 
-            String url = "https://consultaruc.com.py/api/consulta/" + rucParaConsulta;
+            String url = "https://consultaruc.com.py/api/consulta/" + rucBase;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(3))
@@ -734,12 +755,32 @@ public class EmisionController {
             }
 
             return ResponseEntity
-                    .ok(Map.of("razonSocial", "CLIENTE RECUPERADO MOCK (" + ruc + ")", "ruc", ruc, "dv", "0"));
+                    .ok(Map.of("razonSocial", "CLIENTE RECUPERADO MOCK (" + rucBase + "-" + dv + ")", "ruc", rucBase, "dv", dv));
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error fatal en consulta RUC: " + e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Error interno"));
         }
+    }
+
+    private int calcularDV(String ruc) {
+        int basemax = 11;
+        int total = 0;
+        int k = 2;
+        for (int i = ruc.length() - 1; i >= 0; i--) {
+            char c = ruc.charAt(i);
+            if (c >= '0' && c <= '9') {
+                total += Character.getNumericValue(c) * k;
+                k++;
+                if (k > basemax) {
+                    k = 2;
+                }
+            } else {
+                return 0;
+            }
+        }
+        int resto = total % 11;
+        return resto > 1 ? 11 - resto : 0;
     }
 
 }

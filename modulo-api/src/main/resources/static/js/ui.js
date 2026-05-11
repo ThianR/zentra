@@ -1,4 +1,4 @@
-﻿// --- Constantes Centralizadas de API ---
+// --- Constantes Centralizadas de API ---
 const API = {
     empresas:       '/api/v1/empresas',
     emision:        '/api/v1/emision',
@@ -12,7 +12,20 @@ const API = {
 function initEnvironment() {
     const envSwitch = document.getElementById('envSwitch');
     const devTools = document.getElementById('devToolsSection');
-    const savedEnv = localStorage.getItem('zentra-env') || 'dev';
+    // Limpiar valor legacy de localStorage (migraci�n a sessionStorage)
+    localStorage.removeItem('zentra-env');
+    
+    // Default a la configuraci�n de la empresa
+    let defaultEnv = 'dev';
+    const empresaData = localStorage.getItem('empresa_activa');
+    if (empresaData) {
+        try {
+            const emp = JSON.parse(empresaData);
+            if (emp.ambiente === 'PRODUCCION') defaultEnv = 'prod';
+        } catch(e) {}
+    }
+    
+    const savedEnv = sessionStorage.getItem('zentra-env') || defaultEnv;
     
     const setEnv = (env) => {
         if (env === 'prod') {
@@ -22,7 +35,7 @@ function initEnvironment() {
             envSwitch.checked = false;
             devTools.classList.remove('hidden');
         }
-        localStorage.setItem('zentra-env', env);
+        sessionStorage.setItem('zentra-env', env);
     };
 
     setEnv(savedEnv);
@@ -31,6 +44,8 @@ function initEnvironment() {
         const newEnv = envSwitch.checked ? 'prod' : 'dev';
         setEnv(newEnv);
         showToast(`Cambiado a ambiente: ${newEnv.toUpperCase()}`, 'info');
+        if (typeof window.loadDocumentos === 'function') window.loadDocumentos();
+        if (typeof window.loadDashboard === 'function') window.loadDashboard();
     });
 }
 function initSidebar() {
@@ -141,9 +156,9 @@ function getTipoLabel(val) {
     const labels = { 
         '1': 'Factura', 
         '4': 'Autofactura',  // Corregido: 4 es Autofactura
-        '5': 'Nota de CrÃ©dito', // Corregido: 5 es NC
-        '6': 'Nota de DÃ©bito',  // Corregido: 6 es ND
-        '7': 'RemisiÃ³n' 
+        '5': 'Nota de Crédito', // Corregido: 5 es NC
+        '6': 'Nota de Débito',  // Corregido: 6 es ND
+        '7': 'Remisión' 
     };
     return labels[val] || 'DTE';
 }
@@ -158,7 +173,7 @@ class ZentraNotifier {
     warning(msg, duration) { this._show(msg, 'warning', 'exclamation-triangle', duration); }
     info(msg, duration) { this._show(msg, 'info', 'info-circle', duration); }
     
-    // Reemplazo para alert() con mayor duraciÃ³n
+    // Reemplazo para alert() con mayor duración
     alert(msg) { this._show(msg, 'warning', 'bell', 10000); }
 
     _show(message, type, icon, duration = 4000) {
@@ -170,7 +185,7 @@ class ZentraNotifier {
         const toast = document.createElement('div');
         toast.className = `toast ${type} slide-up`;
         
-        // Soporte para saltos de lÃ­nea
+        // Soporte para saltos de línea
         const formattedMsg = String(message).replace(/\n/g, '<br>');
         toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${formattedMsg}</span>`;
         
@@ -242,7 +257,7 @@ async function cargarEmpresasEnSelect(selectId) {
     }
 }
 
-// --- Búsqueda Global (Fase A6.2) ---
+// --- B�squeda Global (Fase A6.2) ---
 
 function initGlobalSearch() {
     const searchInput = document.getElementById('globalSearch');
@@ -275,3 +290,90 @@ function debounce(func, wait) {
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
 }
+
+window.animateValue = function(id, start, end, duration) {
+    if (start === end) return;
+    const obj = document.getElementById(id);
+    if (!obj) return;
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        obj.innerHTML = Math.floor(progress * (end - start) + start);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+};
+
+// --- Padrón DNIT Management ---
+window.syncPadronFromUrl = async function() {
+    const btn = document.getElementById('btnSyncPadronUrl');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Descargando e Importando...';
+    btn.disabled = true;
+    showToast('Iniciando sincronización automática. Esto puede demorar un momento.', 'info');
+
+    try {
+        const response = await fetch('/api/v1/admin/padron/sincronizar-url', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${sessionStorage.getItem('zentra-token')}`
+            }
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message || 'Error al sincronizar padrón', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión con el servidor', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
+
+window.uploadPadronZip = async function() {
+    const fileInput = document.getElementById('padronZipInput');
+    const file = fileInput.files[0];
+    if (!file) {
+        showToast('Debes seleccionar un archivo .zip primero', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnUploadPadronZip');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    btn.disabled = true;
+    showToast('Iniciando carga del archivo ZIP. Espera un momento.', 'info');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/api/v1/admin/padron/subir', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${sessionStorage.getItem('zentra-token')}`
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            showToast(data.message, 'success');
+            fileInput.value = ''; // clean input
+        } else {
+            showToast(data.message || 'Error al subir el archivo', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión con el servidor', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};

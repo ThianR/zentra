@@ -1,8 +1,6 @@
 package com.zentra.middleware.api.config;
 
-import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.model.Empresa;
-import com.zentra.middleware.core.model.EstadoDte;
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import com.zentra.middleware.core.repository.EmpresaRepository;
 import org.springframework.boot.CommandLineRunner;

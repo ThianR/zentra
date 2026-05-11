@@ -13,7 +13,8 @@ public class RestTemplateConfig {
     public RestTemplate restTemplate() {
         RestTemplate restTemplate = new RestTemplate();
         // Forzar UTF-8 como prioridad en el conversor de Strings
-        restTemplate.getMessageConverters().add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8));
+        java.nio.charset.Charset utf8 = java.util.Objects.requireNonNull(StandardCharsets.UTF_8);
+        restTemplate.getMessageConverters().add(0, new StringHttpMessageConverter(utf8));
         return restTemplate;
     }
 }

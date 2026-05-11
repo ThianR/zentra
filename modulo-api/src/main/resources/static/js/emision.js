@@ -61,14 +61,43 @@ async function loadEmpresasEmisoras() {
             select.appendChild(opt);
         });
 
-        // Si solo hay una, cargarla por defecto
-        if (empresas.length === 1) {
-            select.value = empresas[0].ruc;
-            populateEmisorData(empresas[0].ruc);
-        }
+        // Intentar preseleccionar la empresa activa del sistema
+        preseleccionarEmpresa(empresas);
     } catch (error) {
         console.error('Error cargando empresas:', error);
         select.innerHTML = '<option value="">Error al cargar</option>';
+    }
+}
+
+function preseleccionarEmpresa(empresasObj) {
+    const select = document.getElementById('selectEmpresaEmisora');
+    if (!select) return;
+    
+    // Si no pasamos empresas, usamos la caché global
+    const empresas = empresasObj || window.zentraEmpresas || [];
+    if (empresas.length === 0) return;
+
+    const empresaActivaStr = localStorage.getItem('empresa_activa');
+    let empresaSeleccionada = false;
+    
+    if (empresaActivaStr) {
+        try {
+            const empActiva = JSON.parse(empresaActivaStr);
+            const empresaEncontrada = empresas.find(e => e.ruc === empActiva.ruc || e.id === empActiva.id);
+            if (empresaEncontrada) {
+                select.value = empresaEncontrada.ruc;
+                populateEmisorData(empresaEncontrada.ruc);
+                empresaSeleccionada = true;
+            }
+        } catch (e) {
+            console.warn('Error al leer empresa_activa de localStorage', e);
+        }
+    }
+
+    // Si no hay empresa activa seleccionada y solo hay una, cargarla por defecto
+    if (!empresaSeleccionada && empresas.length === 1) {
+        select.value = empresas[0].ruc;
+        populateEmisorData(empresas[0].ruc);
     }
 }
 
@@ -98,6 +127,7 @@ function populateEmisorData(ruc) {
     
     // Datos de Timbrado y Seguridad (Fase A6+)
     if (emp.timbrado) document.getElementById('timbrado').value = emp.timbrado;
+    if (emp.fechaInicioTimbrado) document.getElementById('fechaInicioTimbrado').value = emp.fechaInicioTimbrado;
     if (emp.fechaVencimientoTimbrado) document.getElementById('fechaVencimientoTimbrado').value = emp.fechaVencimientoTimbrado;
     if (emp.ambiente) {
         // Mapear "TEST" -> 1, "PROD" -> 2 si es necesario, o usar el valor directo
@@ -530,7 +560,7 @@ async function submitDte() {
                 codCiudad: parseInt(document.getElementById('emisorCodCiudad').value)
             },
             receptor: {
-                ruc: rucRec ? rucRec.split('-')[0].replace(/\./g, '') : '',
+                ruc: rucRec ? rucRec.replace(/\./g, '') : '',
                 razonSocial: razonRec,
                 direccion: direccionRec,
                 telefono: telefonoRec,
@@ -555,7 +585,8 @@ async function submitDte() {
                 motivoTraslado: document.getElementById('motivoTraslado').value,
                 kmsRecorrido: parseInt(document.getElementById('kmsRecorrido').value) || 10,
                 descVehiculo: document.getElementById('descVehiculo').value
-            }
+            },
+            ambiente: (sessionStorage.getItem('zentra-env') || 'dev') === 'dev' ? 'TEST' : 'PRODUCCION'
         };
         
         const selectorEnvio = document.getElementById('tipoEnvio');
@@ -637,13 +668,19 @@ function loadMockData(type) {
     document.getElementById('emisorCodDepto').value = '1';
     document.getElementById('emisorCodCiudad').value = '1';
 
-    // Contribuyente real mock para pruebas de RUC
-    document.getElementById('ducReceptor').value = '44444401-7';
-    document.getElementById('razonSocialReceptor').value = 'CONTRIBUYENTE DE PRUEBA S.A.';
+    // Receptor Innominado (Documento 0) para aprobación en test
+    document.getElementById('ducReceptor').value = '0';
+    document.getElementById('razonSocialReceptor').value = 'Sin Nombre';
+    if (document.getElementById('iTiOpe')) document.getElementById('iTiOpe').value = '2'; // B2C
 
     if (type === 'factura') {
-        addItemRow('SERV01', 'SERVICIO DE SOPORTE TECNICO', 1, 150000, 10);
-        addItemRow('PROD02', 'CABLE HDMI 2M', 2, 45000, 10);
+        // Factura mixta: 10%, 5%, Exenta, 10% — prueba de validación SIFEN completa
+        document.getElementById('condicionOperacion').value = '1'; // Contado
+        toggleCuotas();
+        addItemRow('1', 'PP1', 10, 1000, 10);
+        addItemRow('2', 'PP1', 20, 2000, 5);
+        addItemRow('3', 'PP2', 30, 3000, 0);
+        addItemRow('4', 'PP3', 40, 4000, 10);
     } else if (type === 'nc') {
         document.getElementById('tipoDocumento').value = '5';
         toggleSections('5');
@@ -667,5 +704,10 @@ function resetForm() {
     if (contenedor) contenedor.innerHTML = '';
     toggleSections('1');
     calculateTotals();
+    
+    // Restaurar la empresa preseleccionada después de reiniciar el formulario
+    if (typeof preseleccionarEmpresa === 'function') {
+        setTimeout(preseleccionarEmpresa, 50); // Pequeño retraso para que el reset native termine
+    }
 }
 

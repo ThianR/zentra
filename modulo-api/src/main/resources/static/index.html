@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+?<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -32,11 +32,12 @@
                 <a href="#" class="nav-item" onclick="switchView('emision')"><i class="fas fa-file-invoice"></i> Nuevo
                     DTE</a>
                 <a href="#" class="nav-item" onclick="switchView('emision-masiva')"><i class="fas fa-upload"></i> Emisión Masiva</a>
+                <a href="#" class="nav-item" onclick="switchView('lista-dtes')"><i class="fas fa-list-alt"></i> Lista de DTEs</a>
                 <a href="#" class="nav-item" onclick="switchView('eventos')"><i class="fas fa-calendar-times"></i> Eventos SIFEN</a>
                 <a href="#" class="nav-item" onclick="switchView('receptor')"><i class="fas fa-inbox"></i> Recepción DTEs</a>
                 <a href="#" class="nav-item" onclick="switchView('empresas')"><i class="fas fa-building"></i> Empresas</a>
                 <a href="#" class="nav-item" onclick="switchView('lotes')"><i class="fas fa-layer-group"></i> Lotes Asíncronos</a>
-                <a href="#" class="nav-item"><i class="fas fa-cog"></i> Configuración</a>
+                <a href="#" class="nav-item" onclick="switchView('configuracion')"><i class="fas fa-cog"></i> Configuración</a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">
@@ -93,12 +94,24 @@
 
             <!-- Dashboard View -->
             <div id="view-dashboard" class="content-view active">
-                <div class="view-header">
+                <div class="view-header" style="margin-bottom: 10px;">
                     <h2>Panel de Control Operativo</h2>
                     <button class="btn btn-primary" onclick="switchView('emision')">
                         <i class="fas fa-plus"></i> Emitir Comprobante
                     </button>
                 </div>
+
+                <!-- Tabs del Dashboard -->
+                <div class="dashboard-tabs fade-in">
+                    <button class="tab-btn active" id="btnTabAnaliticas" onclick="switchDashboardTab('tab-analiticas')">
+                        <i class="fas fa-chart-line"></i> Analíticas y Gráficos
+                    </button>
+                    <button class="tab-btn" id="btnTabUltimos" onclick="switchDashboardTab('tab-ultimos-dtes')">
+                        <i class="fas fa-history"></i> Últimos Comprobantes
+                    </button>
+                </div>
+
+                <div id="tab-analiticas" class="dashboard-tab-content fade-in active">
 
                 <!-- Banner Alerta de Lotes Huérfanos -->
                 <div id="huerfanosAlert" class="alert-banner-danger fade-in" style="display:none;">
@@ -220,6 +233,68 @@
                         </div>
                     </div>
                 </section>
+                </div> <!-- fin tab-analiticas -->
+
+                <!-- Tab Últimos Comprobantes -->
+                <div id="tab-ultimos-dtes" class="dashboard-tab-content fade-in" style="display: none;">
+                    <div class="filter-actions-bar" style="justify-content: flex-end; margin-bottom: 15px;">
+                        <button class="btn btn-outline btn-sm" onclick="loadUltimosComprobantesPorTipo()">
+                            <i class="fas fa-sync-alt"></i> Actualizar Listas
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="switchView('lista-dtes')">
+                            <i class="fas fa-search"></i> Ver Historial Completo
+                        </button>
+                    </div>
+                    
+                    <div class="recent-docs-grid">
+                        <!-- Facturas -->
+                        <div class="recent-docs-card glass">
+                            <div class="card-header">
+                                <h4><i class="fas fa-file-invoice"></i> Últimas Facturas</h4>
+                            </div>
+                            <div class="card-body" id="listRecentFacturas">
+                                <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notas de Crédito / Débito -->
+                        <div class="recent-docs-card glass">
+                            <div class="card-header">
+                                <h4><i class="fas fa-file-invoice-dollar"></i> Últimas Notas de Crédito / Débito</h4>
+                            </div>
+                            <div class="card-body" id="listRecentNotasCredito">
+                                <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Autofacturas -->
+                        <div class="recent-docs-card glass">
+                            <div class="card-header">
+                                <h4><i class="fas fa-receipt"></i> Últimas Autofacturas</h4>
+                            </div>
+                            <div class="card-body" id="listRecentAutofacturas">
+                                <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notas de Remisión -->
+                        <div class="recent-docs-card glass">
+                            <div class="card-header">
+                                <h4><i class="fas fa-truck"></i> Últimas Notas de Remisión</h4>
+                            </div>
+                            <div class="card-body" id="listRecentRemisiones">
+                                <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div> <!-- fin tab-ultimos-dtes -->
+            </div>
+
+            <!-- Lista de DTEs View -->
+            <div id="view-lista-dtes" class="content-view">
+                <div class="view-header">
+                    <h2>Historial de Documentos</h2>
+                </div>
 
                 <!-- Barra de Filtros Avanzada -->
                 <section id="barraFiltros" class="filter-bar glass fade-in">
@@ -308,9 +383,9 @@
                     </div>
                     <div id="devToolsSection" class="dev-topbar hidden">
                         <span class="dev-label">DEV TOOLS:</span>
-                        <button class="btn-dev" onclick="loadMockData('factura')">Factura</button>
-                        <button class="btn-dev" onclick="loadMockData('nc')">Nota Crédito</button>
-                        <button class="btn-dev" onclick="loadMockData('remision')">Remisión</button>
+                        <button class="btn-dev" data-mock="factura" onclick="loadMockData('factura')">Factura</button>
+                        <button class="btn-dev" data-mock="nc" onclick="loadMockData('nc')">Nota Crédito</button>
+                        <button class="btn-dev" data-mock="remision" onclick="loadMockData('remision')">Remisión</button>
                         <button class="btn-dev" data-mock="licitacion">Licitación (CP)</button>
                     </div>
                 </div>
@@ -419,10 +494,14 @@
                                 </div>
                                 <div class="form-group full-width">
                                     <label>Timbrado y Seguridad (SIFEN)</label>
-                                    <div class="grid-row cols-3">
+                                    <div class="grid-row cols-4">
                                         <div class="form-group">
                                             <label>Nro. Timbrado</label>
                                             <input type="text" id="timbrado" name="timbrado" maxlength="8" class="form-control" placeholder="Nro. Timbrado">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Inicio Timbrado</label>
+                                            <input type="date" id="fechaInicioTimbrado" class="form-control">
                                         </div>
                                         <div class="form-group">
                                             <label>Vencimiento Timbrado</label>
@@ -647,8 +726,8 @@
                                 <table class="items-table">
                                     <thead>
                                         <tr>
-                                            <th>Código</th>
-                                            <th>Descripción</th>
+                                            <th width="15">Código</th>
+                                            <th width="250">Descripción</th>
                                             <th width="80">Cant.</th>
                                             <th width="120">Precio Unit.</th>
                                             <th width="100">IVA (%)</th>
@@ -931,7 +1010,7 @@
                                     <th>Estado</th>
                                     <th>Fecha de Envío</th>
                                     <th>Ticket / Protocolo</th>
-                                    <th>Últ. Consulta</th>
+                                    <th>�slt. Consulta</th>
                                     <th>Intentos</th>
                                 </tr>
                             </thead>
@@ -1001,6 +1080,10 @@
                             <div class="form-group">
                                 <label>Nro. Timbrado</label>
                                 <input type="text" id="empresaTimbrado" class="form-control" required maxlength="8" placeholder="12345678">
+                            </div>
+                            <div class="form-group">
+                                <label>Inicio Timbrado</label>
+                                <input type="date" id="empresaFechaInicioTimbrado" class="form-control" required>
                             </div>
                             <div class="form-group">
                                 <label>Vencimiento Timbrado</label>
@@ -1218,6 +1301,40 @@
                 </section>
             </div>
 
+            <!-- Configuration View -->
+            <div id="view-configuracion" class="content-view">
+                <div class="view-header">
+                    <h2>Configuración del Sistema</h2>
+                    <p class="text-secondary">Administración global del Middleware ZENTRA</p>
+                </div>
+
+                <div class="glass-panel" style="margin-top: 20px;">
+                    <h3><i class="fas fa-database"></i> Padrón RUC DNIT</h3>
+                    <p class="text-secondary" style="margin-bottom: 20px;">El sistema mantiene una base de datos local ultra rápida de contribuyentes para validar RUCs sin depender de APIs externas. El archivo original proviene de la DNIT (.zip).</p>
+                    
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                        <div class="card" style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
+                            <h4><i class="fas fa-cloud-download-alt" style="color: var(--accent-primary);"></i> Sincronización Automática</h4>
+                            <p style="font-size: 0.9rem; margin-top: 10px;">Descarga la última versión directamente desde el sitio web de la SET/DNIT (ruc.zip).</p>
+                            <button id="btnSyncPadronUrl" class="btn btn-primary" style="margin-top: 15px; width: 100%;" onclick="syncPadronFromUrl()">
+                                <i class="fas fa-sync-alt"></i> Sincronizar desde DNIT
+                            </button>
+                        </div>
+                        
+                        <div class="card" style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
+                            <h4><i class="fas fa-file-archive text-warning"></i> Carga Manual</h4>
+                            <p style="font-size: 0.9rem; margin-top: 10px;">Útil si la página de la DNIT bloquea la descarga automática. Selecciona el archivo ruc.zip manualmente.</p>
+                            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                                <input type="file" id="padronZipInput" accept=".zip" class="form-control" style="flex: 1;">
+                                <button id="btnUploadPadronZip" class="btn btn-secondary" onclick="uploadPadronZip()">
+                                    <i class="fas fa-upload"></i> Subir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -1358,7 +1475,7 @@
                 </div>
                 <div class="detail-item" style="margin-bottom:16px;">
                     <span class="detail-label">CDC del DTE a Cancelar</span>
-                    <span id="canCdcDisplay" class="detail-value mono small-text">—</span>
+                    <span id="canCdcDisplay" class="detail-value mono small-text">�?"</span>
                 </div>
                 <div class="form-group mb-12">
                     <label>Empresa Emisora *</label>
@@ -1456,9 +1573,9 @@
         </div>
     </div>
 
-    <script src="js/ui.js?v=1.1.0"></script>
-    <script src="js/documentos.js?v=1.7.0"></script>
-    <script src="js/emision.js?v=1.7.0"></script>
+    <script src="js/ui.js?v=1.2.0"></script>
+    <script src="js/documentos.js?v=1.7.2"></script>
+    <script src="js/emision.js?v=1.7.4"></script>
     <script src="js/empresas.js?v=1.7.0"></script>
     <script src="js/eventos.js?v=1.0.0"></script>
     <script src="js/lotes.js"></script>

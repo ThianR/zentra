@@ -32,7 +32,8 @@ public class EmpresaController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("password") String password) {
         try {
-            Optional<Empresa> empresaOpt = empresaRepository.findById(id);
+            String nonNullId = java.util.Objects.requireNonNull(id);
+            Optional<Empresa> empresaOpt = empresaRepository.findById(nonNullId);
             if (empresaOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
@@ -93,7 +94,8 @@ public class EmpresaController {
     @GetMapping("/{id}")
     public ResponseEntity<?> obtenerPorId(@PathVariable String id) {
         String clienteId = EmpresaContext.getClienteId();
-        return empresaRepository.findById(id)
+        String nonNullId = java.util.Objects.requireNonNull(id);
+        return empresaRepository.findById(nonNullId)
                 .filter(e -> e.getCliente() != null && e.getCliente().getId().equals(clienteId))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -132,7 +134,8 @@ public class EmpresaController {
             return ResponseEntity.status(409).body("El RUC provisto ya está asociado a otra empresa.");
         }
 
-        return empresaRepository.findById(id).map(empresa -> {
+        String nonNullId = java.util.Objects.requireNonNull(id);
+        return empresaRepository.findById(nonNullId).map(empresa -> {
             if (empresa.getCliente() == null || !empresa.getCliente().getId().equals(clienteId)) {
                 return ResponseEntity.status(403).body("No tiene acceso a esta empresa");
             }
@@ -189,7 +192,8 @@ public class EmpresaController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> eliminarEmpresa(@PathVariable String id) {
         String clienteId = EmpresaContext.getClienteId();
-        return empresaRepository.findById(id).map(empresa -> {
+        String nonNullId = java.util.Objects.requireNonNull(id);
+        return empresaRepository.findById(nonNullId).map(empresa -> {
             if (empresa.getCliente() == null || !empresa.getCliente().getId().equals(clienteId)) {
                 return ResponseEntity.status(403).build();
             }

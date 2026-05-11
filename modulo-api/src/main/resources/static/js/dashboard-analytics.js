@@ -227,8 +227,36 @@ function filtrarTablaDesdeGrafico(filtros) {
     console.log("Filtrando tabla por:", filtros);
     if (typeof aplicarFiltrosManual === 'function') {
         aplicarFiltrosManual(filtros);
+        if (typeof switchView === 'function') {
+            switchView('lista-dtes');
+        }
     } else {
         showToast("Filtro aplicado: " + Object.values(filtros).join(', '), "info");
+    }
+}
+
+function switchDashboardTab(tabId) {
+    document.querySelectorAll('.dashboard-tab-content').forEach(el => {
+        el.style.display = 'none';
+        el.classList.remove('active');
+    });
+    document.querySelectorAll('.dashboard-tabs .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    const activeTab = document.getElementById(tabId);
+    if (activeTab) {
+        activeTab.style.display = 'block';
+        activeTab.classList.add('active');
+    }
+    
+    if (tabId === 'tab-analiticas') {
+        document.getElementById('btnTabAnaliticas').classList.add('active');
+    } else if (tabId === 'tab-ultimos-dtes') {
+        document.getElementById('btnTabUltimos').classList.add('active');
+        if (typeof loadUltimosComprobantesPorTipo === 'function') {
+            loadUltimosComprobantesPorTipo();
+        }
     }
 }
 
