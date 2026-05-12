@@ -62,6 +62,12 @@ public class LoteController {
                 dMap.put("estado", d.getEstado().name());
                 dMap.put("numeroComprobante", d.getNumeroComprobante());
                 dMap.put("codigoEstadoSifen", d.getCodigoEstadoSifen());
+                
+                String qrUrl = "";
+                if (d.getXmlFirmado() != null && d.getXmlFirmado().contains("<dCarQR>")) {
+                    qrUrl = d.getXmlFirmado().substring(d.getXmlFirmado().indexOf("<dCarQR>") + 8, d.getXmlFirmado().indexOf("</dCarQR>")).replace("&amp;", "&");
+                }
+                dMap.put("qrUrl", qrUrl);
                 return dMap;
             }).toList();
             map.put("documentos", docs);

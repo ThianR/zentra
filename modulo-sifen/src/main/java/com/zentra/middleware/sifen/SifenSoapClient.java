@@ -143,16 +143,17 @@ public class SifenSoapClient {
             dte.setCodigoEstadoSifen(codRes);
             logger.info("Código de respuesta SIFEN: " + codRes);
 
-            // SIFEN usa '0300' para aprobación exitosa
-            boolean aprobado = "0300".equals(codRes);
+            // SIFEN usa '0300' para lotes y '0260' para DE individual síncrono.
+            boolean aprobado = "0300".equals(codRes) || "0260".equals(codRes);
             dte.setEstado(aprobado ? EstadoDte.APROBADO : EstadoDte.RECHAZADO);
+
+            String msgRes = extraerMensaje(xmlRespuesta);
+            dte.setMensajeSifen(msgRes);
 
             if (aprobado) {
                 logger.info("[SIFEN] Documento aprobado satisfactoriamente. CDC=" + dte.getCdc());
-                dte.setMensajeUsuario("Documento aprobado exitosamente por SIFEN.");
+                dte.setMensajeUsuario("Respuesta SIFEN (" + codRes + "): " + msgRes);
             } else {
-                String msgRes = extraerMensaje(xmlRespuesta);
-                dte.setMensajeSifen(msgRes);
                 dte.setMensajeUsuario(mapearMensajeAmigable(codRes, msgRes));
                 logger.warning("[SIFEN] Documento NO aprobado. Código=" + codRes + " | Mensaje=" + msgRes);
             }
@@ -434,7 +435,7 @@ public class SifenSoapClient {
             
             dte.setCodigoEstadoSifen(dCodResDoc);
             
-            if ("0300".equals(dCodResDoc)) {
+            if ("0300".equals(dCodResDoc) || "0260".equals(dCodResDoc)) {
                 dte.setEstado(EstadoDte.APROBADO);
                 dte.setMensajeUsuario("DTE aprobado exitosamente: " + dMsgResDoc);
                 return true;
@@ -906,10 +907,10 @@ public class SifenSoapClient {
                     "<env:Envelope xmlns:env=\"http://www.w3.org/2003/05/soap-envelope\">" +
                     "<env:Header/>" +
                     "<env:Body>" +
-                    "<rConsDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+                    "<rEnviConsDe xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
                     "<dId>1</dId>" +
                     "<dCDC>" + dte.getCdc() + "</dCDC>" +
-                    "</rConsDe>" +
+                    "</rEnviConsDe>" +
                     "</env:Body>" +
                     "</env:Envelope>";
 
@@ -943,7 +944,7 @@ public class SifenSoapClient {
             dte.setCodigoEstadoSifen(dCodRes);
             logger.info("Resultado consulta CDC [" + dte.getCdc() + "]: " + dCodRes + " - " + dMsgRes);
 
-            if ("0300".equals(dCodRes)) {
+            if ("0300".equals(dCodRes) || "0260".equals(dCodRes)) {
                 dte.setEstado(EstadoDte.APROBADO);
                 dte.setMensajeUsuario("DTE aprobado (consulta directa por CDC): " + dMsgRes);
                 return true;

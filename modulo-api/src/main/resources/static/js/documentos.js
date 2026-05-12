@@ -1,4 +1,4 @@
-// --- Initialization ---
+ï»¿// --- Initialization ---
 
 function initDashboard() {
     loadDocumentos();
@@ -110,7 +110,7 @@ async function loadDocumentos(filtros = null) {
             tr.innerHTML = `
                 <td>${formatDate(doc.fechaCreacion)}</td>
                 <td><span class="badge-type">${getTipoLabel(doc.tipoDocumento)}</span></td>
-                <td title="CDC: ${doc.cdc || ''}"><strong>${doc.numeroComprobante || 'N/A'}</strong></td>
+                <td title="CDC: ${doc.cdc || ''}"><strong>${doc.numeroComprobante || 'N/A'}</strong><br>${doc.cdc ? `<a href="${doc.qrUrl || (doc.ambiente === 'PRODUCCION' ? 'https://ekuatia.set.gov.py/consultas/' : 'https://ekuatia.set.gov.py/consultas-test/')}" target="_blank" style="font-size: 0.8em; text-decoration: none; color: #3b82f6;" title="Consultar en SIFEN Ekuatia"><i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i> ${doc.cdc}</a>` : `<span style="font-size: 0.8em; color: #9ca3af;">Sin CDC</span>`}</td>
                 <td>${doc.receptorRazonSocial || doc.rucReceptor || 'Consumidor Final'}</td>
                 <td>${formatCurrency(doc.totalOperacion)}</td>
                 <td>
@@ -491,7 +491,7 @@ window.loadUltimosComprobantesPorTipo = async function() {
         const response = await fetch(API.emision + '/documentos');
         let docs = await response.json();
         
-        // Filtrar por ambiente activo en sesión
+        // Filtrar por ambiente activo en sesiï¿½n
         const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
         const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
         if (docs && docs.length > 0) docs = docs.filter(doc => doc.ambiente === expectedAmbiente);

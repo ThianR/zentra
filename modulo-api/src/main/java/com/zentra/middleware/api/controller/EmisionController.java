@@ -66,7 +66,8 @@ public class EmisionController {
             EmpresaRepository empresaRepository,
             DocumentoElectronicoRepository dteRepository,
             HistorialSifenService historialSifenService,
-            com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository) { // Added to constructor parameters
+            com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository) { // Added to constructor
+                                                                                             // parameters
         this.xmlGenerator = xmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
@@ -79,19 +80,25 @@ public class EmisionController {
         this.dteRepository = dteRepository;
         this.historialSifenService = historialSifenService;
         this.padronRucRepository = padronRucRepository;
-        
+
         HttpClient client;
         try {
             javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[] {
-                new javax.net.ssl.X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
-                }
+                    new javax.net.ssl.X509TrustManager() {
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return null;
+                        }
+
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+                    }
             };
             javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS");
             sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            
+
             client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(5))
                     .sslContext(sc)
@@ -104,279 +111,329 @@ public class EmisionController {
 
     public static class DteValidationException extends RuntimeException {
         private final java.util.List<String> errores;
+
         public DteValidationException(String message, java.util.List<String> errores) {
             super(message);
             this.errores = errores;
         }
-        public java.util.List<String> getErrores() { return errores; }
+
+        public java.util.List<String> getErrores() {
+            return errores;
+        }
     }
 
     private int safeInt(Object o, Integer defaultVal) {
-        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim())) return defaultVal != null ? defaultVal : 0;
-        try { return Integer.parseInt(o.toString()); } catch (Exception e) { return defaultVal != null ? defaultVal : 0; }
+        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim()))
+            return defaultVal != null ? defaultVal : 0;
+        try {
+            return Integer.parseInt(o.toString());
+        } catch (Exception e) {
+            return defaultVal != null ? defaultVal : 0;
+        }
     }
 
     private double safeDouble(Object o, Double defaultVal) {
-        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim())) return defaultVal != null ? defaultVal : 0.0;
-        try { return Double.parseDouble(o.toString()); } catch (Exception e) { return defaultVal != null ? defaultVal : 0.0; }
+        if (o == null || o.toString().trim().isEmpty() || "null".equals(o.toString().trim()))
+            return defaultVal != null ? defaultVal : 0.0;
+        try {
+            return Double.parseDouble(o.toString());
+        } catch (Exception e) {
+            return defaultVal != null ? defaultVal : 0.0;
+        }
     }
 
     public DocumentoElectronico procesarDteLocal(Map<String, Object> payload) throws Exception {
-            String empresaId = EmpresaContext.getEmpresaId();
-            if (empresaId == null) {
-                throw new RuntimeException("Debe seleccionar una empresa activa para emitir.");
-            }
-            
-            Empresa emisor = empresaRepository.findById(empresaId)
-                    .orElseThrow(() -> new RuntimeException("Empresa activa no encontrada."));
+        String empresaId = EmpresaContext.getEmpresaId();
+        if (empresaId == null) {
+            throw new RuntimeException("Debe seleccionar una empresa activa para emitir.");
+        }
 
+        Empresa emisor = empresaRepository.findById(empresaId)
+                .orElseThrow(() -> new RuntimeException("Empresa activa no encontrada."));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
+
+        if (emiRaw != null) {
+            // Actualizar campos del emisor con los datos enviados desde el frontend si
+            // están presentes
+            if (emiRaw.get("dv") != null)
+                emisor.setDv(String.valueOf(emiRaw.get("dv")));
+            if (emiRaw.get("tipoContribuyente") != null)
+                emisor.setTipoContribuyente(
+                        safeInt(emiRaw.get("tipoContribuyente"), emisor.getTipoContribuyente()));
+            if (emiRaw.get("razonSocial") != null)
+                emisor.setRazonSocial(String.valueOf(emiRaw.get("razonSocial")));
+            if (emiRaw.get("actividadEconomica") != null)
+                emisor.setActividadEconomica(String.valueOf(emiRaw.get("actividadEconomica")));
+            if (emiRaw.get("direccion") != null)
+                emisor.setDireccion(String.valueOf(emiRaw.get("direccion")));
+            if (emiRaw.get("telefono") != null)
+                emisor.setTelefono(String.valueOf(emiRaw.get("telefono")));
+            if (emiRaw.get("email") != null)
+                emisor.setEmail(String.valueOf(emiRaw.get("email")));
+            if (emiRaw.get("codEstablecimiento") != null)
+                emisor.setCodEstablecimiento(String.valueOf(emiRaw.get("codEstablecimiento")));
+            if (emiRaw.get("puntoExpedicion") != null)
+                emisor.setPuntoExpedicion(String.valueOf(emiRaw.get("puntoExpedicion")));
+
+            if (emiRaw.get("codDepartamento") != null) {
+                int codDepto = safeInt(emiRaw.get("codDepartamento"), emisor.getCodDepartamento());
+                emisor.setCodDepartamento(codDepto);
+                referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepto))
+                        .ifPresent(ref -> emisor.setDepartamento(ref.getDescripcion()));
+            }
+
+            if (emiRaw.get("codCiudad") != null) {
+                int codCiud = safeInt(emiRaw.get("codCiudad"), emisor.getCodCiudad());
+                emisor.setCodCiudad(codCiud);
+                // Buscamos la ciudad filtrando por su departamento padre para evitar ambigüedad
+                // de códigos (ej: codigo 1 existe en todos los deptos)
+                referenciaRepository
+                        .findByTipoAndPadreCodigoAndActivoOrderByOrdenAscDescripcionAsc("CIUDAD",
+                                String.valueOf(emisor.getCodDepartamento()), true)
+                        .stream()
+                        .filter(ref -> ref.getCodigo().equals(String.valueOf(codCiud)))
+                        .findFirst()
+                        .ifPresent(ref -> emisor.setCiudad(ref.getDescripcion()));
+            }
+        }
+
+        DocumentoElectronico dte = new DocumentoElectronico();
+        dte.setEmisor(emisor);
+        dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
+
+        // Mapeo detallado de Emisor sincronizado
+        dte.setRucEmisor(emisor.getRuc());
+        dte.setRazonSocialEmisor(emisor.getRazonSocial());
+        dte.setActividadEconomicaEmisor(emisor.getActividadEconomica());
+        dte.setDireccionEmisor(emisor.getDireccion());
+        dte.setTelefonoEmisor(emisor.getTelefono());
+
+        // Extracción de receptor anidado y datos complementarios
+        @SuppressWarnings("unchecked")
+        Map<String, Object> recRaw = (Map<String, Object>) payload.get("receptor");
+        String rucParaGuardar = "Varios";
+        if (recRaw != null) {
+            rucParaGuardar = String.valueOf(recRaw.getOrDefault("ruc", "Varios"));
+            dte.setReceptorRazonSocial(String.valueOf(recRaw.getOrDefault("razonSocial", "Sin Nombre")));
+            dte.setReceptorDireccion(String.valueOf(recRaw.getOrDefault("direccion", "")));
+            dte.setReceptorTelefono(String.valueOf(recRaw.getOrDefault("telefono", "")));
+            dte.setReceptorEmail(String.valueOf(recRaw.getOrDefault("email", "")));
+            dte.setCPaisReceptor(String.valueOf(recRaw.getOrDefault("cPaisReceptor", "PRY")));
+        } else {
+            rucParaGuardar = String.valueOf(payload.getOrDefault("rucReceptor", "Varios"));
+            dte.setReceptorRazonSocial(String.valueOf(payload.getOrDefault("razonSocialReceptor", "Sin Nombre")));
+            dte.setReceptorDireccion(String.valueOf(payload.getOrDefault("direccionReceptor", "")));
+            dte.setReceptorTelefono(String.valueOf(payload.getOrDefault("telefonoReceptor", "")));
+            dte.setReceptorEmail(String.valueOf(payload.getOrDefault("emailReceptor", "")));
+        }
+
+        rucParaGuardar = rucParaGuardar.replace(".", "").trim();
+
+        // Validación contra padrón de Marangatu para evitar error 1306 de SIFEN.
+        // El RUC puede llegar con guión (ej: "1876430-0") o sin él (ej: "1876430").
+        // En ambos casos debemos verificar si existe en el padrón antes de enviarlo
+        // como Contribuyente.
+        String rucSolo = rucParaGuardar.contains("-") ? rucParaGuardar.split("-")[0].trim() : rucParaGuardar;
+        boolean esNumerico = rucSolo.matches("\\d+") && !rucSolo.equals("0");
+        boolean existeEnPadron = false;
+
+        if (esNumerico) {
+            existeEnPadron = padronRucRepository.existsById(rucSolo);
+            logger.info("Validación padrón RUC: " + rucSolo + " -> " + (existeEnPadron ? "EXISTE" : "NO EXISTE"));
+        }
+
+        if (esNumerico && existeEnPadron) {
+            // RUC válido en Marangatu: enviar como Contribuyente con DV del padrón
+            dte.setTipoReceptor(1);
+            if (!rucParaGuardar.contains("-")) {
+                // Obtener DV del padrón si no viene con guión
+                String dvPadron = padronRucRepository.findById(rucSolo)
+                        .map(p -> p.getDv()).orElse("0");
+                rucParaGuardar = rucSolo + "-" + dvPadron;
+            }
+        } else if (esNumerico && !existeEnPadron) {
+            // RUC NO existe en Marangatu: enviar como No Contribuyente (Cédula)
+            rucParaGuardar = rucSolo; // Sin guión ni DV
+            dte.setTipoReceptor(2);
+        }
+        // Si no es numérico (ej: "Varios"), se deja como está
+
+        dte.setRucReceptor(rucParaGuardar);
+
+        dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
+
+        String estab = String.valueOf(payload.getOrDefault("establecimiento", "001"));
+        String punto = String.valueOf(payload.getOrDefault("puntoExpedicion", "001"));
+        String nro = String.valueOf(payload.getOrDefault("numero", "0000001"));
+        String fulNum = estab + "-" + punto + "-" + nro;
+
+        String tipoDoc = dte.getTipoDocumento() != null ? dte.getTipoDocumento() : "1";
+        // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
+        String nonNullNum = java.util.Objects.requireNonNull(fulNum);
+        String nonNullTipo = java.util.Objects.requireNonNull(tipoDoc);
+        documentoService.eliminarSiEstaRechazado(nonNullNum, nonNullTipo);
+
+        if (documentoService.existePorNumero(nonNullNum, nonNullTipo)) {
+            throw new RuntimeException(
+                    "El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente.");
+        }
+
+        dte.setNumeroComprobante(fulNum);
+        dte.setTimbrado(emisor.getTimbrado() != null ? emisor.getTimbrado() : "16770994");
+
+        // Tomar el ambiente del UI (si se envía), sino de la empresa emisora
+        if (payload.get("ambiente") != null) {
+            dte.setAmbiente(com.zentra.middleware.core.enums.Ambiente.valueOf(String.valueOf(payload.get("ambiente"))));
+        } else {
+            dte.setAmbiente(emisor.getAmbiente());
+        }
+        dte.setFormatoKuDE(String.valueOf(payload.getOrDefault("formatoKuDE", "A4")));
+
+        if (payload.get("fechaCreacion") != null) {
+            try {
+                dte.setFechaCreacion(java.time.LocalDateTime.parse(String.valueOf(payload.get("fechaCreacion"))));
+            } catch (Exception e) {
+                logger.warning("Error parseando fechaCreacion: " + e.getMessage());
+            }
+        }
+
+        Object cond = payload.get("condicionOperacion");
+        dte.setCondicionOperacion(safeInt(cond, 1));
+
+        dte.setTipoOperacion(safeInt(payload.get("iTiOpe"), 1));
+        dte.setIndicadorPresencia(safeInt(payload.get("iIndPres"), 1));
+        dte.setNaturalezaVendedor(safeInt(payload.get("naturalezaVendedor"), null));
+        dte.setTipoEmision(safeInt(payload.get("tipoEmision"), 1)); // 1=Normal, 2=Asíncrono/Contingencia
+
+        dte.setCdcDocumentoAsociado(String.valueOf(payload.getOrDefault("cdcDocumentoAsociado", "")));
+        dte.setMotivoEmision(String.valueOf(payload.getOrDefault("motivoEmision", "")));
+
+        // Procesamiento de transporte (si existe y tiene datos mínimos)
+        if (payload.containsKey("transporte")) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> emiRaw = (Map<String, Object>) payload.get("emisor");
+            Map<String, Object> tRaw = (Map<String, Object>) payload.get("transporte");
+            if (tRaw != null) {
+                String nomChof = String.valueOf(tRaw.get("nombreChofer")).trim();
+                String docChof = String.valueOf(tRaw.get("numeroDocumentoChofer")).trim();
+                String patent = String.valueOf(tRaw.get("matriculaVehiculo")).trim();
 
-            if (emiRaw != null) {
-                // Actualizar campos del emisor con los datos enviados desde el frontend si
-                // están presentes
-                if (emiRaw.get("dv") != null)
-                    emisor.setDv(String.valueOf(emiRaw.get("dv")));
-                if (emiRaw.get("tipoContribuyente") != null)
-                    emisor.setTipoContribuyente(
-                            safeInt(emiRaw.get("tipoContribuyente"), emisor.getTipoContribuyente()));
-                if (emiRaw.get("razonSocial") != null)
-                    emisor.setRazonSocial(String.valueOf(emiRaw.get("razonSocial")));
-                if (emiRaw.get("actividadEconomica") != null)
-                    emisor.setActividadEconomica(String.valueOf(emiRaw.get("actividadEconomica")));
-                if (emiRaw.get("direccion") != null)
-                    emisor.setDireccion(String.valueOf(emiRaw.get("direccion")));
-                if (emiRaw.get("telefono") != null)
-                    emisor.setTelefono(String.valueOf(emiRaw.get("telefono")));
-                if (emiRaw.get("email") != null)
-                    emisor.setEmail(String.valueOf(emiRaw.get("email")));
-                if (emiRaw.get("codEstablecimiento") != null)
-                    emisor.setCodEstablecimiento(String.valueOf(emiRaw.get("codEstablecimiento")));
-                if (emiRaw.get("puntoExpedicion") != null)
-                    emisor.setPuntoExpedicion(String.valueOf(emiRaw.get("puntoExpedicion")));
-
-                if (emiRaw.get("codDepartamento") != null) {
-                    int codDepto = safeInt(emiRaw.get("codDepartamento"), emisor.getCodDepartamento());
-                    emisor.setCodDepartamento(codDepto);
-                    referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepto))
-                            .ifPresent(ref -> emisor.setDepartamento(ref.getDescripcion()));
-                }
-
-                if (emiRaw.get("codCiudad") != null) {
-                    int codCiud = safeInt(emiRaw.get("codCiudad"), emisor.getCodCiudad());
-                    emisor.setCodCiudad(codCiud);
-                    // Buscamos la ciudad filtrando por su departamento padre para evitar ambigüedad
-                    // de códigos (ej: codigo 1 existe en todos los deptos)
-                    referenciaRepository
-                            .findByTipoAndPadreCodigoAndActivoOrderByOrdenAscDescripcionAsc("CIUDAD",
-                                    String.valueOf(emisor.getCodDepartamento()), true)
-                            .stream()
-                            .filter(ref -> ref.getCodigo().equals(String.valueOf(codCiud)))
-                            .findFirst()
-                            .ifPresent(ref -> emisor.setCiudad(ref.getDescripcion()));
-                }
-            }
-
-            DocumentoElectronico dte = new DocumentoElectronico();
-            dte.setEmisor(emisor);
-            dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
-
-            // Mapeo detallado de Emisor sincronizado
-            dte.setRucEmisor(emisor.getRuc());
-            dte.setRazonSocialEmisor(emisor.getRazonSocial());
-            dte.setActividadEconomicaEmisor(emisor.getActividadEconomica());
-            dte.setDireccionEmisor(emisor.getDireccion());
-            dte.setTelefonoEmisor(emisor.getTelefono());
-
-            // Extracción de receptor anidado y datos complementarios
-            @SuppressWarnings("unchecked")
-            Map<String, Object> recRaw = (Map<String, Object>) payload.get("receptor");
-            if (recRaw != null) {
-                String rucRaw = String.valueOf(recRaw.getOrDefault("ruc", "Varios"));
-                dte.setRucReceptor(rucRaw.replace(".", ""));
-                dte.setReceptorRazonSocial(String.valueOf(recRaw.getOrDefault("razonSocial", "Sin Nombre")));
-                dte.setReceptorDireccion(String.valueOf(recRaw.getOrDefault("direccion", "")));
-                dte.setReceptorTelefono(String.valueOf(recRaw.getOrDefault("telefono", "")));
-                dte.setReceptorEmail(String.valueOf(recRaw.getOrDefault("email", "")));
-                dte.setCPaisReceptor(String.valueOf(recRaw.getOrDefault("cPaisReceptor", "PRY")));
-            } else {
-                String rucRaw = String.valueOf(payload.getOrDefault("rucReceptor", "Varios"));
-                dte.setRucReceptor(rucRaw.replace(".", ""));
-                dte.setReceptorRazonSocial(String.valueOf(payload.getOrDefault("razonSocialReceptor", "Sin Nombre")));
-                dte.setReceptorDireccion(String.valueOf(payload.getOrDefault("direccionReceptor", "")));
-                dte.setReceptorTelefono(String.valueOf(payload.getOrDefault("telefonoReceptor", "")));
-                dte.setReceptorEmail(String.valueOf(payload.getOrDefault("emailReceptor", "")));
-            }
-
-            dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
-
-            String estab = String.valueOf(payload.getOrDefault("establecimiento", "001"));
-            String punto = String.valueOf(payload.getOrDefault("puntoExpedicion", "001"));
-            String nro = String.valueOf(payload.getOrDefault("numero", "0000001"));
-            String fulNum = estab + "-" + punto + "-" + nro;
-
-            String tipoDoc = dte.getTipoDocumento() != null ? dte.getTipoDocumento() : "1";
-            // Validación de Duplicados (Permitir re-intentar si falló anteriormente)
-            String nonNullNum = java.util.Objects.requireNonNull(fulNum);
-            String nonNullTipo = java.util.Objects.requireNonNull(tipoDoc);
-            documentoService.eliminarSiEstaRechazado(nonNullNum, nonNullTipo);
-
-            if (documentoService.existePorNumero(nonNullNum, nonNullTipo)) {
-                throw new RuntimeException("El documento con número " + fulNum + " ya existe y fue APROBADO anteriormente.");
-            }
-
-            dte.setNumeroComprobante(fulNum);
-            dte.setTimbrado(emisor.getTimbrado() != null ? emisor.getTimbrado() : "16770994");
-
-            // Tomar el ambiente del UI (si se envía), sino de la empresa emisora
-            if (payload.get("ambiente") != null) {
-                dte.setAmbiente(com.zentra.middleware.core.enums.Ambiente.valueOf(String.valueOf(payload.get("ambiente"))));
-            } else {
-                dte.setAmbiente(emisor.getAmbiente());
-            }
-            dte.setFormatoKuDE(String.valueOf(payload.getOrDefault("formatoKuDE", "A4")));
-            
-            if (payload.get("fechaCreacion") != null) {
-                try {
-                    dte.setFechaCreacion(java.time.LocalDateTime.parse(String.valueOf(payload.get("fechaCreacion"))));
-                } catch (Exception e) {
-                    logger.warning("Error parseando fechaCreacion: " + e.getMessage());
-                }
-            }
-
-            Object cond = payload.get("condicionOperacion");
-            dte.setCondicionOperacion(safeInt(cond, 1));
-
-            dte.setTipoOperacion(safeInt(payload.get("iTiOpe"), 1));
-            dte.setIndicadorPresencia(safeInt(payload.get("iIndPres"), 1));
-            dte.setNaturalezaVendedor(safeInt(payload.get("naturalezaVendedor"), null));
-
-            dte.setCdcDocumentoAsociado(String.valueOf(payload.getOrDefault("cdcDocumentoAsociado", "")));
-            dte.setMotivoEmision(String.valueOf(payload.getOrDefault("motivoEmision", "")));
-
-            // Procesamiento de transporte (si existe y tiene datos mínimos)
-            if (payload.containsKey("transporte")) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> tRaw = (Map<String, Object>) payload.get("transporte");
-                if (tRaw != null) {
-                    String nomChof = String.valueOf(tRaw.get("nombreChofer")).trim();
-                    String docChof = String.valueOf(tRaw.get("numeroDocumentoChofer")).trim();
-                    String patent = String.valueOf(tRaw.get("matriculaVehiculo")).trim();
-
-                    // Solo crear transporte si al menos hay un nombre o documento de chofer o patente
-                    if (!nomChof.isEmpty() && !"null".equals(nomChof) || 
-                        !docChof.isEmpty() && !"null".equals(docChof) || 
+                // Solo crear transporte si al menos hay un nombre o documento de chofer o
+                // patente
+                if (!nomChof.isEmpty() && !"null".equals(nomChof) ||
+                        !docChof.isEmpty() && !"null".equals(docChof) ||
                         !patent.isEmpty() && !"null".equals(patent)) {
-                        
-                        Transporte t = new Transporte();
-                        t.setNombreChofer(nomChof);
-                        t.setNumeroDocumentoChofer(docChof);
-                        t.setMatriculaVehiculo(patent);
-                        Object motTr = tRaw.get("motivoTraslado");
-                        t.setMotivoTraslado(motTr != null ? Integer.parseInt(motTr.toString()) : 1);
-                        t.setKmsRecorrido(safeInt(tRaw.get("kmsRecorrido"), 10));
-                        dte.setTransporte(t);
-                    }
+
+                    Transporte t = new Transporte();
+                    t.setNombreChofer(nomChof);
+                    t.setNumeroDocumentoChofer(docChof);
+                    t.setMatriculaVehiculo(patent);
+                    Object motTr = tRaw.get("motivoTraslado");
+                    t.setMotivoTraslado(motTr != null ? Integer.parseInt(motTr.toString()) : 1);
+                    t.setKmsRecorrido(safeInt(tRaw.get("kmsRecorrido"), 10));
+                    dte.setTransporte(t);
                 }
             }
+        }
 
-            List<?> itemsRaw = (List<?>) payload.get("items");
-            if (itemsRaw != null) {
-                List<ItemDocumento> items = new ArrayList<>();
-                double totalOpe = 0;
-                double grav10 = 0, grav5 = 0, exenta = 0;
-                double iva10 = 0, iva5 = 0;
+        List<?> itemsRaw = (List<?>) payload.get("items");
+        if (itemsRaw != null) {
+            List<ItemDocumento> items = new ArrayList<>();
+            double totalOpe = 0;
+            double grav10 = 0, grav5 = 0, exenta = 0;
+            double iva10 = 0, iva5 = 0;
 
-                for (Object itemObj : itemsRaw) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> iRaw = (Map<String, Object>) itemObj;
-                    ItemDocumento item = new ItemDocumento();
-                    item.setDocumento(dte);
-                    item.setCodigo(String.valueOf(iRaw.get("codigo") != null ? iRaw.get("codigo") : ""));
-                    item.setDescripcion(String
-                            .valueOf(iRaw.get("descripcion") != null ? iRaw.get("descripcion") : "Ítem sin nombre"));
-                    item.setCantidad(safeInt(iRaw.get("cantidad"), 1));
-                    item.setPrecioUnitario(safeDouble(iRaw.get("precioUnitario"), 0.0));
-                    item.setTasaIva(safeDouble(iRaw.get("tasaIva"), 10.0));
+            for (Object itemObj : itemsRaw) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> iRaw = (Map<String, Object>) itemObj;
+                ItemDocumento item = new ItemDocumento();
+                item.setDocumento(dte);
+                item.setCodigo(String.valueOf(iRaw.get("codigo") != null ? iRaw.get("codigo") : ""));
+                item.setDescripcion(String
+                        .valueOf(iRaw.get("descripcion") != null ? iRaw.get("descripcion") : "Ítem sin nombre"));
+                item.setCantidad(safeInt(iRaw.get("cantidad"), 1));
+                item.setPrecioUnitario(safeDouble(iRaw.get("precioUnitario"), 0.0));
+                item.setTasaIva(safeDouble(iRaw.get("tasaIva"), 10.0));
 
-                    double subtotal = item.getCantidad() * item.getPrecioUnitario();
-                    item.setMontoTotalItem(subtotal);
-                    item.setMontoDescuento(0.0);
+                double subtotal = item.getCantidad() * item.getPrecioUnitario();
+                item.setMontoTotalItem(subtotal);
+                item.setMontoDescuento(0.0);
 
-                    if (item.getTasaIva() == 10.0) {
-                        // Base neta: monto / 1.1 (consistente con generador XML)
-                        long baseNeta = Math.round(subtotal / 1.1);
-                        long liqIva = Math.round(subtotal) - baseNeta;
-                        item.setMontoIvaItem((double) liqIva);
-                        item.setMontoTotalItem((double) Math.round(subtotal));
-                        grav10 += item.getMontoTotalItem();
-                        iva10 += liqIva;
-                    } else if (item.getTasaIva() == 5.0) {
-                        // Base neta: monto / 1.05 (consistente con generador XML)
-                        long baseNeta = Math.round(subtotal / 1.05);
-                        long liqIva = Math.round(subtotal) - baseNeta;
-                        item.setMontoIvaItem((double) liqIva);
-                        item.setMontoTotalItem((double) Math.round(subtotal));
-                        grav5 += item.getMontoTotalItem();
-                        iva5 += liqIva;
-                    } else {
-                        item.setMontoIvaItem(0.0);
-                        exenta += subtotal;
-                    }
-
-                    items.add(item);
-                    totalOpe += subtotal;
+                if (item.getTasaIva() == 10.0) {
+                    // Base neta: monto / 1.1 (consistente con generador XML)
+                    long baseNeta = Math.round(subtotal / 1.1);
+                    long liqIva = Math.round(subtotal) - baseNeta;
+                    item.setMontoIvaItem((double) liqIva);
+                    item.setMontoTotalItem((double) Math.round(subtotal));
+                    grav10 += item.getMontoTotalItem();
+                    iva10 += liqIva;
+                } else if (item.getTasaIva() == 5.0) {
+                    // Base neta: monto / 1.05 (consistente con generador XML)
+                    long baseNeta = Math.round(subtotal / 1.05);
+                    long liqIva = Math.round(subtotal) - baseNeta;
+                    item.setMontoIvaItem((double) liqIva);
+                    item.setMontoTotalItem((double) Math.round(subtotal));
+                    grav5 += item.getMontoTotalItem();
+                    iva5 += liqIva;
+                } else {
+                    item.setMontoIvaItem(0.0);
+                    exenta += subtotal;
                 }
-                dte.setItems(items);
-                dte.setTotalOperacion(totalOpe);
-                dte.setTotalGravada10(grav10);
-                dte.setTotalGravada5(grav5);
-                dte.setTotalExenta(exenta);
-                dte.setTotalIva10(iva10);
-                dte.setTotalIva5(iva5);
-                dte.setTotalIva(iva10 + iva5);
-            }
 
-            // Procesamiento de cuotas (si es crédito)
-            if (dte.getCondicionOperacion() == 2 && payload.containsKey("cuotas")) {
-                List<?> cuotasRaw = (List<?>) payload.get("cuotas");
-                if (cuotasRaw != null) {
-                    List<Cuota> cuotas = new ArrayList<>();
-                    for (Object cuotaObj : cuotasRaw) {
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> cRaw = (Map<String, Object>) cuotaObj;
-                            Cuota cuota = new Cuota();
-                            cuota.setDocumento(dte);
-                            cuota.setNumeroCuota(safeInt(cRaw.get("numero"), 1));
-                            cuota.setMonto(safeDouble(cRaw.get("monto"), 0.0));
-                            String vStr = String.valueOf(cRaw.get("vencimiento"));
-                            if (vStr != null && !vStr.isEmpty() && !"null".equals(vStr)) {
-                                cuota.setFechaVencimiento(java.time.LocalDate.parse(vStr));
-                            } else {
-                                cuota.setFechaVencimiento(java.time.LocalDate.now().plusDays(30));
-                            }
-                            cuotas.add(cuota);
-                        } catch (Exception e) {
-                            logger.warning("Error parseando cuota: " + e.getMessage());
+                items.add(item);
+                totalOpe += subtotal;
+            }
+            dte.setItems(items);
+            dte.setTotalOperacion(totalOpe);
+            dte.setTotalGravada10(grav10);
+            dte.setTotalGravada5(grav5);
+            dte.setTotalExenta(exenta);
+            dte.setTotalIva10(iva10);
+            dte.setTotalIva5(iva5);
+            dte.setTotalIva(iva10 + iva5);
+        }
+
+        // Procesamiento de cuotas (si es crédito)
+        if (dte.getCondicionOperacion() == 2 && payload.containsKey("cuotas")) {
+            List<?> cuotasRaw = (List<?>) payload.get("cuotas");
+            if (cuotasRaw != null) {
+                List<Cuota> cuotas = new ArrayList<>();
+                for (Object cuotaObj : cuotasRaw) {
+                    try {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> cRaw = (Map<String, Object>) cuotaObj;
+                        Cuota cuota = new Cuota();
+                        cuota.setDocumento(dte);
+                        cuota.setNumeroCuota(safeInt(cRaw.get("numero"), 1));
+                        cuota.setMonto(safeDouble(cRaw.get("monto"), 0.0));
+                        String vStr = String.valueOf(cRaw.get("vencimiento"));
+                        if (vStr != null && !vStr.isEmpty() && !"null".equals(vStr)) {
+                            cuota.setFechaVencimiento(java.time.LocalDate.parse(vStr));
+                        } else {
+                            cuota.setFechaVencimiento(java.time.LocalDate.now().plusDays(30));
                         }
+                        cuotas.add(cuota);
+                    } catch (Exception e) {
+                        logger.warning("Error parseando cuota: " + e.getMessage());
                     }
-                    dte.setCuotas(cuotas);
                 }
+                dte.setCuotas(cuotas);
             }
+        }
 
-            // --- VALIDACIÓN PREVIA AL GENERADOR XML ---
-            DteValidatorService.ResultadoValidacion validacion = validatorService.validar(dte);
-            if (!validacion.esValido()) {
-                throw new DteValidationException("Validación fallida: " + validacion.getMensajeResumen(), validacion.getErrores());
-            }
+        // --- VALIDACIÓN PREVIA AL GENERADOR XML ---
+        DteValidatorService.ResultadoValidacion validacion = validatorService.validar(dte);
+        if (!validacion.esValido()) {
+            throw new DteValidationException("Validación fallida: " + validacion.getMensajeResumen(),
+                    validacion.getErrores());
+        }
 
-            xmlGenerator.generarXml(dte);
-            signerService.firmarXml(dte);
+        xmlGenerator.generarXml(dte);
+        signerService.firmarXml(dte);
 
-            // --- VALIDACIÓN XSD LUEGO DE FIRMAR ---
-            xsdValidatorService.validarXml(dte.getXmlFirmado());
+        // --- VALIDACIÓN XSD LUEGO DE FIRMAR ---
+        xsdValidatorService.validarXml(dte.getXmlFirmado());
 
         // Forzar estado para emisión asíncrona por defecto o FIRMADO inicial
         dte.setEstado(EstadoDte.FIRMADO);
@@ -389,20 +446,20 @@ public class EmisionController {
         try {
             logger.info("Recibida solicitud de generación DTE unitaria...");
             DocumentoElectronico dte = java.util.Objects.requireNonNull(procesarDteLocal(payload));
-            
+
             String tipoEnvio = String.valueOf(payload.getOrDefault("tipoEnvio", "SYNC"));
             boolean exitoEnvio;
-            
+
             if ("ASYNC".equalsIgnoreCase(tipoEnvio)) {
                 exitoEnvio = sifenClient.enviarDteAsincrono(dte);
             } else {
                 exitoEnvio = sifenClient.enviarDteSincrono(dte);
             }
-            
+
             documentoService.guardar(dte);
             historialSifenService.registrar(dte, "ENVIO");
             logger.info("Documento emitido con CDC: " + dte.getCdc());
-            
+
             Map<String, Object> respuesta = new java.util.HashMap<>();
             respuesta.put("id", dte.getId());
             respuesta.put("cdc", dte.getCdc() != null ? dte.getCdc() : "");
@@ -410,22 +467,25 @@ public class EmisionController {
             respuesta.put("codigoSifen", dte.getCodigoEstadoSifen() != null ? dte.getCodigoEstadoSifen() : "");
             respuesta.put("mensajeSifen", dte.getMensajeSifen() != null ? dte.getMensajeSifen() : "");
             respuesta.put("mensajeUsuario", dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "");
-            
+
             if ("ASYNC".equalsIgnoreCase(tipoEnvio) && dte.getNumeroTicketLote() != null) {
                 respuesta.put("ticket", dte.getNumeroTicketLote());
             }
-            
+
             if (exitoEnvio) {
-                respuesta.put("message", dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "Operación exitosa con SIFEN");
+                respuesta.put("message",
+                        dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : "Operación exitosa con SIFEN");
                 return ResponseEntity.ok(respuesta);
             } else {
-                String msg = dte.getMensajeUsuario() != null ? dte.getMensajeUsuario() : ("SIFEN devolvió estado: " + dte.getEstado().name());
+                String msg = dte.getMensajeUsuario() != null ? dte.getMensajeUsuario()
+                        : ("SIFEN devolvió estado: " + dte.getEstado().name());
                 respuesta.put("message", msg);
                 return ResponseEntity.status(422).body(respuesta);
             }
         } catch (DteValidationException e) {
             logger.warning("Validación DTE fallida: " + e.getMessage());
-            return ResponseEntity.unprocessableEntity().body(Map.of("message", "El documento no cumple con las validaciones SIFEN.", "errores", e.getErrores()));
+            return ResponseEntity.unprocessableEntity().body(
+                    Map.of("message", "El documento no cumple con las validaciones SIFEN.", "errores", e.getErrores()));
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error emitiendo DTE", e);
             return ResponseEntity.status(500).body(Map.of("message", "Error interno: " + e.getMessage()));
@@ -438,14 +498,18 @@ public class EmisionController {
         int procesadosExitosamente = 0;
         int conErrores = 0;
         List<Map<String, Object>> resultados = new ArrayList<>();
-        
+
         for (int i = 0; i < payloadList.size(); i++) {
             Map<String, Object> payload = payloadList.get(i);
             Map<String, Object> resItem = new java.util.HashMap<>();
             resItem.put("indice", i);
             try {
-                // El procesamiento transaccional individual garantiza que si uno falla el resto no hace rollback
+                // El procesamiento transaccional individual garantiza que si uno falla el resto
+                // no hace rollback
                 DocumentoElectronico dte = procesarDteLocal(payload);
+                dte.setTipoEmision(2); // Forzar a tipo asíncrono/lote para el procesador en background
+                documentoService.guardar(dte);
+
                 resItem.put("estado", dte.getEstado().name());
                 resItem.put("cdc", dte.getCdc());
                 resItem.put("idInterno", dte.getId());
@@ -462,13 +526,13 @@ public class EmisionController {
             }
             resultados.add(resItem);
         }
-        
+
         Map<String, Object> response = new java.util.HashMap<>();
         response.put("totalRecibidos", payloadList.size());
         response.put("procesadosExitosamente", procesadosExitosamente);
         response.put("conErrores", conErrores);
         response.put("resultados", resultados);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -485,14 +549,16 @@ public class EmisionController {
 
             if (dte.getNumeroTicketLote() == null || dte.getNumeroTicketLote().isBlank()) {
                 logger.warning("El DTE " + id + " no tiene un Ticket asociado.");
-                return ResponseEntity.badRequest().body(Map.of("message", "Este documento no tiene un Ticket de Lote asociado."));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "Este documento no tiene un Ticket de Lote asociado."));
             }
 
             logger.info("Iniciando consulta a SIFEN para el Ticket: " + dte.getNumeroTicketLote());
             boolean exito = sifenClient.consultarLoteSifen(dte);
             documentoService.guardar(dte);
             historialSifenService.registrar(dte, "CONSULTA_LOTE");
-            logger.info("Consulta finalizada. Nuevo estado: " + dte.getEstado() + " | SIFEN Code: " + dte.getCodigoEstadoSifen());
+            logger.info("Consulta finalizada. Nuevo estado: " + dte.getEstado() + " | SIFEN Code: "
+                    + dte.getCodigoEstadoSifen());
 
             Map<String, Object> respuesta = new java.util.HashMap<>();
             respuesta.put("id", dte.getId());
@@ -511,7 +577,8 @@ public class EmisionController {
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error consultando lote", e);
-            return ResponseEntity.status(500).body(Map.of("message", "Error interno al consultar lote: " + e.getMessage()));
+            return ResponseEntity.status(500)
+                    .body(Map.of("message", "Error interno al consultar lote: " + e.getMessage()));
         }
     }
 
@@ -538,7 +605,7 @@ public class EmisionController {
         try {
             String empresaId = EmpresaContext.getEmpresaId();
             List<DocumentoElectronico> documentos;
-            
+
             if (empresaId != null) {
                 documentos = dteRepository.findByEmisorIdOrderByFechaCreacionDesc(empresaId);
             } else {
@@ -559,6 +626,14 @@ public class EmisionController {
                 m.put("cdc", d.getCdc() != null ? d.getCdc() : "");
                 m.put("numeroTicketLote", d.getNumeroTicketLote() != null ? d.getNumeroTicketLote() : "");
                 m.put("ambiente", d.getAmbiente() != null ? d.getAmbiente().name() : "TEST");
+
+                String qrUrl = "";
+                if (d.getXmlFirmado() != null && d.getXmlFirmado().contains("<dCarQR>")) {
+                    qrUrl = d.getXmlFirmado().substring(d.getXmlFirmado().indexOf("<dCarQR>") + 8,
+                            d.getXmlFirmado().indexOf("</dCarQR>")).replace("&amp;", "&");
+                }
+                m.put("qrUrl", qrUrl);
+
                 return m;
             }).toList();
             return ResponseEntity.ok(list);
@@ -652,12 +727,16 @@ public class EmisionController {
                 m.put("puntoExpedicion", e.getPuntoExpedicion());
                 m.put("codEstablecimiento", e.getCodEstablecimiento());
                 m.put("timbrado", e.getTimbrado());
-                m.put("fechaInicioTimbrado", e.getFechaInicioTimbrado() != null ? e.getFechaInicioTimbrado().toString() : null);
-                m.put("fechaVencimientoTimbrado", e.getFechaVencimientoTimbrado() != null ? e.getFechaVencimientoTimbrado().toString() : null);
+                m.put("fechaInicioTimbrado",
+                        e.getFechaInicioTimbrado() != null ? e.getFechaInicioTimbrado().toString() : null);
+                m.put("fechaVencimientoTimbrado",
+                        e.getFechaVencimientoTimbrado() != null ? e.getFechaVencimientoTimbrado().toString() : null);
                 m.put("tipoContribuyente", e.getTipoContribuyente());
                 m.put("ambiente", e.getAmbiente() != null ? e.getAmbiente().name() : null);
                 m.put("hasCertificado", e.getCertificadoFisico() != null);
-                m.put("fechaVencimientoCertificado", e.getFechaVencimientoCertificado() != null ? e.getFechaVencimientoCertificado().toString() : null);
+                m.put("fechaVencimientoCertificado",
+                        e.getFechaVencimientoCertificado() != null ? e.getFechaVencimientoCertificado().toString()
+                                : null);
                 m.put("idCsc", e.getIdCsc());
                 m.put("valorCsc", e.getValorCsc());
                 return m;
@@ -729,14 +808,17 @@ public class EmisionController {
 
             String rucBase = ruc.contains("-") ? ruc.substring(0, ruc.indexOf("-")) : ruc;
             rucBase = rucBase.replaceAll("[^0-9]", "").trim();
-            
-            java.util.Optional<com.zentra.middleware.core.model.PadronRuc> padronOpt = padronRucRepository.findById(java.util.Objects.requireNonNull(rucBase));
+
+            java.util.Optional<com.zentra.middleware.core.model.PadronRuc> padronOpt = padronRucRepository
+                    .findById(java.util.Objects.requireNonNull(rucBase));
             if (padronOpt.isPresent()) {
                 com.zentra.middleware.core.model.PadronRuc p = padronOpt.get();
-                return ResponseEntity.ok(Map.of("razonSocial", p.getRazonSocial(), "ruc", p.getRuc() + "-" + p.getDv(), "dv", p.getDv()));
+                return ResponseEntity.ok(Map.of("razonSocial", p.getRazonSocial(), "ruc", p.getRuc() + "-" + p.getDv(),
+                        "dv", p.getDv()));
             }
-            
-            String dv = ruc.contains("-") ? ruc.substring(ruc.indexOf("-") + 1).trim() : String.valueOf(calcularDV(rucBase));
+
+            String dv = ruc.contains("-") ? ruc.substring(ruc.indexOf("-") + 1).trim()
+                    : String.valueOf(calcularDV(rucBase));
 
             String url = "https://consultaruc.com.py/api/consulta/" + rucBase;
             HttpRequest request = HttpRequest.newBuilder()
@@ -755,7 +837,8 @@ public class EmisionController {
             }
 
             return ResponseEntity
-                    .ok(Map.of("razonSocial", "CLIENTE RECUPERADO MOCK (" + rucBase + "-" + dv + ")", "ruc", rucBase, "dv", dv));
+                    .ok(Map.of("razonSocial", "CLIENTE RECUPERADO MOCK (" + rucBase + "-" + dv + ")", "ruc", rucBase,
+                            "dv", dv));
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error fatal en consulta RUC: " + e.getMessage(), e);
@@ -784,4 +867,3 @@ public class EmisionController {
     }
 
 }
-

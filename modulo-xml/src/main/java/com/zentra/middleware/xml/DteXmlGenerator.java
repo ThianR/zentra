@@ -156,10 +156,13 @@ public class DteXmlGenerator {
             gOpeCom.setDDesTImp(TdDesTImp.IVA);
             gOpeCom.setCMoneOpe(CMondT.PYG);
             gOpeCom.setDDesMoneOpe("Guarani");
-            // Tipo de transacción: obligatorio en gOpeCom según XSD v150
-            int tipTra = resolverTipoTransaccion(dte);
-            gOpeCom.setITipTra(tipTra);
-            gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
+            // Tipo de transacción: Obligatorio si C002 = 1, 2, 3 o 4. No informar si es 5, 6 o 7 (Notas de Crédito/Débito/Remisión)
+            int tDoc = Integer.parseInt(tipoDoc != null ? tipoDoc : "1");
+            if (tDoc >= 1 && tDoc <= 4) {
+                int tipTra = resolverTipoTransaccion(dte);
+                gOpeCom.setITipTra(tipTra);
+                gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
+            }
             gDatGralOpe.setGOpeCom(gOpeCom);
 
             

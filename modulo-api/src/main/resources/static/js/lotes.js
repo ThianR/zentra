@@ -1,4 +1,4 @@
-// --- Gestión de Lotes Asíncronos ---
+﻿// --- Gestión de Lotes Asíncronos ---
 
 document.addEventListener('DOMContentLoaded', () => {
     // Escuchar cuando se cambie a la vista de lotes para cargar los datos

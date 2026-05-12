@@ -170,16 +170,20 @@ public class XmlSignerService {
                 ? dte.getFechaCreacion() : java.time.LocalDateTime.now();
             dFeEmiDE = fecha.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
         }
-        String dRucRec = "";
+        String paramRucRecName = "dRucRec";
+        String dRucRecValue = "";
         java.util.regex.Matcher mRuc = java.util.regex.Pattern.compile("<dRucRec>([^<]+)</dRucRec>").matcher(xmlFirmado);
         if (mRuc.find()) {
-            dRucRec = mRuc.group(1).trim();
+            dRucRecValue = mRuc.group(1).trim();
+            paramRucRecName = "dRucRec";
         } else {
             java.util.regex.Matcher mIden = java.util.regex.Pattern.compile("<dNumIDRec>([^<]+)</dNumIDRec>").matcher(xmlFirmado);
             if (mIden.find()) {
-                dRucRec = mIden.group(1).trim();
+                dRucRecValue = mIden.group(1).trim();
+                paramRucRecName = "dNumIDRec";
             } else {
-                dRucRec = "0";
+                dRucRecValue = "0";
+                paramRucRecName = "dRucRec";
             }
         }
         
@@ -202,21 +206,27 @@ public class XmlSignerService {
         qrParams.append("nVersion=").append(pVersion)
                 .append("&Id=").append(cdc)
                 .append("&dFeEmiDE=").append(toHex(dFeEmiDE))
-                .append("&dRucRec=").append(dRucRec)
+                .append("&").append(paramRucRecName).append("=").append(dRucRecValue)
                 .append("&dTotGralOpe=").append(dTotGralOpe)
                 .append("&dTotIVA=").append(dTotIVA)
                 .append("&cItems=").append(cItems)
                 .append("&DigestValue=").append(digestHex)
                 .append("&IdCSC=").append(IdCSC);
 
+        // Manual SIFEN v150, sección 13.8: "compuesto de 32 dígitos alfanuméricos"
+        // Marangatu envía CSC genéricos de 64 chars; SIFEN usa solo los primeros 32 para el hash.
         String secretCSC     = dte.getEmisor().getValorCsc() != null
             ? dte.getEmisor().getValorCsc() : "ABCD0000000000000000000000000000";
+        if (secretCSC.length() > 32) {
+            secretCSC = secretCSC.substring(0, 32);
+        }
+        logger.info("DEBUG_QR_STRING: " + qrParams.toString() + secretCSC);
         String realHashQr    = sha256Hex(qrParams.toString() + secretCSC);
 
         StringBuilder dCarQR = new StringBuilder(
             dte.getAmbiente() == com.zentra.middleware.core.enums.Ambiente.PRODUCCION
                 ? "https://ekuatia.set.gov.py/consultas/qr"
-                : "https://sifen-test.set.gov.py/consultas/qr");
+                : "https://ekuatia.set.gov.py/consultas-test/qr");
         dCarQR.append("?")
               .append(qrParams.toString().replace("&", "&amp;"))
               .append("&amp;cHashQR=").append(realHashQr);
@@ -483,13 +493,8 @@ public class XmlSignerService {
         if (m.find()) {
             try {
                 String b64 = m.group(1).trim();
-                // SIFEN requiere el HEX de los bytes reales, no del string Base64
-                byte[] bytes = java.util.Base64.getDecoder().decode(b64);
-                StringBuilder sb = new StringBuilder();
-                for (byte b : bytes) {
-                    sb.append(String.format("%02x", b & 0xff));
-                }
-                return sb.toString();
+                // SIFEN v150 requiere el HEX de los caracteres ASCII del string Base64, NO de los bytes decodificados.
+                return toHex(b64);
             } catch (Exception e) {
                 logger.warning("Error decodificando DigestValue: " + e.getMessage());
             }
