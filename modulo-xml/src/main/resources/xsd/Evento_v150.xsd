@@ -35,6 +35,8 @@
             <xs:element name="dId" type="xs:string"/>
             <!-- CDC del DTE afectado (44 dígitos) -->
             <xs:element name="gGestEv" type="tgGestEv"/>
+            <!-- Firma digital XMLDSig del evento (insertada por el firmador) -->
+            <xs:element ref="ds:Signature" minOccurs="0"/>
         </xs:sequence>
         <xs:attribute name="Id" type="xs:ID" use="required"/>
     </xs:complexType>

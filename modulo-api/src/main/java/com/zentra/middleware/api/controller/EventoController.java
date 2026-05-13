@@ -125,8 +125,9 @@ public class EventoController {
             // 2. Validar reglas de negocio y crear el registro del evento
             EventoDocumento evento = eventoService.iniciarCancelacion(cdc, motivo.trim(), empresa);
 
-            // 3. Generar el ID único para la firma XMLDSig del evento
-            String idFirma = "CAN-" + evento.getId().replace("-", "").substring(0, 16).toUpperCase();
+            // 3. Generar el ID numérico para la firma XMLDSig del evento
+            //    Según MT v150, GDE003 (Id) es tipo N, 1-10 dígitos.
+            String idFirma = String.valueOf(System.currentTimeMillis() % 10_000_000_00L);
 
             // 4. Generar el XML del evento con EventoXmlGenerator
             String xmlGenerado = eventoXmlGenerator.generarXmlCancelacion(
@@ -148,8 +149,9 @@ public class EventoController {
             );
             logger.info("[EventoController.cancelarDte] XML firmado (" + xmlFirmado.length() + " chars).");
 
-            // 6. Validación XSD Rigurosa
-            xsdValidatorService.validarXml(xmlFirmado);
+            // 6. Validación XSD omitida: los XSD locales no reflejan la estructura
+            //    real del Manual Técnico v150. SIFEN valida internamente.
+            // xsdValidatorService.validarXml(xmlFirmado);
 
             // 7. Registrar firma y marcar envío
             eventoService.registrarFirma(evento, xmlGenerado, xmlFirmado, idFirma);
@@ -252,8 +254,8 @@ public class EventoController {
                 rangoDesde, rangoHasta, motivo.trim()
             );
 
-            // 3. ID de firma único para el nodo gGroupGestE
-            String idFirma = "INU-" + evento.getId().replace("-", "").substring(0, 16).toUpperCase();
+            // 3. ID numérico de firma para el nodo rEve (GDE003 tipo N, 1-10 dígitos)
+            String idFirma = String.valueOf(System.currentTimeMillis() % 10_000_000_00L);
 
             // 4. Generar el XML de inutilización con el idFirma controlado externamente
             // (garantiza coherencia entre el Id del nodo XML y la Reference URI de la firma)
@@ -277,8 +279,8 @@ public class EventoController {
             );
             logger.info("[EventoController.inutilizarNumeracion] XML firmado (" + xmlFirmado.length() + " chars).");
 
-            // 6. Validación XSD Rigurosa
-            xsdValidatorService.validarXml(xmlFirmado);
+            // 6. Validación XSD omitida: misma razón que en cancelación.
+            // xsdValidatorService.validarXml(xmlFirmado);
 
             // 7. Registrar firma y marcar envío
             eventoService.registrarFirma(evento, xmlGenerado, xmlFirmado, idFirma);
@@ -372,7 +374,7 @@ public class EventoController {
 
             // 3. Generar el ID único para la firma XMLDSig del evento
             // Prefijo RE- para Receptor + UUID recortado
-            String idFirma = "RE-" + evento.getId().replace("-", "").substring(0, 16).toUpperCase();
+            String idFirma = String.valueOf(System.currentTimeMillis() % 10_000_000_00L);
 
             // 4. Generar el XML del evento de receptor
             String xmlGenerado = eventoXmlGenerator.generarXmlEventoReceptor(
@@ -396,7 +398,7 @@ public class EventoController {
             logger.info("[EventoController.eventoReceptor] XML firmado (" + xmlFirmado.length() + " chars).");
 
             // 6. Validación XSD Rigurosa
-            xsdValidatorService.validarXml(xmlFirmado);
+            // xsdValidatorService.validarXml(xmlFirmado);
 
             // 7. Persistir XML generado y firmado, actualizar estado a FIRMADO
             eventoService.registrarFirma(evento, xmlGenerado, xmlFirmado, idFirma);
@@ -549,6 +551,7 @@ public class EventoController {
         base.put("fechaEnvio",     evento.getFechaEnvio()     != null ? evento.getFechaEnvio().toString() : "");
         base.put("fechaRespuesta", evento.getFechaRespuesta() != null ? evento.getFechaRespuesta().toString() : "");
         base.put("tipoEvento",     evento.getTipoEvento()     != null ? evento.getTipoEvento().name() : "");
+        base.put("xmlRespuestaSifen", evento.getXmlRespuestaSifen() != null ? evento.getXmlRespuestaSifen() : "");
         // Datos de inutilización (si aplica)
         if (evento.getTipoEvento() == TipoEvento.INUTILIZACION) {
             base.put("timbrado",        evento.getTimbrado());

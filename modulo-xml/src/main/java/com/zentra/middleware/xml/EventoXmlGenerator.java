@@ -1,36 +1,48 @@
 package com.zentra.middleware.xml;
 
-import com.zentra.middleware.sifen.schema.*;
-
-import jakarta.xml.bind.JAXBContext;
-import jakarta.xml.bind.Marshaller;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.GregorianCalendar;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.util.logging.Logger;
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 /**
- * Generador de XML para Eventos SIFEN v150 (Emisor).
+ * Generador de XML para Eventos SIFEN v150 (Emisor y Receptor).
  *
- * <p>Construye el árbol de objetos JAXB correspondiente a los eventos
- * de cancelación e inutilización según el Manual Técnico v150 y los
- * serializa a una cadena XML lista para ser firmada y enviada a SIFEN.</p>
+ * <p>Construye el árbol DOM correspondiente a los eventos de cancelación,
+ * inutilización y receptor según el Manual Técnico SIFEN v150, capítulos
+ * 9.5 y 11.5.</p>
  *
- * <p>Tipos de eventos soportados:
- * <ul>
- *   <li>Tipo 1 — Cancelación de un DTE aprobado.</li>
- *   <li>Tipo 3 — Inutilización de rango de numeración.</li>
- * </ul>
- * </p>
+ * <p>Estructura del WS siRecepEvento (Schema XML 13):</p>
+ * <pre>
+ *   rEnviEventoDe             (raíz del WS)
+ *     dId                     (secuencial del emisor)
+ *     dEvReg                  (contenedor del evento registrado)
+ *       gGroupGesEve          (grupo de eventos)
+ *         rGesEve             (raíz de gestión de evento)
+ *           rEve Id="..."     (grupo firmable, contiene la firma)
+ *             dFecFirma       (fecha y hora de la firma)
+ *             dVerFor         (versión del formato = 150)
+ *             dTiGDE          (tipo de evento: 1=Cancelación, 2=Inutilización)
+ *             gGroupTiEvt     (datos específicos del tipo de evento)
+ *               rGeVeCan / rGeVeInu / etc.
+ *           Signature         (firma XMLDSig de rEve)
+ * </pre>
  */
 @Service
 public class EventoXmlGenerator {
@@ -38,56 +50,45 @@ public class EventoXmlGenerator {
     private static final Logger logger = Logger.getLogger(EventoXmlGenerator.class.getName());
 
     /** Namespace SIFEN v150 */
-    private static final String NAMESPACE_SIFEN = "http://ekuatia.set.gov.py/sifen/xsd";
+    private static final String NS_SIFEN = "http://ekuatia.set.gov.py/sifen/xsd";
+
+    /** Versión del formato de evento */
+    private static final String VERSION_FORMATO = "150";
+
+    /** Formato de fecha/hora SIFEN sin fracciones de segundo */
+    private static final DateTimeFormatter FMT_FECHA = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     /** Identificador de tipo de evento: Cancelación */
     public static final int TIPO_EVENTO_CANCELACION = 1;
 
-    /** Identificador de tipo de evento: Conformidad */
-    public static final int TIPO_EVENTO_CONFORMIDAD = 2;
-
     /** Identificador de tipo de evento: Inutilización */
-    public static final int TIPO_EVENTO_INUTILIZACION = 3;
+    public static final int TIPO_EVENTO_INUTILIZACION = 2;
+
+    /** Identificador de tipo de evento: Conformidad */
+    public static final int TIPO_EVENTO_CONFORMIDAD = 11;
 
     /** Identificador de tipo de evento: Disconformidad */
-    public static final int TIPO_EVENTO_DISCONFORMIDAD = 4;
+    public static final int TIPO_EVENTO_DISCONFORMIDAD = 12;
 
     /** Identificador de tipo de evento: Desconocimiento */
-    public static final int TIPO_EVENTO_DESCONOCIMIENTO = 5;
+    public static final int TIPO_EVENTO_DESCONOCIMIENTO = 13;
 
     /** Identificador de tipo de evento: Notificación de Recepción */
-    public static final int TIPO_EVENTO_NOTIFICACION_RECEPCION = 6;
-
-    private static JAXBContext jaxbContext;
-
-    static {
-        try {
-            // Se reutiliza el mismo JAXBContext del paquete de esquemas,
-            // ya que las nuevas clases de evento se ubican en el mismo paquete.
-            jaxbContext = JAXBContext.newInstance("com.zentra.middleware.sifen.schema");
-            logger.info("[EventoXmlGenerator] JAXBContext inicializado correctamente.");
-        } catch (Exception e) {
-            logger.severe("[EventoXmlGenerator] Error al inicializar JAXBContext: " + e.getMessage());
-        }
-    }
+    public static final int TIPO_EVENTO_NOTIFICACION_RECEPCION = 10;
 
     // =========================================================================
     // API Pública
     // =========================================================================
 
     /**
-     * Genera el XML de Cancelación de un DTE.
-     *
-     * <p>La cancelación se aplica sobre el CDC de 44 dígitos del DTE que se desea
-     * cancelar. El {@code idEvento} se usa como atributo {@code Id} del nodo
-     * {@code gGroupGestE} para que la firma XMLDSig lo referencie.</p>
+     * Genera el XML de Cancelación de un DTE (evento tipo 1).
      *
      * @param cdcDteAfectado CDC del DTE a cancelar (44 dígitos).
      * @param motivo         Motivo de cancelación (5-500 caracteres).
-     * @param rucEmisor      RUC del emisor (sin DV).
-     * @param dvEmisor       Dígito verificador del RUC.
-     * @param idEvento       Identificador único del evento (se usará como atributo Id para firma).
-     * @return XML serializado UTF-8 del mensaje de cancelación, listo para firmar.
+     * @param rucEmisor      RUC del emisor (sin DV) — no se incluye en el evento.
+     * @param dvEmisor       DV del RUC — no se incluye en el evento.
+     * @param idEvento       Identificador numérico del evento (atributo Id de rEve).
+     * @return XML serializado UTF-8 listo para firmar.
      */
     public String generarXmlCancelacion(String cdcDteAfectado,
                                          String motivo,
@@ -97,15 +98,49 @@ public class EventoXmlGenerator {
         logger.info("[EventoXmlGenerator] Generando XML de Cancelación para CDC: " + cdcDteAfectado);
 
         try {
-            TgEvCan evCan = new TgEvCan();
-            evCan.setMOtEve(motivo);
+            Document doc = crearDocumento();
+            String fechaFirma = obtenerFechaHoraActual();
 
-            TgGestEv gestEv = construirGestEv(TIPO_EVENTO_CANCELACION, "Cancelación", evCan);
-            TgGroupGestE groupGestE = construirGroupGestE(cdcDteAfectado, idEvento, gestEv);
+            // Raíz: rEnviEventoDe (como en jsifenlib — Roshka)
+            Element raiz = crearElementoConNs(doc, "rEnviEventoDe");
+            doc.appendChild(raiz);
 
-            REnviEvt rEnviEvt = construirREnviEvt(rucEmisor, dvEmisor, groupGestE);
+            // dId: identificador de control de envío, secuencial (GSch02)
+            agregarElemento(doc, raiz, "dId", "1");
 
-            return serializar(rEnviEvt, cdcDteAfectado);
+            // dEvReg: evento a ser registrado (GSch03)
+            Element dEvReg = agregarElemento(doc, raiz, "dEvReg", null);
+
+            // gGroupGesEve: con xsi:schemaLocation (como en jsifenlib)
+            Element gGroupGesEve = agregarElemento(doc, dEvReg, "gGroupGesEve", null);
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xsi",
+                "http://www.w3.org/2001/XMLSchema-instance");
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2001/XMLSchema-instance",
+                "xsi:schemaLocation",
+                NS_SIFEN + " siRecepEvento_v150.xsd");
+
+            // rGesEve: raíz de gestión de evento
+            Element rGesEve = agregarElemento(doc, gGroupGesEve, "rGesEve", null);
+
+            // rEve: grupo firmable con atributo Id
+            Element rEve = agregarElemento(doc, rGesEve, "rEve", null);
+            rEve.setAttribute("Id", idEvento);
+
+            agregarElemento(doc, rEve, "dFecFirma", fechaFirma);
+            agregarElemento(doc, rEve, "dVerFor", VERSION_FORMATO);
+            // NOTA: dTiGDE NO se incluye (jsifenlib no lo genera)
+
+            // gGroupTiEvt: datos específicos del evento
+            Element gGroupTiEvt = agregarElemento(doc, rEve, "gGroupTiEvt", null);
+
+            // rGeVeCan: evento de cancelación
+            Element rGeVeCan = agregarElemento(doc, gGroupTiEvt, "rGeVeCan", null);
+            agregarElemento(doc, rGeVeCan, "Id", cdcDteAfectado);
+            agregarElemento(doc, rGeVeCan, "mOtEve", motivo);
+
+            String xml = serializar(doc);
+            logger.info("[EventoXmlGenerator] XML de Cancelación generado (" + xml.length() + " chars)");
+            return xml;
 
         } catch (Exception e) {
             throw new RuntimeException("Error generando XML de Cancelación: " + e.getMessage(), e);
@@ -113,22 +148,7 @@ public class EventoXmlGenerator {
     }
 
     /**
-     * Genera el XML de Inutilización de rango de numeración.
-     *
-     * <p>La inutilización informa a SIFEN que un rango de números de comprobante
-     * no será utilizado. El sistema genera un {@code idEvento} único basado
-     * en un UUID para el atributo {@code Id} del nodo raíz del evento.</p>
-     *
-     * @param timbrado       Número de timbrado de 8 dígitos.
-     * @param tipoDoc        Código del tipo de documento (ej: 1 = Factura).
-     * @param establecimiento Código de establecimiento (3 dígitos).
-     * @param puntoExpedicion Código de punto de expedición (3 dígitos).
-     * @param numDesde       Número inicial del rango a inutilizar.
-     * @param numHasta       Número final del rango a inutilizar.
-     * @param motivo         Motivo de inutilización (5-500 caracteres).
-     * @param rucEmisor      RUC del emisor (sin DV).
-     * @param dvEmisor       Dígito verificador del RUC.
-     * @return XML serializado UTF-8 del mensaje de inutilización, listo para firmar.
+     * Genera el XML de Inutilización de rango de numeración (evento tipo 2).
      */
     public String generarXmlInutilizacion(String timbrado,
                                            int tipoDoc,
@@ -139,32 +159,13 @@ public class EventoXmlGenerator {
                                            String motivo,
                                            String rucEmisor,
                                            String dvEmisor) {
-        // Genera un idEvento interno para retrocompatibilidad.
-        // Usar la sobrecarga con idEvento explícito cuando la firma debe ser coherente.
-        String idEvento = "INU-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        String idEvento = String.valueOf(System.currentTimeMillis() % 10_000_000);
         return generarXmlInutilizacion(timbrado, tipoDoc, establecimiento, puntoExpedicion,
                 numDesde, numHasta, motivo, rucEmisor, dvEmisor, idEvento);
     }
 
     /**
-     * Genera el XML de Inutilización de rango de numeración con {@code idEvento} controlado externamente.
-     *
-     * <p>Esta sobrecarga permite al orquestador (ej: {@code EventoController}) establecer
-     * el mismo {@code idEvento} que se usará en la firma XMLDSig, garantizando que la
-     * {@code Reference URI="#<idEvento>"} del firmador coincida con el atributo {@code Id}
-     * del nodo {@code gGroupGestE} en el XML generado.</p>
-     *
-     * @param timbrado        Número de timbrado de 8 dígitos.
-     * @param tipoDoc         Código del tipo de documento.
-     * @param establecimiento Código de establecimiento (3 dígitos).
-     * @param puntoExpedicion Código de punto de expedición (3 dígitos).
-     * @param numDesde        Número inicial del rango.
-     * @param numHasta        Número final del rango.
-     * @param motivo          Motivo de inutilización.
-     * @param rucEmisor       RUC del emisor (sin DV).
-     * @param dvEmisor        Dígito verificador del RUC.
-     * @param idEvento        Identificador único del evento (usado como atributo Id para firma).
-     * @return XML serializado UTF-8 del mensaje de inutilización, listo para firmar.
+     * Genera el XML de Inutilización de rango de numeración con idEvento controlado.
      */
     public String generarXmlInutilizacion(String timbrado,
                                            int tipoDoc,
@@ -181,189 +182,188 @@ public class EventoXmlGenerator {
             timbrado, tipoDoc, establecimiento, puntoExpedicion, numDesde, numHasta, idEvento));
 
         try {
-            TgEvInut evInut = new TgEvInut();
-            evInut.setDNumTim(timbrado);
-            evInut.setITiDE(BigInteger.valueOf(tipoDoc));
-            evInut.setDDesTiDE(mapearDescripcionTipoDoc(tipoDoc));
-            evInut.setDEst(String.format("%03d", Integer.parseInt(establecimiento.replaceAll("[^0-9]", "0"))));
-            evInut.setDPunExp(String.format("%03d", Integer.parseInt(puntoExpedicion.replaceAll("[^0-9]", "0"))));
-            evInut.setDNumIniFolio(BigInteger.valueOf(numDesde));
-            evInut.setDNumFinFolio(BigInteger.valueOf(numHasta));
-            evInut.setMOtEve(motivo);
+            Document doc = crearDocumento();
+            String fechaFirma = obtenerFechaHoraActual();
 
-            String dIdContenido = String.format("%s-%d-%s-%s-%07d-%07d",
-                timbrado, tipoDoc, establecimiento, puntoExpedicion, numDesde, numHasta);
+            // Raíz: rEnviEventoDe (como en jsifenlib — Roshka)
+            Element raiz = crearElementoConNs(doc, "rEnviEventoDe");
+            doc.appendChild(raiz);
 
-            TgGestEv gestEv = construirGestEv(TIPO_EVENTO_INUTILIZACION, "Inutilización", evInut);
-            TgGroupGestE groupGestE = construirGroupGestE(dIdContenido, idEvento, gestEv);
+            // dId: identificador de control de envío, secuencial (GSch02)
+            agregarElemento(doc, raiz, "dId", "1");
 
-            REnviEvt rEnviEvt = construirREnviEvt(rucEmisor, dvEmisor, groupGestE);
+            // dEvReg: evento a ser registrado (GSch03)
+            Element dEvReg = agregarElemento(doc, raiz, "dEvReg", null);
 
-            return serializar(rEnviEvt, dIdContenido);
+            // gGroupGesEve: con xsi:schemaLocation (como en jsifenlib)
+            Element gGroupGesEve = agregarElemento(doc, dEvReg, "gGroupGesEve", null);
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xsi",
+                "http://www.w3.org/2001/XMLSchema-instance");
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2001/XMLSchema-instance",
+                "xsi:schemaLocation",
+                NS_SIFEN + " siRecepEvento_v150.xsd");
+            Element rGesEve = agregarElemento(doc, gGroupGesEve, "rGesEve", null);
+
+            // rEve: grupo firmable
+            Element rEve = agregarElemento(doc, rGesEve, "rEve", null);
+            rEve.setAttribute("Id", idEvento);
+
+            agregarElemento(doc, rEve, "dFecFirma", fechaFirma);
+            agregarElemento(doc, rEve, "dVerFor", VERSION_FORMATO);
+            // NOTA: dTiGDE NO se incluye (jsifenlib no lo genera)
+
+            Element gGroupTiEvt = agregarElemento(doc, rEve, "gGroupTiEvt", null);
+
+            // rGeVeInu: evento de inutilización
+            Element rGeVeInu = agregarElemento(doc, gGroupTiEvt, "rGeVeInu", null);
+            agregarElemento(doc, rGeVeInu, "dNumTim", timbrado);
+            agregarElemento(doc, rGeVeInu, "dEst",
+                String.format("%03d", Integer.parseInt(establecimiento.replaceAll("[^0-9]", "0"))));
+            agregarElemento(doc, rGeVeInu, "dPunExp",
+                String.format("%03d", Integer.parseInt(puntoExpedicion.replaceAll("[^0-9]", "0"))));
+            agregarElemento(doc, rGeVeInu, "dNumIn", String.format("%07d", numDesde));
+            agregarElemento(doc, rGeVeInu, "dNumFin", String.format("%07d", numHasta));
+            agregarElemento(doc, rGeVeInu, "iTiDE", String.valueOf(tipoDoc));
+            agregarElemento(doc, rGeVeInu, "mOtEve", motivo);
+
+            String xml = serializar(doc);
+            logger.info("[EventoXmlGenerator] XML de Inutilización generado (" + xml.length() + " chars)");
+            return xml;
 
         } catch (Exception e) {
             throw new RuntimeException("Error generando XML de Inutilización: " + e.getMessage(), e);
         }
     }
 
-    // =========================================================================
-    // Métodos de construcción internos
-    // =========================================================================
-
     /**
-     * Construye el objeto {@code TgGestEv} con el tipo de evento, descripción y
-     * la fecha/hora actual en zona horaria de Asunción, asignando dinámicamente el payload.
-     */
-    private TgGestEv construirGestEv(int tipoEvt, String desEvt, Object eventoEspecifico) throws Exception {
-        TgGestEv gestEv = new TgGestEv();
-        gestEv.setITiEvt(BigInteger.valueOf(tipoEvt));
-        gestEv.setDDesTiEvt(desEvt);
-        gestEv.setDFecHoraEvt(obtenerFechaHoraActual());
-        
-        if (eventoEspecifico instanceof TgEvCan) gestEv.setGEvCan((TgEvCan) eventoEspecifico);
-        else if (eventoEspecifico instanceof TgEvInut) gestEv.setGEvInut((TgEvInut) eventoEspecifico);
-        else if (eventoEspecifico instanceof TgEvConf) gestEv.setGEvConf((TgEvConf) eventoEspecifico);
-        else if (eventoEspecifico instanceof TgEvDisconf) gestEv.setGEvDisconf((TgEvDisconf) eventoEspecifico);
-        else if (eventoEspecifico instanceof TgEvDescon) gestEv.setGEvDescon((TgEvDescon) eventoEspecifico);
-        else if (eventoEspecifico instanceof TgEvNotRec) gestEv.setGEvNotRec((TgEvNotRec) eventoEspecifico);
-        
-        return gestEv;
-    }
-
-    /**
-     * Genera el XML genérico para un evento de receptor (Tipos 2, 4, 5, 6).
-     *
-     * @param cdcDteAfectado CDC del documento recibido.
-     * @param tipoEvento     Código del evento de receptor.
-     * @param motivo         Motivo del evento (puede ser nulo para conformidad/notificación).
-     * @param rucReceptor    RUC de la empresa que envía el evento.
-     * @param dvReceptor     DV del RUC de la empresa.
-     * @param idEvento       Identificador único para la firma.
-     * @return XML serializado.
+     * Genera el XML genérico para un evento de receptor.
      */
     public String generarXmlEventoReceptor(String cdcDteAfectado, int tipoEvento, String motivo,
                                            String rucReceptor, String dvReceptor, String idEvento) {
         logger.info("[EventoXmlGenerator] Generando XML Evento Receptor (Tipo " + tipoEvento + ") para CDC: " + cdcDteAfectado);
 
         try {
-            Object evData = null;
-            String descripcion = "";
+            Document doc = crearDocumento();
+            String fechaFirma = obtenerFechaHoraActual();
 
+            // Raíz: rEnviEventoDe (como en jsifenlib — Roshka)
+            Element raiz = crearElementoConNs(doc, "rEnviEventoDe");
+            doc.appendChild(raiz);
+
+            // dId: identificador de control de envío, secuencial (GSch02)
+            agregarElemento(doc, raiz, "dId", "1");
+
+            // dEvReg: evento a ser registrado (GSch03)
+            Element dEvReg = agregarElemento(doc, raiz, "dEvReg", null);
+
+            // gGroupGesEve: con xsi:schemaLocation (como en jsifenlib)
+            Element gGroupGesEve = agregarElemento(doc, dEvReg, "gGroupGesEve", null);
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xsi",
+                "http://www.w3.org/2001/XMLSchema-instance");
+            gGroupGesEve.setAttributeNS("http://www.w3.org/2001/XMLSchema-instance",
+                "xsi:schemaLocation",
+                NS_SIFEN + " siRecepEvento_v150.xsd");
+            Element rGesEve = agregarElemento(doc, gGroupGesEve, "rGesEve", null);
+
+            Element rEve = agregarElemento(doc, rGesEve, "rEve", null);
+            rEve.setAttribute("Id", idEvento);
+
+            agregarElemento(doc, rEve, "dFecFirma", fechaFirma);
+            agregarElemento(doc, rEve, "dVerFor", VERSION_FORMATO);
+            // NOTA: dTiGDE NO se incluye (jsifenlib no lo genera)
+
+            Element gGroupTiEvt = agregarElemento(doc, rEve, "gGroupTiEvt", null);
+
+            // Agregar los datos específicos del evento de receptor según el tipo
             switch (tipoEvento) {
                 case TIPO_EVENTO_CONFORMIDAD -> {
-                    descripcion = "Conformidad";
-                    TgEvConf conf = new TgEvConf();
-                    if (motivo != null && !motivo.isBlank()) conf.setMOtEve(motivo.trim());
-                    evData = conf;
+                    Element rGeVeConf = agregarElemento(doc, gGroupTiEvt, "rGeVeConf", null);
+                    agregarElemento(doc, rGeVeConf, "Id", cdcDteAfectado);
+                    if (motivo != null && !motivo.isBlank()) {
+                        agregarElemento(doc, rGeVeConf, "mOtEve", motivo.trim());
+                    }
                 }
                 case TIPO_EVENTO_DISCONFORMIDAD -> {
-                    descripcion = "Disconformidad";
-                    TgEvDisconf disconf = new TgEvDisconf();
-                    disconf.setMOtEve(motivo.trim());
-                    evData = disconf;
+                    Element rGeVeDisconf = agregarElemento(doc, gGroupTiEvt, "rGeVeDisconf", null);
+                    agregarElemento(doc, rGeVeDisconf, "Id", cdcDteAfectado);
+                    agregarElemento(doc, rGeVeDisconf, "mOtEve", motivo.trim());
                 }
                 case TIPO_EVENTO_DESCONOCIMIENTO -> {
-                    descripcion = "Desconocimiento";
-                    TgEvDescon descon = new TgEvDescon();
-                    descon.setMOtEve(motivo.trim());
-                    evData = descon;
+                    Element rGeVeDescon = agregarElemento(doc, gGroupTiEvt, "rGeVeDescon", null);
+                    agregarElemento(doc, rGeVeDescon, "Id", cdcDteAfectado);
+                    agregarElemento(doc, rGeVeDescon, "mOtEve", motivo.trim());
                 }
                 case TIPO_EVENTO_NOTIFICACION_RECEPCION -> {
-                    descripcion = "Notificación de Recepción";
-                    TgEvNotRec notRec = new TgEvNotRec();
-                    if (motivo != null && !motivo.isBlank()) notRec.setMOtEve(motivo.trim());
-                    evData = notRec;
+                    Element rGeVeNotRec = agregarElemento(doc, gGroupTiEvt, "rGeVeNotRec", null);
+                    agregarElemento(doc, rGeVeNotRec, "Id", cdcDteAfectado);
+                    if (motivo != null && !motivo.isBlank()) {
+                        agregarElemento(doc, rGeVeNotRec, "mOtEve", motivo.trim());
+                    }
                 }
-                default -> throw new IllegalArgumentException("Tipo de evento no soportado para receptor: " + tipoEvento);
+                default -> throw new IllegalArgumentException(
+                    "Tipo de evento de receptor no soportado: " + tipoEvento);
             }
 
-            TgGestEv gestEv = construirGestEv(tipoEvento, descripcion, evData);
-            TgGroupGestE groupGestE = construirGroupGestE(cdcDteAfectado, idEvento, gestEv);
-            REnviEvt rEnviEvt = construirREnviEvt(rucReceptor, dvReceptor, groupGestE);
-
-            return serializar(rEnviEvt, cdcDteAfectado);
+            String xml = serializar(doc);
+            logger.info("[EventoXmlGenerator] XML de Evento Receptor generado (" + xml.length() + " chars)");
+            return xml;
 
         } catch (Exception e) {
             throw new RuntimeException("Error generando XML de Evento Receptor: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Construye el nodo raíz del evento {@code TgGroupGestE}.
-     *
-     * @param dId      Contenido del elemento dId (CDC afectado u otro identificador).
-     * @param idAtrib  Valor del atributo Id (usado por XMLDSig para la firma).
-     * @param gestEv   Datos del evento.
-     */
-    private TgGroupGestE construirGroupGestE(String dId, String idAtrib, TgGestEv gestEv) {
-        TgGroupGestE group = new TgGroupGestE();
-        group.setDId(dId);
-        group.setId(idAtrib);
-        group.setGGestEv(gestEv);
-        return group;
+    // =========================================================================
+    // Métodos auxiliares DOM
+    // =========================================================================
+
+    /** Crea un documento DOM vacío. */
+    private Document crearDocumento() throws Exception {
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        DocumentBuilder db = dbf.newDocumentBuilder();
+        return db.newDocument();
+    }
+
+    /** Crea un elemento con el namespace SIFEN como raíz. */
+    private Element crearElementoConNs(Document doc, String nombre) {
+        return doc.createElementNS(NS_SIFEN, nombre);
     }
 
     /**
-     * Construye el contenedor {@code REnviEvt} con los datos del emisor
-     * y el grupo de eventos.
+     * Agrega un elemento hijo al padre dado.
+     * Si valor es null, crea solo el contenedor (sin texto).
      */
-    private REnviEvt construirREnviEvt(String rucEmisor, String dvEmisor, TgGroupGestE groupGestE) throws Exception {
-        REnviEvt rEnviEvt = new REnviEvt();
-        rEnviEvt.setDId(BigInteger.ONE);
-        rEnviEvt.setDFecFirma(obtenerFechaHoraActual());
-        rEnviEvt.setDRucEm(rucEmisor.replaceAll("[^0-9]", ""));
-        rEnviEvt.setDDVEmi(new BigInteger(dvEmisor.replaceAll("[^0-9]", "0")));
-        rEnviEvt.getGGroupGestE().add(groupGestE);
-        return rEnviEvt;
+    private Element agregarElemento(Document doc, Element padre, String nombre, String valor) {
+        Element elem = doc.createElementNS(NS_SIFEN, nombre);
+        if (valor != null) {
+            elem.setTextContent(valor);
+        }
+        padre.appendChild(elem);
+        return elem;
     }
 
-    /**
-     * Serializa el objeto {@code REnviEvt} a una cadena XML UTF-8.
-     *
-     * <p>Se aplica el mismo patrón que {@code DteXmlGenerator}: marshalling
-     * a {@code ByteArrayOutputStream} para asegurar la declaración
-     * {@code <?xml ... encoding="UTF-8"?>} correcta.</p>
-     *
-     * @param rEnviEvt    Objeto raíz a serializar.
-     * @param idReferencia Identificador para logging.
-     * @return XML generado como String.
-     */
-    private String serializar(REnviEvt rEnviEvt, String idReferencia) throws Exception {
-        Marshaller marshaller = jaxbContext.createMarshaller();
-        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.FALSE);
-        marshaller.setProperty(Marshaller.JAXB_ENCODING, "UTF-8");
-        marshaller.setProperty(Marshaller.JAXB_SCHEMA_LOCATION,
-            NAMESPACE_SIFEN + " siRecepEvento_v150.xsd");
+    /** Serializa el Document DOM a String UTF-8. */
+    private String serializar(Document doc) throws Exception {
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+        transformer.setOutputProperty(OutputKeys.INDENT, "no");
+        transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        marshaller.marshal(rEnviEvt, baos);
-        String xml = baos.toString(StandardCharsets.UTF_8);
-
-        // Inyectar namespace explícito en la raíz (mismo patrón que DteXmlGenerator)
-        xml = xml.replaceFirst(
-            "<rEnviEvt\\s+xmlns=\"" + NAMESPACE_SIFEN.replace(".", "\\.") + "\">",
-            "<rEnviEvt xmlns=\"" + NAMESPACE_SIFEN + "\" " +
-            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" " +
-            "xsi:schemaLocation=\"" + NAMESPACE_SIFEN + " siRecepEvento_v150.xsd\">");
-
-        logger.info("[EventoXmlGenerator] XML generado para evento con id=" + idReferencia
-            + " (" + xml.length() + " chars)");
-        return xml;
+        transformer.transform(new DOMSource(doc), new StreamResult(baos));
+        return baos.toString(StandardCharsets.UTF_8);
     }
 
     /**
-     * Retorna la fecha y hora actual en la zona horaria de Asunción, Paraguay
-     * sin fracciones de segundo ni zona horaria explícita (formato SIFEN).
+     * Retorna la fecha y hora actual en la zona horaria de Asunción, Paraguay,
+     * formateada según SIFEN: AAAA-MM-DDThh:mm:ss
      */
-    private XMLGregorianCalendar obtenerFechaHoraActual() throws Exception {
+    private String obtenerFechaHoraActual() {
         ZonedDateTime zdtAsuncion = LocalDateTime.now()
             .atZone(ZoneId.systemDefault())
             .withZoneSameInstant(ZoneId.of("America/Asuncion"));
-        GregorianCalendar gcal = GregorianCalendar.from(zdtAsuncion);
-        XMLGregorianCalendar xmlCal = DatatypeFactory.newInstance().newXMLGregorianCalendar(gcal);
-        xmlCal.setFractionalSecond(null);
-        xmlCal.setTimezone(javax.xml.datatype.DatatypeConstants.FIELD_UNDEFINED);
-        return xmlCal;
+        return zdtAsuncion.format(FMT_FECHA);
     }
 
     /**

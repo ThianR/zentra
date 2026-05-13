@@ -558,7 +558,7 @@ public class DteXmlGenerator {
             } else {
                 gDatRec.setINatRec(BigInteger.valueOf(2)); // No Contribuyente
                 gDatRec.setITipIDRec(BigInteger.valueOf(1)); // Cédula de Identidad Parche
-                gDatRec.setDDTipIDRec("Cédula de identidad");
+                gDatRec.setDDTipIDRec("Cédula paraguaya");
                 
                 String numId = (rucReceptor == null || rucReceptor.trim().isEmpty() || "null".equals(rucReceptor)) ? "0" : rucReceptor.trim();
                 gDatRec.setDNumIDRec(numId);
@@ -568,7 +568,7 @@ public class DteXmlGenerator {
             // Consumidor Final
             gDatRec.setINatRec(BigInteger.valueOf(2));
             gDatRec.setITipIDRec(BigInteger.valueOf(1));
-            gDatRec.setDDTipIDRec("Cédula de identidad");
+            gDatRec.setDDTipIDRec("Cédula paraguaya");
             gDatRec.setDNumIDRec("0");
             gDatRec.setDNomRec("Sin Nombre");
         }

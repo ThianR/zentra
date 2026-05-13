@@ -18,6 +18,8 @@ import com.zentra.middleware.core.repository.EmpresaRepository;
 import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import com.zentra.middleware.api.security.EmpresaContext;
 import com.zentra.middleware.core.service.HistorialSifenService;
+import com.zentra.middleware.core.service.EventoService;
+import com.zentra.middleware.core.model.EventoDocumento;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -52,6 +54,7 @@ public class EmisionController {
     private final EmpresaRepository empresaRepository;
     private final DocumentoElectronicoRepository dteRepository;
     private final HistorialSifenService historialSifenService;
+    private final EventoService eventoService;
     private final com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository;
 
     public EmisionController(
@@ -66,6 +69,7 @@ public class EmisionController {
             EmpresaRepository empresaRepository,
             DocumentoElectronicoRepository dteRepository,
             HistorialSifenService historialSifenService,
+            EventoService eventoService,
             com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository) { // Added to constructor
                                                                                              // parameters
         this.xmlGenerator = xmlGenerator;
@@ -79,6 +83,7 @@ public class EmisionController {
         this.empresaRepository = empresaRepository;
         this.dteRepository = dteRepository;
         this.historialSifenService = historialSifenService;
+        this.eventoService = eventoService;
         this.padronRucRepository = padronRucRepository;
 
         HttpClient client;
@@ -231,34 +236,39 @@ public class EmisionController {
 
         rucParaGuardar = rucParaGuardar.replace(".", "").trim();
 
-        // Validación contra padrón de Marangatu para evitar error 1306 de SIFEN.
-        // El RUC puede llegar con guión (ej: "1876430-0") o sin él (ej: "1876430").
-        // En ambos casos debemos verificar si existe en el padrón antes de enviarlo
-        // como Contribuyente.
+        // Leer tipoReceptor enviado por el frontend (1=Contribuyente, 2=No Contribuyente)
+        Integer tipoRecFrontend = null;
+        if (recRaw != null && recRaw.get("tipoReceptor") != null) {
+            tipoRecFrontend = safeInt(recRaw.get("tipoReceptor"), null);
+        }
+        // iTiOpe: 1=B2B (Contribuyente a Contribuyente), 2=B2C (Contribuyente a No Contribuyente)
+        int iTiOpe = safeInt(payload.get("iTiOpe"), 1);
+
         String rucSolo = rucParaGuardar.contains("-") ? rucParaGuardar.split("-")[0].trim() : rucParaGuardar;
         boolean esNumerico = rucSolo.matches("\\d+") && !rucSolo.equals("0");
-        boolean existeEnPadron = false;
 
-        if (esNumerico) {
-            existeEnPadron = padronRucRepository.existsById(rucSolo);
-            logger.info("Validación padrón RUC: " + rucSolo + " -> " + (existeEnPadron ? "EXISTE" : "NO EXISTE"));
-        }
-
-        if (esNumerico && existeEnPadron) {
-            // RUC válido en Marangatu: enviar como Contribuyente con DV del padrón
-            dte.setTipoReceptor(1);
-            if (!rucParaGuardar.contains("-")) {
-                // Obtener DV del padrón si no viene con guión
-                String dvPadron = padronRucRepository.findById(rucSolo)
-                        .map(p -> p.getDv()).orElse("0");
-                rucParaGuardar = rucSolo + "-" + dvPadron;
-            }
-        } else if (esNumerico && !existeEnPadron) {
-            // RUC NO existe en Marangatu: enviar como No Contribuyente (Cédula)
-            rucParaGuardar = rucSolo; // Sin guión ni DV
+        if (iTiOpe == 2 || (tipoRecFrontend != null && tipoRecFrontend == 2)) {
+            // B2C o marcado como No Contribuyente: siempre enviar como Cédula paraguaya
+            rucParaGuardar = rucSolo;
             dte.setTipoReceptor(2);
+            logger.info("Receptor tratado como No Contribuyente (iTiOpe=" + iTiOpe + ", tipoRecFrontend=" + tipoRecFrontend + ")");
+        } else if (esNumerico) {
+            // B2B: validar contra padrón para confirmar contribuyente válido
+            boolean existeEnPadron = padronRucRepository.existsById(rucSolo);
+            logger.info("Validación padrón RUC (B2B): " + rucSolo + " -> " + (existeEnPadron ? "EXISTE" : "NO EXISTE"));
+            if (existeEnPadron) {
+                dte.setTipoReceptor(1);
+                if (!rucParaGuardar.contains("-")) {
+                    String dvPadron = padronRucRepository.findById(rucSolo)
+                            .map(p -> p.getDv()).orElse("0");
+                    rucParaGuardar = rucSolo + "-" + dvPadron;
+                }
+            } else {
+                // No existe en padrón → forzar como No Contribuyente
+                rucParaGuardar = rucSolo;
+                dte.setTipoReceptor(2);
+            }
         }
-        // Si no es numérico (ej: "Varios"), se deja como está
 
         dte.setRucReceptor(rucParaGuardar);
 
@@ -687,7 +697,10 @@ public class EmisionController {
                 return ResponseEntity.status(403).body(Map.of("error", "No tiene acceso a este documento"));
             }
             var historial = historialSifenService.obtenerHistorial(id);
-            List<Map<String, Object>> result = historial.stream().map(h -> {
+            List<Map<String, Object>> result = new ArrayList<>();
+            
+            // 1. Agregar historial de transmisión de documentos
+            historial.forEach(h -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", h.getId());
                 m.put("fechaRegistro", h.getFechaRegistro() != null ? h.getFechaRegistro().toString() : "");
@@ -695,8 +708,28 @@ public class EmisionController {
                 m.put("codigoEstado", h.getCodigoEstado() != null ? h.getCodigoEstado() : "");
                 m.put("mensajeRespuesta", h.getMensajeRespuesta() != null ? h.getMensajeRespuesta() : "");
                 m.put("xmlRespuesta", h.getXmlRespuesta() != null ? h.getXmlRespuesta() : "");
-                return m;
-            }).toList();
+                result.add(m);
+            });
+
+            // 2. Agregar eventos de SIFEN asociados (Cancelaciones, Conformidades, etc.)
+            if (d.getCdc() != null && !d.getCdc().isBlank()) {
+                List<EventoDocumento> eventos = eventoService.obtenerPorCdc(d.getCdc());
+                eventos.forEach(ev -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", ev.getId());
+                    m.put("fechaRegistro", ev.getFechaRespuesta() != null ? ev.getFechaRespuesta().toString() : 
+                                         (ev.getFechaCreacion() != null ? ev.getFechaCreacion().toString() : ""));
+                    m.put("operacion", "EVENTO_" + ev.getTipoEvento().name());
+                    m.put("codigoEstado", ev.getCodigoSifen() != null ? ev.getCodigoSifen() : "");
+                    m.put("mensajeRespuesta", ev.getMensajeSifen() != null ? ev.getMensajeSifen() : "");
+                    m.put("xmlRespuesta", ev.getXmlRespuestaSifen() != null ? ev.getXmlRespuestaSifen() : "");
+                    result.add(m);
+                });
+            }
+
+            // Ordenar por fecha descendente
+            result.sort((a, b) -> String.valueOf(b.get("fechaRegistro")).compareTo(String.valueOf(a.get("fechaRegistro"))));
+            
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error obteniendo historial del documento " + id, e);

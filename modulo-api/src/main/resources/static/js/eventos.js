@@ -88,6 +88,17 @@ window.abrirModalCancelacion = async function(docId, cdc) {
     // Pre-cargar empresas en el selector de cancelación
     await cargarEmpresasEnEvento();
 
+    // Seleccionar automáticamente la empresa actual y bloquear el selector
+    const selectEmpresa = document.getElementById('eventoEmpresaSelect');
+    const empresaData = localStorage.getItem('empresa_activa');
+    if (empresaData && selectEmpresa) {
+        try {
+            const empresa = JSON.parse(empresaData);
+            selectEmpresa.value = empresa.id;
+            selectEmpresa.disabled = true;
+        } catch(e) {}
+    }
+
     // Limpiar y mostrar el modal
     const motivoEl = document.getElementById('canMotivo');
     if (motivoEl) motivoEl.value = '';
@@ -268,8 +279,8 @@ async function cargarHistorialEventos() {
             tr.innerHTML = `
                 <td>${formatDate(ev.fechaCreacion)}</td>
                 <td>${tipoLabel}</td>
-                <td class="mono small-text" title="${ev.cdcRelacionado || ''}">${
-                    ev.cdcRelacionado ? ev.cdcRelacionado.substring(0, 20) + '…' : '—'
+                <td class="mono" style="font-size:0.75em; word-break:break-all; max-width:320px;" title="${ev.cdcRelacionado || ''}">${
+                    ev.cdcRelacionado || '—'
                 }</td>
                 <td><span class="badge-status ${estadoClass}">${ev.estado}</span></td>
                 <td class="mono">${ev.codigoSifen || '—'}</td>
@@ -309,7 +320,7 @@ window.abrirDetalleEvento = async function(eventoId) {
         document.getElementById('evDetMensaje').innerHTML = ev.mensajeSifen  || '—';
         document.getElementById('evDetUsuario').innerHTML = ev.mensajeUsuario || '—';
         document.getElementById('evDetFecha').textContent   = ev.fechaCreacion  || '—';
-        document.getElementById('evDetRespuesta').textContent = '(Haz clic en "Ver XML Respuesta" para cargar)';
+        document.getElementById('evDetRespuesta').textContent = ev.xmlRespuestaSifen || '(sin respuesta)';
         document.getElementById('evDetRespuestaBox').style.display = 'none';
 
         // Guardar para ver XML

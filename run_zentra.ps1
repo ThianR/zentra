@@ -43,5 +43,5 @@ Write-Host "Reconstruyendo proyecto (Install)..." -ForegroundColor Cyan
 & "$MAVEN_PATH\mvn.cmd" clean install -DskipTests "-Dfile.encoding=UTF-8"
 
 
-Write-Host "Lanzando modulo-api (Salida redirigida a zentra.log)..." -ForegroundColor Magenta
-& "$MAVEN_PATH\mvn.cmd" spring-boot:run -f modulo-api/pom.xml > zentra.log 2>&1
+Write-Host "Lanzando modulo-api..." -ForegroundColor Magenta
+& "$MAVEN_PATH\mvn.cmd" spring-boot:run -f modulo-api/pom.xml

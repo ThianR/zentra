@@ -264,14 +264,19 @@ public class XmlSignerService {
      * {@code XMLSignatureFactory} resuelva la URI correctamente. Este método lo hace
      * mediante {@code element.setIdAttribute("Id", true)}.</p>
      *
+     * <p>Según el Manual Técnico SIFEN v150, capítulo 11.5:</p>
+     * <ul>
+     *   <li>GDE002 = {@code rEve} — nodo firmable (contiene atributo {@code Id})</li>
+     *   <li>GDE008 = {@code Signature} — hijo de {@code rGesEve} (GDE001), hermano de {@code rEve}</li>
+     * </ul>
+     *
      * @param xmlEventoGenerado   XML del evento producido por {@code EventoXmlGenerator}.
-     * @param idFirma             Valor del atributo {@code Id} del nodo {@code gGroupGestE}
+     * @param idFirma             Valor del atributo {@code Id} del nodo {@code rEve}
      *                            (se usará como {@code Reference URI="#<idFirma>"}).
      * @param p12Bytes            Bytes del certificado P12 (null si se usa rutaP12).
      * @param rutaP12             Ruta al archivo .p12 (null si se usan p12Bytes).
      * @param passwordCertificado Contraseña del certificado (puede estar cifrada con AES-256).
-     * @return XML del evento con la firma XMLDSig embebida, sin declaración {@code <?xml...?>},
-     *         listo para insertar en el SOAP Body de {@code siRecepEvento}.
+     * @return XML del evento con la firma XMLDSig embebida, listo para envolver en SOAP.
      * @throws Exception si la estructura del XML es inválida, el certificado no carga
      *                   o la firma falla.
      */
@@ -302,19 +307,17 @@ public class XmlSignerService {
         DocumentBuilder db = dbf.newDocumentBuilder();
         Document doc = db.parse(new InputSource(new StringReader(xmlEventoGenerado)));
 
-        Element root = doc.getDocumentElement(); // <rEnviEvt>
-
-        // 3. Localizar el nodo <gGroupGestE Id="..."> que se va a firmar
-        Element nodoAFirmar = buscarNodoPorAtributoId(doc, "gGroupGestE", idFirma);
+        // 3. Localizar el nodo <rEve Id="..."> que se va a firmar (GDE002)
+        Element nodoAFirmar = buscarNodoPorAtributoId(doc, "rEve", idFirma);
         if (nodoAFirmar == null) {
             throw new Exception(
-                "No se encontró el nodo <gGroupGestE> con Id=\"" + idFirma + "\" en el XML del evento.");
+                "No se encontró el nodo <rEve> con Id=\"" + idFirma + "\" en el XML del evento.");
         }
 
         // 4. Marcar atributo Id como xsd:ID para que XMLSignatureFactory
         //    resuelva la referencia URI="#<idFirma>" correctamente.
         nodoAFirmar.setIdAttribute("Id", true);
-        logger.info("[XmlSignerService.firmarEventoXml] Nodo <gGroupGestE Id=\"" + idFirma + "\"> marcado para firma.");
+        logger.info("[XmlSignerService.firmarEventoXml] Nodo <rEve Id=\"" + idFirma + "\"> marcado para firma.");
 
         // 5. Construir la firma XMLDSig (mismos algoritmos que para DTEs)
         XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
@@ -339,8 +342,10 @@ public class XmlSignerService {
         X509Data xd = kif.newX509Data(Collections.singletonList(cert));
         KeyInfo ki  = kif.newKeyInfo(Collections.singletonList(xd));
 
-        // 6. La firma se inserta como ÚLTIMO hijo del nodo raíz <rEnviEvt>
-        DOMSignContext dsc = new DOMSignContext(privateKey, root);
+        // 6. La firma se inserta como hijo de <rGesEve> (GDE001), hermano de <rEve>.
+        //    Según Manual Técnico v150, GDE008 (Signature) es hijo de GDE001 (rGesEve).
+        Element rGesEve = (Element) nodoAFirmar.getParentNode();
+        DOMSignContext dsc = new DOMSignContext(privateKey, rGesEve);
         fac.newXMLSignature(si, ki).sign(dsc);
 
         // 7. Serializar el DOM firmado a String UTF-8
@@ -355,9 +360,6 @@ public class XmlSignerService {
 
         // 8. Limpiar saltos de línea inyectados en valores Base64
         xmlFirmado = limpiarSaltosBase64(xmlFirmado);
-
-        // 9. Eliminar la declaración <?xml?> para embeber dentro del SOAP Body
-        xmlFirmado = xmlFirmado.replace("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "").trim();
 
         logger.info("[XmlSignerService.firmarEventoXml] Evento firmado exitosamente. Longitud=" + xmlFirmado.length());
         return xmlFirmado;

@@ -272,8 +272,13 @@ public class EventoService {
         evento.setXmlRespuestaSifen(xmlRespuesta);
         evento.setFechaRespuesta(java.time.LocalDateTime.now());
 
-        // Código 0300 = Aprobado; cualquier otro = Rechazado
-        boolean aprobado = "0300".equals(codigoSifen);
+        // Códigos de Éxito en SIFEN para Eventos:
+        // 0600 = Evento registrado correctamente
+        // 0601 = Evento registrado con observación
+        // 4003 = CDC ya se encuentra con el mismo evento solicitado (Idempotencia)
+        // También incluimos códigos de documentos por si acaso (0300, 0301, 0260)
+        boolean aprobado = "0600".equals(codigoSifen) || "0601".equals(codigoSifen) || "4003".equals(codigoSifen)
+                        || "0300".equals(codigoSifen) || "0301".equals(codigoSifen) || "0260".equals(codigoSifen);
         evento.setEstado(aprobado ? EstadoEvento.APROBADO : EstadoEvento.RECHAZADO);
 
         // Si el evento de cancelación fue aprobado, se actualiza el estado del DTE original
