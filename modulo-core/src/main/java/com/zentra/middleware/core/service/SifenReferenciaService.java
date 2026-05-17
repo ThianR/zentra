@@ -26,6 +26,9 @@ public class SifenReferenciaService {
     }
 
     public List<SifenReferencia> listarPorTipoYPadre(String tipo, String padreCodigo) {
+        if ("CIUDAD".equalsIgnoreCase(tipo)) {
+            return repository.findCiudadesByDepartamento(padreCodigo);
+        }
         return repository.findByTipoAndPadreCodigoAndActivoOrderByOrdenAscDescripcionAsc(tipo, padreCodigo, true);
     }
 

@@ -582,8 +582,23 @@
                                         class="form-control">
                                 </div>
                                 <div class="form-group span-2">
-                                    <label>Dirección</label>
-                                    <input type="text" id="direccionReceptor" name="direccionReceptor" class="form-control" placeholder="Ej: Avda. Principal 123">
+                                    <label>Dirección y Nro. Casa</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="direccionReceptor" name="direccionReceptor" class="form-control" placeholder="Ej: Avda. Principal" style="flex: 3;">
+                                        <input type="text" id="numeroCasaReceptor" name="numeroCasaReceptor" class="form-control" placeholder="Nro (Ej: 123 o 0)" style="flex: 1;" value="0">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Departamento <span class="text-error" id="reqDeptoRec" style="display:none;">*</span></label>
+                                    <select id="receptorCodDepartamento" name="receptorCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                        <option value="">Seleccione Departamento...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ciudad <span class="text-error" id="reqCiuRec" style="display:none;">*</span></label>
+                                    <select id="receptorCodCiudad" name="receptorCodCiudad" class="form-select">
+                                        <option value="">Seleccione Depto. primero</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Teléfono</label>
@@ -683,26 +698,31 @@
                             <h4 class="section-title">Datos de Transporte</h4>
                             <div class="grid-row cols-3">
                                 <div class="form-group">
-                                    <label>Nombre del Chofer</label>
-                                    <input type="text" id="nombreChofer" class="form-control">
+                                    <label>Tipo de Transporte <span class="text-error">*</span></label>
+                                    <select id="tipoTransporte" class="form-select">
+                                        <option value="1">1 - Propio</option>
+                                        <option value="2">2 - Tercero</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Documento Chofer</label>
-                                    <input type="text" id="docChofer" class="form-control">
-                                </div>
-                                <div class="form-group">
-                                    <label>Matrícula Vehículo</label>
-                                    <input type="text" id="patente" class="form-control">
-                                </div>
-                                <div class="form-group">
-                                    <label>Motivo de Traslado</label>
+                                    <label>Motivo de Traslado <span class="text-error">*</span></label>
                                     <select id="motivoTraslado" class="form-control">
-                                        <option value="1">Traslado por venta</option>
-                                        <option value="2">Traslado por consignación</option>
-                                        <option value="3">Traslado por devolución</option>
-                                        <option value="4">Traslado por compra</option>
-                                        <option value="5">Traslado por exportación</option>
-                                        <option value="13">Otros</option>
+                                        <option value="1">1 - Traslado por venta</option>
+                                        <option value="2">2 - Traslado por consignación</option>
+                                        <option value="3">3 - Traslado por devolución</option>
+                                        <option value="4">4 - Traslado por compra</option>
+                                        <option value="5">5 - Traslado por exportación</option>
+                                        <option value="13">13 - Otros</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Responsable de Emisión NR <span class="text-error">*</span></label>
+                                    <select id="responsableEmisionNR" class="form-select">
+                                        <option value="1">1 - Emisor de la factura</option>
+                                        <option value="2">2 - Receptor de la factura</option>
+                                        <option value="3">3 - Empresa de transporte</option>
+                                        <option value="4">4 - Despachante de Aduana</option>
+                                        <option value="5">5 - Sin nombre</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -710,8 +730,116 @@
                                     <input type="number" id="kmsRecorrido" class="form-control" value="10">
                                 </div>
                                 <div class="form-group">
-                                    <label>Descripción Vehículo</label>
-                                    <input type="text" id="descVehiculo" class="form-control" placeholder="Camioneta Toyota Hilux">
+                                    <label>Matrícula Vehículo</label>
+                                    <input type="text" id="patente" class="form-control" placeholder="ABC 123">
+                                </div>
+                                <div class="form-group">
+                                    <label>Marca de Vehículo</label>
+                                    <input type="text" id="marcaVehiculo" class="form-control" placeholder="Scania / Toyota">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tipo de Vehículo</label>
+                                    <input type="text" id="tipoVehiculo" class="form-control" placeholder="Camión / Furgón">
+                                </div>
+                                <div class="form-group">
+                                    <label>Chasis de Vehículo (Opcional)</label>
+                                    <input type="text" id="chasisVehiculo" class="form-control" placeholder="Nro. de Chasis">
+                                </div>
+                                <div class="form-group">
+                                    <label>Naturaleza del Transportista</label>
+                                    <select id="naturalezaTransportista" class="form-select">
+                                        <option value="1">1 - Contribuyente</option>
+                                        <option value="2">2 - No Contribuyente</option>
+                                    </select>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Nombre del Transportista</label>
+                                    <input type="text" id="nombreTransportista" class="form-control" placeholder="Razón social o nombre de la empresa">
+                                </div>
+                                <div class="form-group">
+                                    <label>RUC Transportista</label>
+                                    <div class="input-with-action">
+                                        <input type="text" id="rucTransportista" class="form-control" placeholder="80000000">
+                                        <button type="button" id="btnLookupRucTransp" class="btn-icon" title="Consultar RUC del transportista">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>DV Transportista</label>
+                                    <input type="text" id="dvTransportista" class="form-control" maxlength="1" placeholder="0">
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Nombre del Chofer <span class="text-error">*</span></label>
+                                    <input type="text" id="nombreChofer" class="form-control" placeholder="Nombre completo del conductor">
+                                </div>
+                                <div class="form-group">
+                                    <label>Documento del Chofer <span class="text-error">*</span></label>
+                                    <input type="text" id="docChofer" class="form-control" placeholder="Cédula de identidad">
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Dirección del Chofer</label>
+                                    <input type="text" id="dirChofer" class="form-control" placeholder="Calle y número de la vivienda">
+                                </div>
+                                <div class="form-group">
+                                    <label>Fecha Inicio Traslado <span class="text-error">*</span></label>
+                                    <input type="date" id="fechaInicioTraslado" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>Fecha Fin Traslado (opcional)</label>
+                                    <input type="date" id="fechaFinTraslado" class="form-control">
+                                </div>
+                                
+                                <!-- Local de Salida de Mercaderías -->
+                                <div class="form-group span-3" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                                    <h5 style="margin: 0; color: var(--accent-primary);"><i class="fas fa-map-marker-alt"></i> Local de Salida de las Mercaderías</h5>
+                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los datos de dirección del emisor.</small>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Dirección de Salida</label>
+                                    <input type="text" id="localSalidaDireccion" class="form-control" placeholder="Calle y número de salida">
+                                </div>
+                                <div class="form-group">
+                                    <label>Nro. Casa Salida</label>
+                                    <input type="number" id="localSalidaNumeroCasa" class="form-control" value="0" placeholder="0 o número">
+                                </div>
+                                <div class="form-group">
+                                    <label>Departamento de Salida</label>
+                                    <select id="localSalidaCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                        <option value="">Seleccione Departamento...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ciudad de Salida</label>
+                                    <select id="localSalidaCodCiudad" class="form-select">
+                                        <option value="">Seleccione Depto. primero</option>
+                                    </select>
+                                </div>
+
+                                <!-- Local de Entrega de Mercaderías -->
+                                <div class="form-group span-3" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                                    <h5 style="margin: 0; color: var(--accent-primary);"><i class="fas fa-map-marker-alt"></i> Local de Entrega de las Mercaderías</h5>
+                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los datos de dirección del receptor.</small>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Dirección de Entrega</label>
+                                    <input type="text" id="localEntregaDireccion" class="form-control" placeholder="Calle y número de entrega">
+                                </div>
+                                <div class="form-group">
+                                    <label>Nro. Casa Entrega</label>
+                                    <input type="number" id="localEntregaNumeroCasa" class="form-control" value="0" placeholder="0 o número">
+                                </div>
+                                <div class="form-group">
+                                    <label>Departamento de Entrega</label>
+                                    <select id="localEntregaCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                        <option value="">Seleccione Departamento...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ciudad de Entrega</label>
+                                    <select id="localEntregaCodCiudad" class="form-select">
+                                        <option value="">Seleccione Depto. primero</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>

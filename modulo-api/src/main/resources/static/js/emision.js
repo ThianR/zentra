@@ -15,6 +15,17 @@ function initForm() {
         if (e.target.value.length >= 6) lookupRuc();
     };
 
+    const btnLookupTransp = document.getElementById('btnLookupRucTransp');
+    if (btnLookupTransp) {
+        btnLookupTransp.onclick = lookupRucTransp;
+    }
+    const rucTranspInput = document.getElementById('rucTransportista');
+    if (rucTranspInput) {
+        rucTranspInput.onblur = (e) => {
+            if (e.target.value.length >= 6) lookupRucTransp();
+        };
+    }
+
     btnAddItem.onclick = () => addItemRow();
 
     document.querySelectorAll('.btn-dev').forEach(btn => {
@@ -32,7 +43,19 @@ function initForm() {
     // Vincular filtrado de ciudades
     const deptoSelect = document.getElementById('emisorCodDepto');
     if (deptoSelect) {
-        deptoSelect.onchange = (e) => loadCiudades(e.target.value);
+        deptoSelect.onchange = (e) => loadCiudades(e.target.value, 'emisorCodCiudad');
+    }
+    const deptoRecSelect = document.getElementById('receptorCodDepartamento');
+    if (deptoRecSelect) {
+        deptoRecSelect.onchange = (e) => loadCiudades(e.target.value, 'receptorCodCiudad');
+    }
+    const deptoSalSelect = document.getElementById('localSalidaCodDepartamento');
+    if (deptoSalSelect) {
+        deptoSalSelect.onchange = (e) => loadCiudades(e.target.value, 'localSalidaCodCiudad');
+    }
+    const deptoEntSelect = document.getElementById('localEntregaCodDepartamento');
+    if (deptoEntSelect) {
+        deptoEntSelect.onchange = (e) => loadCiudades(e.target.value, 'localEntregaCodCiudad');
     }
 
     // Vincular selector de empresas
@@ -117,7 +140,7 @@ function populateEmisorData(ruc) {
     
     if (emp.codDepartamento) {
         document.getElementById('emisorCodDepto').value = emp.codDepartamento;
-        loadCiudades(emp.codDepartamento).then(() => {
+        loadCiudades(emp.codDepartamento, 'emisorCodCiudad').then(() => {
             if (emp.codCiudad) document.getElementById('emisorCodCiudad').value = emp.codCiudad;
         });
     }
@@ -184,7 +207,9 @@ async function initReferencias() {
             
             // Si es departamento, disparar carga de ciudades
             if (tipo === 'DEPARTAMENTO' && data.length > 0) {
-                loadCiudades(select.value);
+                if (select.id === 'emisorCodDepto') loadCiudades(select.value, 'emisorCodCiudad');
+                if (select.id === 'receptorCodDepartamento') loadCiudades(select.value, 'receptorCodCiudad');
+                if (select.id === 'localSalidaCodDepartamento') loadCiudades(select.value, 'localSalidaCodCiudad');
             }
         } catch (error) {
             console.error(`Error cargando referencia ${tipo}:`, error);
@@ -193,8 +218,8 @@ async function initReferencias() {
     }
 }
 
-async function loadCiudades(codDepto) {
-    const ciudadSelect = document.getElementById('emisorCodCiudad');
+async function loadCiudades(codDepto, targetId = 'emisorCodCiudad') {
+    const ciudadSelect = document.getElementById(targetId);
     if (!ciudadSelect) return;
     
     ciudadSelect.innerHTML = '<option value="">Cargando ciudades...</option>';
@@ -257,6 +282,16 @@ function toggleSections(type) {
         sectionTransporte.classList.remove('hidden');
         sectionFactura.classList.add('hidden');
     }
+
+    // Validaciones UI dinámicas
+    if (type === '7') {
+        if(document.getElementById('reqDeptoRec')) document.getElementById('reqDeptoRec').style.display = 'inline';
+        if(document.getElementById('reqCiuRec')) document.getElementById('reqCiuRec').style.display = 'inline';
+    } else {
+        if(document.getElementById('reqDeptoRec')) document.getElementById('reqDeptoRec').style.display = 'none';
+        if(document.getElementById('reqCiuRec')) document.getElementById('reqCiuRec').style.display = 'none';
+    }
+
     toggleCuotas(); // Initial check
 }
 
@@ -365,6 +400,54 @@ async function lookupRuc() {
     } finally {
         btnLookup.innerHTML = originalHtml;
         btnLookup.disabled = false;
+    }
+}
+
+async function lookupRucTransp() {
+    const rucInput = document.getElementById('rucTransportista');
+    if (!rucInput) return;
+
+    let ruc = rucInput.value.trim();
+    if (!ruc) return;
+
+    const btnLookup = document.getElementById('btnLookupRucTransp');
+    const originalHtml = btnLookup ? btnLookup.innerHTML : '<i class="fas fa-search"></i>';
+    
+    if (btnLookup) {
+        btnLookup.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btnLookup.disabled = true;
+    }
+    
+    try {
+        const response = await fetch(`/api/v1/emision/consultar-ruc?ruc=${encodeURIComponent(ruc)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        if (data && data.razonSocial) {
+            document.getElementById('nombreTransportista').value = data.razonSocial;
+            if (data.dv) {
+                document.getElementById('dvTransportista').value = data.dv;
+            }
+            // Limpiar RUC de guiones si devolvió RUC formateado
+            let rucBase = ruc;
+            if (ruc.indexOf('-') !== -1) {
+                rucBase = ruc.split('-')[0];
+            }
+            rucInput.value = rucBase;
+            
+            showToast('Datos del transportista recuperados', 'success');
+        } else {
+            showToast('No se encontraron datos para este RUC del transportista', 'warning');
+        }
+    } catch (error) {
+        console.error('Transportista RUC Lookup error:', error);
+        showToast('Error al consultar RUC del transportista', 'error');
+    } finally {
+        if (btnLookup) {
+            btnLookup.innerHTML = originalHtml;
+            btnLookup.disabled = false;
+        }
     }
 }
 
@@ -563,6 +646,9 @@ async function submitDte() {
                 ruc: rucRec ? rucRec.replace(/\./g, '') : '',
                 razonSocial: razonRec,
                 direccion: direccionRec,
+                numeroCasa: document.getElementById('numeroCasaReceptor') ? document.getElementById('numeroCasaReceptor').value || '0' : '0',
+                codDepartamento: document.getElementById('receptorCodDepartamento') ? parseInt(document.getElementById('receptorCodDepartamento').value) || 0 : 0,
+                codCiudad: document.getElementById('receptorCodCiudad') ? parseInt(document.getElementById('receptorCodCiudad').value) || 0 : 0,
                 telefono: telefonoRec,
                 email: emailRec,
                 tipoReceptor: rucRec.includes('-') ? 1 : 2,
@@ -579,12 +665,31 @@ async function submitDte() {
             cdcDocumentoAsociado: document.getElementById('cdcAsociado').value,
             motivoEmision: document.getElementById('motivoEmision').value,
             transporte: {
-                nombreChofer: document.getElementById('nombreChofer').value,
-                numeroDocumentoChofer: document.getElementById('docChofer').value,
-                matriculaVehiculo: document.getElementById('patente').value,
+                tipoTransporte: parseInt(document.getElementById('tipoTransporte').value) || 1,
+                naturalezaTransportista: parseInt(document.getElementById('naturalezaTransportista').value) || 1,
+                responsableEmision: parseInt(document.getElementById('responsableEmisionNR').value) || 1,
                 motivoTraslado: document.getElementById('motivoTraslado').value,
                 kmsRecorrido: parseInt(document.getElementById('kmsRecorrido').value) || 10,
-                descVehiculo: document.getElementById('descVehiculo').value
+                matriculaVehiculo: document.getElementById('patente').value,
+                marcaVehiculo: document.getElementById('marcaVehiculo') ? document.getElementById('marcaVehiculo').value : '',
+                tipoVehiculo: document.getElementById('tipoVehiculo') ? document.getElementById('tipoVehiculo').value : '',
+                chasisVehiculo: document.getElementById('chasisVehiculo') ? document.getElementById('chasisVehiculo').value : '',
+                nombreTransportista: document.getElementById('nombreTransportista').value,
+                rucTransportista: document.getElementById('rucTransportista').value,
+                dvTransportista: document.getElementById('dvTransportista').value,
+                nombreChofer: document.getElementById('nombreChofer').value,
+                numeroDocumentoChofer: document.getElementById('docChofer').value,
+                direccionChofer: document.getElementById('dirChofer').value,
+                fechaInicioTraslado: document.getElementById('fechaInicioTraslado').value,
+                fechaFinTraslado: document.getElementById('fechaFinTraslado').value,
+                localSalidaDireccion: document.getElementById('localSalidaDireccion').value,
+                localSalidaNumeroCasa: parseInt(document.getElementById('localSalidaNumeroCasa').value) || 0,
+                localSalidaCodigoDepartamento: parseInt(document.getElementById('localSalidaCodDepartamento').value) || null,
+                localSalidaCodigoCiudad: parseInt(document.getElementById('localSalidaCodCiudad').value) || null,
+                localEntregaDireccion: document.getElementById('localEntregaDireccion').value,
+                localEntregaNumeroCasa: parseInt(document.getElementById('localEntregaNumeroCasa').value) || 0,
+                localEntregaCodigoDepartamento: parseInt(document.getElementById('localEntregaCodDepartamento').value) || null,
+                localEntregaCodigoCiudad: parseInt(document.getElementById('localEntregaCodCiudad').value) || null
             },
             ambiente: (sessionStorage.getItem('zentra-env') || 'dev') === 'dev' ? 'TEST' : 'PRODUCCION'
         };
@@ -691,6 +796,9 @@ function loadMockData(type) {
         document.getElementById('nombreChofer').value = 'MARIO KART';
         document.getElementById('docChofer').value = '1234567';
         document.getElementById('patente').value = 'ABC-123';
+        if (document.getElementById('marcaVehiculo')) document.getElementById('marcaVehiculo').value = 'SCANIA';
+        if (document.getElementById('tipoVehiculo')) document.getElementById('tipoVehiculo').value = 'CAMION';
+        if (document.getElementById('chasisVehiculo')) document.getElementById('chasisVehiculo').value = '9381A2849184B129A';
         addItemRow('MAQ-01', 'TRACTOR AGRICOLA CAT', 1, 0, 0);
     }
     

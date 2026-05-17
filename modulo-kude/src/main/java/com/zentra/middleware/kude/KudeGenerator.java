@@ -5,6 +5,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.zentra.middleware.core.model.DocumentoElectronico;
+import com.zentra.middleware.core.model.Transporte;
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,51 @@ public class KudeGenerator {
             // Control de Estado (Marca de Agua)
             boolean estaCancelado = dte.getEstado() != null && dte.getEstado().name().equals("ANULADO");
             parameters.put("P_CANCELADO", estaCancelado);
+
+            // Parámetros de Transporte y Notas de Remisión
+            if (dte.getTransporte() != null) {
+                parameters.put("P_ES_REMISION", "7".equals(dte.getTipoDocumento()));
+                
+                Transporte t = dte.getTransporte();
+                parameters.put("P_TRANSP_RUC", t.getRucTransportista() != null ? t.getRucTransportista() + (t.getDvTransportista() != null ? "-" + t.getDvTransportista() : "") : "-");
+                parameters.put("P_TRANSP_NOMBRE", t.getNombreTransportista() != null ? t.getNombreTransportista() : "-");
+                
+                parameters.put("P_CHOFER_DOC", t.getNumeroDocumentoChofer() != null ? t.getNumeroDocumentoChofer() : "-");
+                parameters.put("P_CHOFER_NOMBRE", t.getNombreChofer() != null ? t.getNombreChofer() : "-");
+                
+                parameters.put("P_VEHICULO_MARCA", t.getMarcaVehiculo() != null ? t.getMarcaVehiculo() : "-");
+                parameters.put("P_VEHICULO_MATRICULA", t.getMatriculaVehiculo() != null ? t.getMatriculaVehiculo() : "-");
+                parameters.put("P_VEHICULO_TIPO", t.getTipoVehiculo() != null ? t.getTipoVehiculo() : "-");
+                parameters.put("P_VEHICULO_CHASIS", t.getChasisVehiculo() != null ? t.getChasisVehiculo() : "-");
+                
+                String motivo = t.getDescripcionMotivoTraslado();
+                if (motivo == null || motivo.trim().isEmpty()) {
+                    motivo = getMotivoTrasladoTexto(t.getMotivoTraslado());
+                }
+                parameters.put("P_MOTIVO_TRASLADO", motivo);
+                parameters.put("P_FECHA_INICIO_TRASLADO", formatDate(t.getFechaInicioTraslado()));
+                parameters.put("P_FECHA_FIN_TRASLADO", formatDate(t.getFechaFinTraslado()));
+                parameters.put("P_KMS_RECORRIDO", t.getKmsRecorrido() != null ? String.valueOf(t.getKmsRecorrido()) : "-");
+                
+                parameters.put("P_SALIDA_DIR", formatDireccion(t.getLocalSalidaDireccion(), t.getLocalSalidaNumeroCasa(), t.getLocalSalidaDescripcionCiudad(), t.getLocalSalidaDescripcionDepartamento()));
+                parameters.put("P_ENTREGA_DIR", formatDireccion(t.getLocalEntregaDireccion(), t.getLocalEntregaNumeroCasa(), t.getLocalEntregaDescripcionCiudad(), t.getLocalEntregaDescripcionDepartamento()));
+            } else {
+                parameters.put("P_ES_REMISION", "7".equals(dte.getTipoDocumento()));
+                parameters.put("P_TRANSP_RUC", "-");
+                parameters.put("P_TRANSP_NOMBRE", "-");
+                parameters.put("P_CHOFER_DOC", "-");
+                parameters.put("P_CHOFER_NOMBRE", "-");
+                parameters.put("P_VEHICULO_MARCA", "-");
+                parameters.put("P_VEHICULO_MATRICULA", "-");
+                parameters.put("P_VEHICULO_TIPO", "-");
+                parameters.put("P_VEHICULO_CHASIS", "-");
+                parameters.put("P_MOTIVO_TRASLADO", "-");
+                parameters.put("P_FECHA_INICIO_TRASLADO", "-");
+                parameters.put("P_FECHA_FIN_TRASLADO", "-");
+                parameters.put("P_KMS_RECORRIDO", "-");
+                parameters.put("P_SALIDA_DIR", "-");
+                parameters.put("P_ENTREGA_DIR", "-");
+            }
 
             // Generar QR
             String qrUrl = "https://kuatia.set.gov.py/consultas/qr?nDe=" + dte.getCdc();
@@ -142,5 +188,56 @@ public class KudeGenerator {
         QRCodeWriter qrCodeWriter = new QRCodeWriter();
         BitMatrix bitMatrix = qrCodeWriter.encode(text, BarcodeFormat.QR_CODE, 200, 200);
         return MatrixToImageWriter.toBufferedImage(bitMatrix);
+    }
+
+    private String getMotivoTrasladoTexto(Integer motivo) {
+        if (motivo == null) return "-";
+        switch (motivo) {
+            case 1: return "Venta";
+            case 2: return "Traslado por emisor";
+            case 3: return "Traslado por tercero";
+            case 4: return "Devolución";
+            case 5: return "Compra";
+            case 6: return "Importación";
+            case 7: return "Exportación";
+            case 99: return "Otro motivo";
+            default: return "Motivo " + motivo;
+        }
+    }
+
+    private String formatDate(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty()) return "-";
+        try {
+            if (dateStr.contains("-")) {
+                String[] parts = dateStr.split("-");
+                if (parts.length == 3) {
+                    if (parts[0].length() == 4) {
+                        return parts[2] + "-" + parts[1] + "-" + parts[0];
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignorar y devolver original
+        }
+        return dateStr;
+    }
+
+    private String formatDireccion(String direccion, Integer nroCasa, String ciudad, String depto) {
+        StringBuilder sb = new StringBuilder();
+        if (direccion != null && !direccion.trim().isEmpty()) {
+            sb.append(direccion);
+        } else {
+            sb.append("-");
+        }
+        if (nroCasa != null && nroCasa > 0) {
+            sb.append(" Nro. ").append(nroCasa);
+        }
+        if (ciudad != null && !ciudad.trim().isEmpty()) {
+            sb.append(", ").append(ciudad);
+        }
+        if (depto != null && !depto.trim().isEmpty()) {
+            sb.append(", ").append(depto);
+        }
+        return sb.toString();
     }
 }

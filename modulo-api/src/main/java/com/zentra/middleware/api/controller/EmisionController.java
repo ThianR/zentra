@@ -226,12 +226,42 @@ public class EmisionController {
             dte.setReceptorTelefono(String.valueOf(recRaw.getOrDefault("telefono", "")));
             dte.setReceptorEmail(String.valueOf(recRaw.getOrDefault("email", "")));
             dte.setCPaisReceptor(String.valueOf(recRaw.getOrDefault("cPaisReceptor", "PRY")));
+
+            // --- Nuevos campos de ubicación dinámica del receptor ---
+            if (recRaw.get("numeroCasa") != null) {
+                dte.setReceptorNumeroCasa(String.valueOf(recRaw.get("numeroCasa")));
+            }
+            
+            if (recRaw.get("codDepartamento") != null) {
+                int codDepto = safeInt(recRaw.get("codDepartamento"), 0);
+                if (codDepto > 0) {
+                    dte.setReceptorCodigoDepartamento(codDepto);
+                    referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepto))
+                            .ifPresent(ref -> dte.setReceptorDescripcionDepartamento(ref.getDescripcion()));
+                }
+            }
+
+            if (recRaw.get("codCiudad") != null) {
+                int codCiud = safeInt(recRaw.get("codCiudad"), 0);
+                if (codCiud > 0) {
+                    dte.setReceptorCodigoCiudad(codCiud);
+                    // Buscar ciudad filtrada por el departamento para evitar ambigüedad de códigos
+                    int codDepto = dte.getReceptorCodigoDepartamento() != null ? dte.getReceptorCodigoDepartamento() : 1;
+                    referenciaRepository.findCiudadByDeptoAndCiudadCod(String.valueOf(codDepto), String.valueOf(codCiud))
+                            .ifPresent(ref -> dte.setReceptorDescripcionCiudad(ref.getDescripcion()));
+                }
+            }
         } else {
             rucParaGuardar = String.valueOf(payload.getOrDefault("rucReceptor", "Varios"));
             dte.setReceptorRazonSocial(String.valueOf(payload.getOrDefault("razonSocialReceptor", "Sin Nombre")));
             dte.setReceptorDireccion(String.valueOf(payload.getOrDefault("direccionReceptor", "")));
             dte.setReceptorTelefono(String.valueOf(payload.getOrDefault("telefonoReceptor", "")));
             dte.setReceptorEmail(String.valueOf(payload.getOrDefault("emailReceptor", "")));
+            
+            // Fallback para campos raíz si no vienen en el objeto receptor
+            if (payload.get("numeroCasaReceptor") != null) {
+                dte.setReceptorNumeroCasa(String.valueOf(payload.get("numeroCasaReceptor")));
+            }
         }
 
         rucParaGuardar = rucParaGuardar.replace(".", "").trim();
@@ -342,6 +372,57 @@ public class EmisionController {
                     Object motTr = tRaw.get("motivoTraslado");
                     t.setMotivoTraslado(motTr != null ? Integer.parseInt(motTr.toString()) : 1);
                     t.setKmsRecorrido(safeInt(tRaw.get("kmsRecorrido"), 10));
+                    // Tipo de transporte: 1=Propio, 2=Tercero (fallback: 1)
+                    t.setTipoTransporte(safeInt(tRaw.get("tipoTransporte"), 1));
+                    // Naturaleza del transportista: 1=Contribuyente, 2=No Contribuyente (fallback: 1)
+                    t.setNaturalezaTransportista(safeInt(tRaw.get("naturalezaTransportista"), 1));
+                    // Responsable de emisión NR: 1=Emisor, 2=Receptor (fallback: 1)
+                    t.setResponsableEmision(safeInt(tRaw.get("responsableEmision"), 1));
+                    // Datos del transportista (opcionales)
+                    t.setNombreTransportista(String.valueOf(tRaw.getOrDefault("nombreTransportista", "")));
+                    t.setRucTransportista(String.valueOf(tRaw.getOrDefault("rucTransportista", "")));
+                    t.setDvTransportista(String.valueOf(tRaw.getOrDefault("dvTransportista", "")));
+                    t.setDireccionChofer(String.valueOf(tRaw.getOrDefault("direccionChofer", "")));
+                    t.setFechaInicioTraslado(String.valueOf(tRaw.getOrDefault("fechaInicioTraslado", "")));
+                    t.setFechaFinTraslado(String.valueOf(tRaw.getOrDefault("fechaFinTraslado", "")));
+                    // Datos del vehículo de traslado (gVehTras)
+                    t.setMarcaVehiculo(String.valueOf(tRaw.getOrDefault("marcaVehiculo", "")));
+                    t.setTipoVehiculo(String.valueOf(tRaw.getOrDefault("tipoVehiculo", "")));
+                    t.setChasisVehiculo(String.valueOf(tRaw.getOrDefault("chasisVehiculo", "")));
+                    // Local de salida (gCamSal)
+                    t.setLocalSalidaDireccion(String.valueOf(tRaw.getOrDefault("localSalidaDireccion", "")));
+                    t.setLocalSalidaNumeroCasa(safeInt(tRaw.get("localSalidaNumeroCasa"), 0));
+                    int codDepSal = safeInt(tRaw.get("localSalidaCodigoDepartamento"), 0);
+                    if (codDepSal > 0) {
+                        t.setLocalSalidaCodigoDepartamento(codDepSal);
+                        referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepSal))
+                                .ifPresent(ref -> t.setLocalSalidaDescripcionDepartamento(ref.getDescripcion()));
+                    }
+                    int codCiuSal = safeInt(tRaw.get("localSalidaCodigoCiudad"), 0);
+                    if (codCiuSal > 0) {
+                        t.setLocalSalidaCodigoCiudad(codCiuSal);
+                        // Buscar ciudad filtrada por su departamento padre para evitar ambigüedades
+                        int depSal = t.getLocalSalidaCodigoDepartamento() != null ? t.getLocalSalidaCodigoDepartamento() : 1;
+                        referenciaRepository.findCiudadByDeptoAndCiudadCod(String.valueOf(depSal), String.valueOf(codCiuSal))
+                                .ifPresent(ref -> t.setLocalSalidaDescripcionCiudad(ref.getDescripcion()));
+                    }
+                    // Local de entrega (gCamEnt)
+                    t.setLocalEntregaDireccion(String.valueOf(tRaw.getOrDefault("localEntregaDireccion", "")));
+                    t.setLocalEntregaNumeroCasa(safeInt(tRaw.get("localEntregaNumeroCasa"), 0));
+                    int codDepEnt = safeInt(tRaw.get("localEntregaCodigoDepartamento"), 0);
+                    if (codDepEnt > 0) {
+                        t.setLocalEntregaCodigoDepartamento(codDepEnt);
+                        referenciaRepository.findByTipoAndCodigo("DEPARTAMENTO", String.valueOf(codDepEnt))
+                                .ifPresent(ref -> t.setLocalEntregaDescripcionDepartamento(ref.getDescripcion()));
+                    }
+                    int codCiuEnt = safeInt(tRaw.get("localEntregaCodigoCiudad"), 0);
+                    if (codCiuEnt > 0) {
+                        t.setLocalEntregaCodigoCiudad(codCiuEnt);
+                        // Buscar ciudad filtrada por su departamento padre para evitar ambigüedades
+                        int depEnt = t.getLocalEntregaCodigoDepartamento() != null ? t.getLocalEntregaCodigoDepartamento() : 1;
+                        referenciaRepository.findCiudadByDeptoAndCiudadCod(String.valueOf(depEnt), String.valueOf(codCiuEnt))
+                                .ifPresent(ref -> t.setLocalEntregaDescripcionCiudad(ref.getDescripcion()));
+                    }
                     dte.setTransporte(t);
                 }
             }
@@ -443,7 +524,7 @@ public class EmisionController {
         signerService.firmarXml(dte);
 
         // --- VALIDACIÓN XSD LUEGO DE FIRMAR ---
-        xsdValidatorService.validarXml(dte.getXmlFirmado());
+        xsdValidatorService.validarXml(dte.getXmlFirmado(), dte.getTipoDocumento());
 
         // Forzar estado para emisión asíncrona por defecto o FIRMADO inicial
         dte.setEstado(EstadoDte.FIRMADO);
@@ -496,9 +577,19 @@ public class EmisionController {
             logger.warning("Validación DTE fallida: " + e.getMessage());
             return ResponseEntity.unprocessableEntity().body(
                     Map.of("message", "El documento no cumple con las validaciones SIFEN.", "errores", e.getErrores()));
+        } catch (RuntimeException e) {
+            // RuntimeException incluye errores de validación XSD (ya traducidos al español por XsdErrorTranslator)
+            // y errores de negocio como IllegalArgumentException, IllegalStateException, etc.
+            String mensajeUsuario = e.getMessage();
+            if (mensajeUsuario == null || mensajeUsuario.isBlank()) {
+                mensajeUsuario = "Ocurrió un error al procesar el documento. Por favor verifique los datos.";
+            }
+            logger.warning("Error controlado en emisión DTE: " + mensajeUsuario);
+            return ResponseEntity.status(422).body(Map.of("message", mensajeUsuario));
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error emitiendo DTE", e);
-            return ResponseEntity.status(500).body(Map.of("message", "Error interno: " + e.getMessage()));
+            logger.log(Level.SEVERE, "Error interno inesperado en emisión DTE", e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "message", "Ocurrió un error interno en el sistema. Por favor contacte al soporte técnico."));
         }
     }
 
@@ -679,6 +770,48 @@ public class EmisionController {
             return ResponseEntity.ok(m);
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error obteniendo documento " + id, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Error: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/consultar-referencia/{cdc}")
+    public ResponseEntity<?> consultarReferencia(@PathVariable String cdc) {
+        try {
+            logger.info("Consultando documento de referencia con CDC: " + cdc);
+            return documentoService.obtenerPorCdc(cdc)
+                .map(d -> {
+                    Map<String, Object> res = new HashMap<>();
+                    res.put("cdc", d.getCdc());
+                    res.put("tipoDocumento", d.getTipoDocumento());
+                    
+                    // Receptor
+                    Map<String, Object> receptor = new HashMap<>();
+                    receptor.put("ruc", d.getRucReceptor());
+                    receptor.put("razonSocial", d.getReceptorRazonSocial());
+                    receptor.put("direccion", d.getReceptorDireccion());
+                    receptor.put("telefono", d.getReceptorTelefono());
+                    receptor.put("email", d.getReceptorEmail());
+                    receptor.put("tipoReceptor", d.getTipoReceptor());
+                    res.put("receptor", receptor);
+                    
+                    // Items
+                    List<Map<String, Object>> items = d.getItems().stream().map(i -> {
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("codigo", i.getCodigo());
+                        item.put("descripcion", i.getDescripcion());
+                        item.put("cantidad", i.getCantidad());
+                        item.put("precioUnitario", i.getPrecioUnitario());
+                        item.put("tasaIva", i.getTasaIva());
+                        item.put("unidadMedida", i.getUnidadMedida());
+                        return item;
+                    }).toList();
+                    res.put("items", items);
+                    
+                    return ResponseEntity.ok(res);
+                })
+                .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error consultando referencia " + cdc, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Error: " + e.getMessage()));
         }
     }

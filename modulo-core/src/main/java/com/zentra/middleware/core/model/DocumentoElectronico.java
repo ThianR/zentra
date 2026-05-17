@@ -81,6 +81,13 @@ public class DocumentoElectronico {
     private String cPaisReceptor = "PRY"; 
     private Integer naturalezaVendedor; // Para Autofactura: 1=No Contribuyente, 2=Extranjero
     
+    // --- Campos de Dirección Dinámica del Receptor ---
+    private String receptorNumeroCasa;
+    private Integer receptorCodigoDepartamento;
+    private String receptorDescripcionDepartamento;
+    private Integer receptorCodigoCiudad;
+    private String receptorDescripcionCiudad;
+    
     private Double totalOperacion;
     private Double descuentoGlobal = 0.0;
     private Double porcentajeDescuentoGlobal = 0.0;
@@ -174,6 +181,17 @@ public class DocumentoElectronico {
     public void setTipoReceptor(Integer tipoReceptor) { this.tipoReceptor = tipoReceptor; }
     public Integer getNaturalezaVendedor() { return naturalezaVendedor; }
     public void setNaturalezaVendedor(Integer naturalezaVendedor) { this.naturalezaVendedor = naturalezaVendedor; }
+
+    public String getReceptorNumeroCasa() { return receptorNumeroCasa; }
+    public void setReceptorNumeroCasa(String receptorNumeroCasa) { this.receptorNumeroCasa = receptorNumeroCasa; }
+    public Integer getReceptorCodigoDepartamento() { return receptorCodigoDepartamento; }
+    public void setReceptorCodigoDepartamento(Integer receptorCodigoDepartamento) { this.receptorCodigoDepartamento = receptorCodigoDepartamento; }
+    public String getReceptorDescripcionDepartamento() { return receptorDescripcionDepartamento; }
+    public void setReceptorDescripcionDepartamento(String receptorDescripcionDepartamento) { this.receptorDescripcionDepartamento = receptorDescripcionDepartamento; }
+    public Integer getReceptorCodigoCiudad() { return receptorCodigoCiudad; }
+    public void setReceptorCodigoCiudad(Integer receptorCodigoCiudad) { this.receptorCodigoCiudad = receptorCodigoCiudad; }
+    public String getReceptorDescripcionCiudad() { return receptorDescripcionCiudad; }
+    public void setReceptorDescripcionCiudad(String receptorDescripcionCiudad) { this.receptorDescripcionCiudad = receptorDescripcionCiudad; }
 
     public Double getTotalOperacion() { return totalOperacion; }
     public void setTotalOperacion(Double totalOperacion) { this.totalOperacion = totalOperacion; }

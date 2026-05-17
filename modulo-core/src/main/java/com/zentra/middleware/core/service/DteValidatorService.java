@@ -277,6 +277,14 @@ public class DteValidatorService {
     // =========================================================================
 
     private void validarCondicionPago(DocumentoElectronico dte, ResultadoValidacion r) {
+        String tipo = dte.getTipoDocumento();
+
+        // Notas de Crédito (5), Débito (6) y Remisión (7) no requieren informar
+        // condición de operación según las reglas técnicas de SIFEN (Error 1501).
+        if ("5".equals(tipo) || "6".equals(tipo) || "7".equals(tipo)) {
+            return;
+        }
+
         Integer cond = dte.getCondicionOperacion();
         if (cond == null || (cond != 1 && cond != 2)) {
             r.agregar("CONDICION: La condición de operación debe ser 1=Contado o 2=Crédito.");
@@ -336,46 +344,93 @@ public class DteValidatorService {
     }
 
     private void validarNotaCreditoDebito(DocumentoElectronico dte, ResultadoValidacion r) {
-        // Motivo de emisión obligatorio
+        String tipo = "5".equals(dte.getTipoDocumento()) ? "Nota de Crédito" : "Nota de Débito";
+
+        // Motivo de emisión obligatorio (1 al 8)
         if (isBlank(dte.getMotivoEmision())) {
-            r.agregar("NOTA CR/DB: El motivo de emisión (iMotEmi) es obligatorio para Notas de Crédito y Débito.");
+            r.agregar(tipo + ": El motivo de emisión es obligatorio. Valores válidos: "
+                    + "1=Devolución y Ajuste, 2=Devolución, 3=Descuento, 4=Bonificación, "
+                    + "5=Crédito incobrable, 6=Recupero de costo, 7=Recupero de gasto, 8=Ajuste de precio.");
+        } else {
+            try {
+                int motId = Integer.parseInt(dte.getMotivoEmision().trim());
+                if (motId < 1 || motId > 8) {
+                    r.agregar(tipo + ": El motivo de emisión debe ser un número entre 1 y 8. Recibido: " + motId + ".");
+                }
+            } catch (NumberFormatException e) {
+                r.agregar(tipo + ": El motivo de emisión debe ser un número entero. Recibido: '" + dte.getMotivoEmision() + "'.");
+            }
         }
 
         // CDC del documento asociado: exactamente 44 dígitos numéricos
         String cdcAsoc = dte.getCdcDocumentoAsociado();
         if (isBlank(cdcAsoc)) {
-            r.agregar("NOTA CR/DB: El CDC del documento asociado (dNFCDFa) es obligatorio para Notas de Crédito y Débito.");
+            r.agregar(tipo + ": El CDC del comprobante asociado es obligatorio. Ingrese el código de 44 dígitos del documento original.");
         } else if (cdcAsoc.length() != 44 || !cdcAsoc.matches("[0-9]{44}")) {
-            r.agregar("NOTA CR/DB: El CDC asociado debe tener exactamente 44 dígitos numéricos. Recibido (" + cdcAsoc.length() + "): '" + cdcAsoc + "'.");
+            r.agregar(tipo + ": El CDC del comprobante asociado debe tener exactamente 44 dígitos numéricos. "
+                    + "Longitud recibida: " + cdcAsoc.length() + " dígito(s).");
         }
     }
 
     private void validarRemision(DocumentoElectronico dte, ResultadoValidacion r) {
-        // Motivo de traslado obligatorio en gCamNRE
+        // Motivo de traslado obligatorio: valores 1-14 o 99
         if (isBlank(dte.getMotivoEmision())) {
-            r.agregar("REMISION: El motivo de traslado (iMotEmiNR) es obligatorio para Notas de Remisión.");
+            r.agregar("NOTA DE REMISIÓN: El motivo de traslado es obligatorio. "
+                    + "Valores válidos: 1=Traslado por ventas, 2=Consignación, 3=Exportación, "
+                    + "4=Traslado por compra, 5=Importación, 6=Devolución, 7=Entre locales, "
+                    + "8=Transformación, 9=Reparación, 10=Emisor móvil, 11=Exhibición, "
+                    + "12=Ferias, 13=Encomienda, 14=Decomiso, 99=Otro.");
+        } else {
+            try {
+                int motId = Integer.parseInt(dte.getMotivoEmision().trim());
+                boolean esValido = (motId >= 1 && motId <= 14) || motId == 99;
+                if (!esValido) {
+                    r.agregar("NOTA DE REMISIÓN: El motivo de traslado '" + motId + "' no es válido. "
+                            + "Use un valor entre 1 y 14, o 99 para 'Otro'.");
+                }
+            } catch (NumberFormatException e) {
+                r.agregar("NOTA DE REMISIÓN: El motivo de traslado debe ser un número entero. "
+                        + "Recibido: '" + dte.getMotivoEmision() + "'.");
+            }
         }
 
         // Transporte obligatorio
         Transporte t = dte.getTransporte();
         if (t == null) {
-            r.agregar("REMISION: El grupo de transporte (gTransp) es obligatorio para Notas de Remisión.");
+            r.agregar("NOTA DE REMISIÓN: Los datos de transporte son obligatorios. "
+                    + "Debe completar al menos los datos del chofer y el vehículo.");
             return;
         }
 
-        // Nombre del chofer
-        if (isBlank(t.getNombreChofer()) || t.getNombreChofer().length() < 4) {
-            r.agregar("REMISION: El nombre del chofer (dNomChof) debe tener al menos 4 caracteres.");
+        // Responsable de emisión: 1-5
+        Integer respEmi = t.getResponsableEmision();
+        if (respEmi != null && (respEmi < 1 || respEmi > 5)) {
+            r.agregar("NOTA DE REMISIÓN: El responsable de emisión no es válido. "
+                    + "Valores permitidos: 1=Emisor del Comprobante, 2=Receptor del Comprobante, "
+                    + "3=Empresa Transportista, 4=Despachante de Aduanas, 5=Agente de Transporte.");
+        }
+
+        // Nombre del chofer: al menos 4 caracteres
+        if (isBlank(t.getNombreChofer()) || t.getNombreChofer().trim().length() < 4) {
+            r.agregar("NOTA DE REMISIÓN: El nombre del chofer es obligatorio y debe tener al menos 4 caracteres.");
         }
 
         // Documento del chofer
         if (isBlank(t.getNumeroDocumentoChofer())) {
-            r.agregar("REMISION: El número de documento del chofer (dNumIDChof) es obligatorio.");
+            r.agregar("NOTA DE REMISIÓN: El número de documento del chofer es obligatorio.");
         }
 
         // Matrícula del vehículo
         if (isBlank(t.getMatriculaVehiculo())) {
-            r.agregar("REMISION: La matrícula del vehículo (dNroIDVeh) es obligatoria.");
+            r.agregar("NOTA DE REMISIÓN: La matrícula del vehículo es obligatoria.");
+        }
+
+        // Validación de ubicación del receptor para Remisión
+        if (dte.getReceptorCodigoDepartamento() == null) {
+            r.agregar("NOTA DE REMISIÓN: El código de departamento del receptor es obligatorio.");
+        }
+        if (dte.getReceptorCodigoCiudad() == null) {
+            r.agregar("NOTA DE REMISIÓN: El código de ciudad del receptor es obligatorio.");
         }
     }
 

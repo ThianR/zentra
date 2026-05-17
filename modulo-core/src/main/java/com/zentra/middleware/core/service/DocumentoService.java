@@ -38,6 +38,10 @@ public class DocumentoService {
         return repository.findById(id).orElseThrow(() -> new RuntimeException("Documento no encontrado"));
     }
 
+    public java.util.Optional<DocumentoElectronico> obtenerPorCdc(String cdc) {
+        return repository.findByCdc(cdc);
+    }
+
     public DocumentoElectronico guardar(@org.springframework.lang.NonNull DocumentoElectronico dte) {
         return repository.save(dte);
     }

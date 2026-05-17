@@ -22,4 +22,10 @@ public interface SifenReferenciaRepository extends JpaRepository<SifenReferencia
     List<SifenReferencia> findByTipoAndPadreCodigoAndActivoOrderByOrdenAscDescripcionAsc(String tipo, String padreCodigo, Boolean activo);
 
     Optional<SifenReferencia> findByTipoAndCodigo(String tipo, String codigo);
+
+    @org.springframework.data.jpa.repository.Query("SELECT c FROM SifenReferencia c WHERE c.tipo = 'CIUDAD' AND c.activo = true AND c.padreCodigo IN (SELECT d.codigo FROM SifenReferencia d WHERE d.tipo = 'DISTRITO' AND d.padreCodigo = :codDepto AND d.activo = true) ORDER BY c.descripcion ASC")
+    List<SifenReferencia> findCiudadesByDepartamento(@org.springframework.data.repository.query.Param("codDepto") String codDepto);
+
+    @org.springframework.data.jpa.repository.Query("SELECT c FROM SifenReferencia c WHERE c.tipo = 'CIUDAD' AND c.codigo = :codCiudad AND c.activo = true AND c.padreCodigo IN (SELECT d.codigo FROM SifenReferencia d WHERE d.tipo = 'DISTRITO' AND d.padreCodigo = :codDepto AND d.activo = true)")
+    Optional<SifenReferencia> findCiudadByDeptoAndCiudadCod(@org.springframework.data.repository.query.Param("codDepto") String codDepto, @org.springframework.data.repository.query.Param("codCiudad") String codCiudad);
 }

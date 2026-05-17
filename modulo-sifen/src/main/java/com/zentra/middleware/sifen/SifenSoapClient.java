@@ -906,14 +906,95 @@ public class SifenSoapClient {
         return extraerEtiqueta(xml, "dMsgRes", "Sin descripcion");
     }
 
+    /**
+     * Traduce el código de respuesta de SIFEN a un mensaje comprensible para el usuario.
+     *
+     * <p>Criterios de clasificación:</p>
+     * <ul>
+     *   <li>Serie 02XX: Respuestas de aprobación o aceptación.</li>
+     *   <li>Serie 03XX: Respuestas de estado (aprobado, en proceso, lote).</li>
+     *   <li>Serie 06XX: Respuestas de eventos (cancelación, inutilización).</li>
+     *   <li>Serie 1XXX: Errores de validación de datos — el mensaje de SIFEN ya es descriptivo.</li>
+     *   <li>Serie 2XXX: Errores de firma/QR/CDC.</li>
+     *   <li>Serie 4XXX: Errores de duplicidad o estado inválido.</li>
+     *   <li>Serie 05XX/5XXX: Errores internos de SIFEN.</li>
+     * </ul>
+     *
+     * @param cod         Código de respuesta de SIFEN.
+     * @param msgOriginal Mensaje original devuelto por SIFEN (puede incluir prefijo "TEST - ").
+     * @return Mensaje claro en español para mostrar al usuario.
+     */
     private String mapearMensajeAmigable(String cod, String msgOriginal) {
-        if (cod == null)
-            return "No se recibio una respuesta clara de SIFEN.";
+        if (cod == null) {
+            return "SIFEN no devolvió un código de respuesta. Verifique la conexión y reintente.";
+        }
+
+        // Limpiar el mensaje original de SIFEN (eliminar "TEST - " y entidades HTML)
+        String msgLimpio = com.zentra.middleware.xml.XsdErrorTranslator.limpiarMensajeSifen(msgOriginal);
+
         return switch (cod) {
+            // --- Aprobaciones ---
+            case "0260" -> "El documento ya fue recibido anteriormente por SIFEN. Se considera aprobado.";
+            case "0300" -> "¡Documento aprobado y registrado exitosamente en SIFEN!";
+            case "0301" -> "Documento aprobado con observación por SIFEN: " + msgLimpio;
+
+            // --- Estado de lote ---
+            case "0304" -> "El documento está en proceso de verificación en SIFEN. Intente consultar nuevamente en unos minutos.";
+
+            // --- Eventos ---
+            case "0600" -> "Evento registrado exitosamente en SIFEN.";
+            case "0601" -> "Evento registrado con observación en SIFEN: " + msgLimpio;
+
+            // --- Errores de formato/estructura (técnico) ---
             case "0160" ->
-                "Error tecnico de formato (SOAP). El archivo enviado tiene una estructura incorrecta que impide su lectura por SIFEN.";
-            case "0300" -> "Documento aprobado exitosamente!";
-            default -> "Respuesta SIFEN (" + cod + "): " + (msgOriginal != null ? msgOriginal : "Sin descripcion.");
+                "Error de formato técnico en el documento enviado. El archivo SOAP no pudo ser leído por SIFEN. " +
+                "Por favor contacte al soporte técnico.";
+
+            // --- Errores de datos del documento (serie 1XXX — mensajes SIFEN ya son descriptivos) ---
+            case "1001" -> "Error en la estructura del documento: " + msgLimpio;
+            case "1002" -> "El número de timbrado del documento no está registrado o no es válido en SIFEN.";
+            case "1003" -> "El dígito verificador del CDC no coincide con los datos del documento. " +
+                           "Error interno de generación — contacte al soporte.";
+            case "1004" -> "La fecha y hora del documento están fuera del rango permitido. " +
+                           "Verifique que la fecha de emisión sea correcta.";
+            case "1007" -> "El RUC del emisor no está habilitado en SIFEN para el ambiente seleccionado. " +
+                           "Verifique que el RUC y el timbrado correspondan al ambiente correcto (TEST/PRODUCCIÓN).";
+            case "1009" -> "El timbrado del documento no es válido o no corresponde al emisor: " + msgLimpio;
+            case "1010" -> "El número de comprobante ya fue utilizado. Utilice un número de secuencia diferente.";
+            case "1501" -> "El tipo de documento seleccionado no requiere informar la condición de pago. " +
+                           "Las Notas de Crédito, Débito y Remisión no llevan condición de operación.";
+            case "1502" -> "Faltan datos obligatorios en el documento: " + msgLimpio;
+            case "1503" -> "Datos del receptor incorrectos o incompletos: " + msgLimpio;
+            case "1505" -> "Error en los ítems del documento: " + msgLimpio;
+            case "1510" -> "Error en los totales del documento. Verifique que los montos de los ítems cuadren con el total.";
+
+            // --- Errores de firma y QR (serie 2XXX) ---
+            case "2000" -> "La firma digital del documento no es válida. " +
+                           "Verifique que el certificado P12 de la empresa sea el correcto y esté vigente.";
+            case "2001" -> "Error en el certificado digital. El certificado puede estar vencido o no ser válido para SIFEN.";
+            case "2500" -> "El código QR del documento contiene datos incorrectos. " +
+                           "El hash no coincide con el contenido del documento.";
+
+            // --- Duplicidad y estado inválido (serie 4XXX) ---
+            case "4000" -> "El documento ya existe en SIFEN con un estado diferente: " + msgLimpio;
+            case "4001" -> "El documento ya fue procesado por SIFEN anteriormente.";
+            case "4003" -> "El evento ya fue registrado previamente en SIFEN (operación duplicada, se considera exitosa).";
+
+            // --- Errores internos SIFEN (serie 5XXX) ---
+            case "0500", "5000", "5001" ->
+                "Error interno en los servidores de SIFEN. No es un problema del documento. " +
+                "Intente nuevamente en unos minutos. Si persiste, contacte a la SET.";
+
+            // --- Default: preservar mensaje de SIFEN limpio, ya suele ser descriptivo ---
+            default -> {
+                // Los mensajes de la serie 1XXX suelen ser muy descriptivos — mostrarlos limpios
+                if (cod.startsWith("1") && msgLimpio != null && !msgLimpio.isBlank()) {
+                    yield "SIFEN rechazó el documento: " + msgLimpio;
+                }
+                yield "Respuesta SIFEN (" + cod + "): " + (msgLimpio != null && !msgLimpio.isBlank()
+                        ? msgLimpio
+                        : "Sin descripción adicional.");
+            }
         };
     }
 

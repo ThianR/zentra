@@ -150,20 +150,21 @@ public class DteXmlGenerator {
             gDatGralOpe.setGEmis(mapearEmisor(dte));
             
             // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura/Autofactura)
-            TgOpeCom gOpeCom = factory.createTgOpeCom();
-            // 1 = IVA, 2 = ISC, 3 = Renta, 4 = Ninguno, 5 = IVA-Renta
-            gOpeCom.setITImp(BigInteger.valueOf(1));
-            gOpeCom.setDDesTImp(TdDesTImp.IVA);
-            gOpeCom.setCMoneOpe(CMondT.PYG);
-            gOpeCom.setDDesMoneOpe("Guarani");
-            // Tipo de transacción: Obligatorio si C002 = 1, 2, 3 o 4. No informar si es 5, 6 o 7 (Notas de Crédito/Débito/Remisión)
+            // No debe informarse para Notas de Crédito (5), Débito (6) o Remisión (7)
             int tDoc = Integer.parseInt(tipoDoc != null ? tipoDoc : "1");
-            if (tDoc >= 1 && tDoc <= 4) {
+            if (tDoc <= 4) {
+                TgOpeCom gOpeCom = factory.createTgOpeCom();
+                // 1 = IVA, 2 = ISC, 3 = Renta, 4 = Ninguno, 5 = IVA-Renta
+                gOpeCom.setITImp(BigInteger.valueOf(1));
+                gOpeCom.setDDesTImp(TdDesTImp.IVA);
+                gOpeCom.setCMoneOpe(CMondT.PYG);
+                gOpeCom.setDDesMoneOpe("Guarani");
+                // Tipo de transacción: Obligatorio si C002 = 1, 2, 3 o 4.
                 int tipTra = resolverTipoTransaccion(dte);
                 gOpeCom.setITipTra(tipTra);
                 gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
+                gDatGralOpe.setGOpeCom(gOpeCom);
             }
-            gDatGralOpe.setGOpeCom(gOpeCom);
 
             
             // Mapeo detallado del Receptor
@@ -242,7 +243,8 @@ public class DteXmlGenerator {
                     gCamNRE.setDDesMotEmiNR(mapearMotivoRemision(motId));
                     int respEmiNR = t.getResponsableEmision() != null ? t.getResponsableEmision() : 1;
                     gCamNRE.setIRespEmiNR(BigInteger.valueOf(respEmiNR));
-                    gCamNRE.setDDesRespEmiNR(respEmiNR == 1 ? "Emisor" : "Receptor");
+                    // Valores exactos según XSD tdDesRespEmiNR (minLen=20, maxLen=36)
+                    gCamNRE.setDDesRespEmiNR(mapearResponsableEmisionNR(respEmiNR));
                     gCamNRE.setDKmR(t.getKmsRecorrido() != null ? t.getKmsRecorrido() : 10);
                     gCamNRE.setDFecEm(dte.getFechaCreacion().toLocalDate().toString());
                     if (t.getPrecioFlete() != null) {
@@ -257,57 +259,212 @@ public class DteXmlGenerator {
             if (dte.getTransporte() != null) {
                 Transporte t = dte.getTransporte();
                 TgTransp gTranspObj = factory.createTgTransp();
-                gTranspObj.setIModTrans(BigInteger.valueOf(1)); // Terrestre
+                // Tipo de transporte (1=Propio, 2=Tercero) — seleccionable por el usuario
+                int tipTrans = t.getTipoTransporte() != null ? t.getTipoTransporte() : 1;
+                gTranspObj.setITipTrans(BigInteger.valueOf(tipTrans));
+                gTranspObj.setDDesTipTrans(tipTrans == 2 ? TdDesTTrans.TERCERO : TdDesTTrans.PROPIO);
+                // Modalidad de transporte (1=Terrestre por defecto — extensible)
+                gTranspObj.setIModTrans(BigInteger.valueOf(1));
                 gTranspObj.setDDesModTrans(TdDesModTrans.TERRESTRE);
-                gTranspObj.setIRespFlete(BigInteger.valueOf(1)); // Emisor
+                gTranspObj.setIRespFlete(BigInteger.valueOf(1));
                 
                 TgCamTrans gTrans = factory.createTgCamTrans();
-                gTrans.setINatTrans(BigInteger.valueOf(t.getNaturalezaTransportista() != null ? t.getNaturalezaTransportista() : 1));
-                gTrans.setDNomTrans(t.getNombreTransportista() != null ? t.getNombreTransportista() : "Transportista Mock");
+                // Naturaleza del transportista (1=Contribuyente, 2=No Contribuyente)
+                int natTrans = t.getNaturalezaTransportista() != null ? t.getNaturalezaTransportista() : 1;
+                gTrans.setINatTrans(BigInteger.valueOf(natTrans));
+                gTrans.setDNomTrans(t.getNombreTransportista() != null && !t.getNombreTransportista().isBlank() && !"null".equals(t.getNombreTransportista())
+                        ? t.getNombreTransportista() : "Sin nombre");
                 gTrans.setDRucTrans(t.getRucTransportista());
-                gTrans.setDDVTrans(t.getDvTransportista() != null ? new BigInteger(t.getDvTransportista()) : null);
-                String numDocChof = (t.getNumeroDocumentoChofer() == null || t.getNumeroDocumentoChofer().trim().isEmpty() || "null".equals(t.getNumeroDocumentoChofer())) ? "1234567" : t.getNumeroDocumentoChofer().trim();
+                gTrans.setDDVTrans(t.getDvTransportista() != null && !t.getDvTransportista().isBlank() && !"null".equals(t.getDvTransportista())
+                        ? new BigInteger(t.getDvTransportista()) : null);
+                String numDocChof = (t.getNumeroDocumentoChofer() == null || t.getNumeroDocumentoChofer().trim().isEmpty() || "null".equals(t.getNumeroDocumentoChofer()))
+                        ? "0" : t.getNumeroDocumentoChofer().trim();
                 gTrans.setDNumIDChof(numDocChof);
-                gTrans.setDNomChof(t.getNombreChofer() != null && !t.getNombreChofer().trim().isEmpty() && !"null".equals(t.getNombreChofer()) ? t.getNombreChofer() : "Chofer Mock");
-                gTrans.setDDomFisc("Domicilio transportista mock");
-                gTrans.setDDirChof(t.getDireccionChofer() != null && !t.getDireccionChofer().trim().isEmpty() && !"null".equals(t.getDireccionChofer()) ? t.getDireccionChofer() : "Dir Chofer Mock");
+                gTrans.setDNomChof(t.getNombreChofer() != null && !t.getNombreChofer().trim().isEmpty() && !"null".equals(t.getNombreChofer())
+                        ? t.getNombreChofer() : "Sin nombre");
+                gTrans.setDDomFisc(t.getNombreTransportista() != null && !t.getNombreTransportista().isBlank() ? t.getNombreTransportista() : "Sin domicilio");
+                gTrans.setDDirChof(t.getDireccionChofer() != null && !t.getDireccionChofer().trim().isEmpty() && !"null".equals(t.getDireccionChofer())
+                        ? t.getDireccionChofer() : "Sin dirección");
                 
+                // Fecha estimada de inicio de traslado (obligatoria según SIFEN 2107)
+                try {
+                    String fechaIni = t.getFechaInicioTraslado();
+                    if (fechaIni == null || fechaIni.isBlank() || "null".equals(fechaIni)) {
+                        fechaIni = java.time.LocalDate.now().toString();
+                    }
+                    javax.xml.datatype.DatatypeFactory dtf = javax.xml.datatype.DatatypeFactory.newInstance();
+                    gTranspObj.setDIniTras(dtf.newXMLGregorianCalendar(fechaIni));
+
+                    String fechaFin = t.getFechaFinTraslado();
+                    if (fechaFin != null && !fechaFin.isBlank() && !"null".equals(fechaFin)) {
+                        gTranspObj.setDFinTras(fechaFin);
+                    }
+                } catch (Exception e) {
+                    logger.warning("No se pudo asignar fecha de traslado: " + e.getMessage());
+                }
+                
+                // Local de salida (gCamSal) — obligatorio según SIFEN error 2150
+                TgCamSal gCamSal = factory.createTgCamSal();
+                // Dirección: tomar del transporte o del emisor como fallback
+                String dirSal = t.getLocalSalidaDireccion();
+                if (dirSal == null || dirSal.isBlank() || "null".equals(dirSal)) {
+                    dirSal = dte.getDireccionEmisor() != null ? dte.getDireccionEmisor() : "Sin dirección";
+                }
+                gCamSal.setDDirLocSal(dirSal);
+                int numCasSal = t.getLocalSalidaNumeroCasa() != null ? t.getLocalSalidaNumeroCasa() : 0;
+                gCamSal.setDNumCasSal(BigInteger.valueOf(numCasSal));
+                // Departamento: tomar del transporte o del emisor como fallback
+                int codDepSal = t.getLocalSalidaCodigoDepartamento() != null
+                        ? t.getLocalSalidaCodigoDepartamento()
+                        : (dte.getEmisor().getCodDepartamento() != null ? dte.getEmisor().getCodDepartamento() : 1);
+                gCamSal.setCDepSal(BigInteger.valueOf(codDepSal));
+                String desDepSal = t.getLocalSalidaDescripcionDepartamento();
+                if (desDepSal == null || desDepSal.isBlank()) {
+                    desDepSal = dte.getEmisor().getDepartamento() != null ? dte.getEmisor().getDepartamento() : "CAPITAL";
+                }
+                gCamSal.setDDesDepSal(mapearDepartamento(desDepSal));
+                // Ciudad: tomar del transporte o del emisor como fallback
+                int codCiuSal = t.getLocalSalidaCodigoCiudad() != null
+                        ? t.getLocalSalidaCodigoCiudad()
+                        : (dte.getEmisor().getCodCiudad() != null ? dte.getEmisor().getCodCiudad() : 1);
+                gCamSal.setCCiuSal(BigInteger.valueOf(codCiuSal));
+                String desCiuSal = t.getLocalSalidaDescripcionCiudad();
+                if (desCiuSal == null || desCiuSal.isBlank()) {
+                    desCiuSal = dte.getEmisor().getCiudad() != null ? dte.getEmisor().getCiudad() : "ASUNCION (DISTRITO)";
+                }
+                if (codCiuSal == 1 && (desCiuSal.equalsIgnoreCase("ASUNCION") || desCiuSal.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
+                    desCiuSal = "ASUNCION (DISTRITO)";
+                }
+                gCamSal.setDDesCiuSal(desCiuSal);
+                gTranspObj.setGCamSal(gCamSal);
+                
+                // Local de entrega (gCamEnt) — obligatorio según SIFEN error 2200
+                TgCamEnt gCamEnt = factory.createTgCamEnt();
+                // Dirección: tomar del transporte o del receptor como fallback
+                String dirEnt = t.getLocalEntregaDireccion();
+                if (dirEnt == null || dirEnt.isBlank() || "null".equals(dirEnt)) {
+                    dirEnt = dte.getReceptorDireccion() != null ? dte.getReceptorDireccion() : "Sin dirección de entrega";
+                }
+                gCamEnt.setDDirLocEnt(dirEnt);
+                
+                int numCasEnt = t.getLocalEntregaNumeroCasa() != null ? t.getLocalEntregaNumeroCasa() : 0;
+                if (numCasEnt == 0) {
+                    try {
+                        String numCasRecStr = dte.getReceptorNumeroCasa() != null ? dte.getReceptorNumeroCasa().replaceAll("\\D", "") : "0";
+                        numCasEnt = numCasRecStr.isEmpty() ? 0 : Integer.parseInt(numCasRecStr);
+                    } catch (Exception ignored) {}
+                }
+                gCamEnt.setDNumCasEnt(BigInteger.valueOf(numCasEnt));
+                
+                // Departamento: tomar del transporte o del receptor como fallback
+                int codDepEnt = t.getLocalEntregaCodigoDepartamento() != null
+                        ? t.getLocalEntregaCodigoDepartamento()
+                        : (dte.getReceptorCodigoDepartamento() != null ? dte.getReceptorCodigoDepartamento() : 1);
+                gCamEnt.setCDepEnt(BigInteger.valueOf(codDepEnt));
+                
+                String desDepEnt = t.getLocalEntregaDescripcionDepartamento();
+                if (desDepEnt == null || desDepEnt.isBlank()) {
+                    desDepEnt = dte.getReceptorDescripcionDepartamento() != null ? dte.getReceptorDescripcionDepartamento() : "CAPITAL";
+                }
+                gCamEnt.setDDesDepEnt(mapearDepartamento(desDepEnt));
+                
+                // Ciudad: tomar del transporte o del receptor como fallback
+                int codCiuEnt = t.getLocalEntregaCodigoCiudad() != null
+                        ? t.getLocalEntregaCodigoCiudad()
+                        : (dte.getReceptorCodigoCiudad() != null ? dte.getReceptorCodigoCiudad() : 1);
+                gCamEnt.setCCiuEnt(BigInteger.valueOf(codCiuEnt));
+                
+                String desCiuEnt = t.getLocalEntregaDescripcionCiudad();
+                if (desCiuEnt == null || desCiuEnt.isBlank()) {
+                    desCiuEnt = dte.getReceptorDescripcionCiudad() != null ? dte.getReceptorDescripcionCiudad() : "ASUNCION (DISTRITO)";
+                }
+                if (codCiuEnt == 1 && (desCiuEnt.equalsIgnoreCase("ASUNCION") || desCiuEnt.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
+                    desCiuEnt = "ASUNCION (DISTRITO)";
+                }
+                gCamEnt.setDDesCiuEnt(desCiuEnt);
+                gTranspObj.getGCamEnt().add(gCamEnt);
+
+                // Datos del Vehículo de Traslado (gVehTras) — obligatorio según SIFEN error 2250
+                TgVehTras gVehTras = factory.createTgVehTras();
+
+                // Tipo de Vehículo: tomar de Transporte o "CAMION" como fallback
+                String tiVeh = t.getTipoVehiculo();
+                if (tiVeh == null || tiVeh.isBlank() || "null".equals(tiVeh)) {
+                    tiVeh = "CAMION";
+                }
+                // Limitar longitud entre 4 y 10 según XSD
+                if (tiVeh.length() > 10) tiVeh = tiVeh.substring(0, 10);
+                if (tiVeh.length() < 4) tiVeh = String.format("%-4s", tiVeh).replace(' ', 'A');
+                gVehTras.setDTiVehTras(tiVeh.toUpperCase());
+
+                // Marca del Vehículo: tomar de Transporte o "SIN MARCA" como fallback
+                String marVeh = t.getMarcaVehiculo();
+                if (marVeh == null || marVeh.isBlank() || "null".equals(marVeh)) {
+                    marVeh = "SIN MARCA";
+                }
+                if (marVeh.length() > 10) marVeh = marVeh.substring(0, 10);
+                gVehTras.setDMarVeh(marVeh.toUpperCase());
+
+                // Tipo de Identificación del Vehículo:
+                // Usemos siempre 2 (Número de Matrícula) como estándar, y si hay chasis lo agregamos.
+                String nroMat = t.getMatriculaVehiculo();
+                if (nroMat == null || nroMat.isBlank() || "null".equals(nroMat)) {
+                    nroMat = "TEST999";
+                }
+                nroMat = nroMat.replaceAll("[^a-zA-Z0-9]", ""); // limpiar caracteres especiales
+                if (nroMat.length() > 7) nroMat = nroMat.substring(0, 7);
+
+                gVehTras.setDTipIdenVeh(BigInteger.valueOf(2)); // 2 = Número de matrícula
+                gVehTras.setDNroIDVeh(nroMat);
+                gVehTras.setDNroMatVeh(nroMat);
+
+                // Si hay un número de chasis provisto, lo agregamos en dAdicVeh (opcional)
+                String chasis = t.getChasisVehiculo();
+                if (chasis != null && !chasis.isBlank() && !"null".equals(chasis)) {
+                    if (chasis.length() > 20) chasis = chasis.substring(0, 20);
+                    gVehTras.setDAdicVeh(chasis);
+                }
+
+                gTranspObj.getGVehTras().add(gVehTras);
+
                 gTranspObj.setGCamTrans(gTrans);
                 gDtipDE.setGTransp(gTranspObj);
             }
 
-            // Condición de venta
-            TgCamCond gCamCond = factory.createTgCamCond();
-            Integer condOpe = dte.getCondicionOperacion() != null ? dte.getCondicionOperacion() : 1;
-            gCamCond.setICondOpe(BigInteger.valueOf(condOpe));
-            gCamCond.setDDCondOpe(condOpe == 1 ? TdDCondOpe.CONTADO : TdDCondOpe.CRÉDITO);
-            
-            if (condOpe == 1) {
-                TgPagCont gPagCont = factory.createTgPagCont();
-                gPagCont.setITiPago(BigInteger.valueOf(1)); // Efectivo
-                gPagCont.setDDesTiPag("Efectivo");
-                // En PYG los montos deben ser enteros sin decimales (norma SIFEN v150)
-                gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
-                gPagCont.setCMoneTiPag(CMondT.PYG);
-                gPagCont.setDDMoneTiPag("Guarani");
-                gCamCond.getGPaConEIni().add(gPagCont);
-            } else {
-                TgPagCred gPagCred = factory.createTgPagCred();
-                gPagCred.setICondCred(BigInteger.valueOf(2)); // Cuotas
-                gPagCred.setDDCondCred(TdDCondCred.CUOTA);
-                gPagCred.setDCuotas(BigInteger.valueOf(dte.getCuotas().size()));
+            // Condición de venta (Solo para Facturas y Autofacturas: Tipos 1 al 4)
+            if (tDoc <= 4) {
+                TgCamCond gCamCond = factory.createTgCamCond();
+                Integer condOpe = dte.getCondicionOperacion() != null ? dte.getCondicionOperacion() : 1;
+                gCamCond.setICondOpe(BigInteger.valueOf(condOpe));
+                gCamCond.setDDCondOpe(condOpe == 1 ? TdDCondOpe.CONTADO : TdDCondOpe.CRÉDITO);
                 
-                for (Cuota c : dte.getCuotas()) {
-                    TgCuotas gCuotaStruct = factory.createTgCuotas();
-                    gCuotaStruct.setCMoneCuo(CMondT.PYG);
-                    gCuotaStruct.setDDMoneCuo("Guarani");
-                    gCuotaStruct.setDMonCuota(BigDecimal.valueOf(c.getMonto()));
-                    gCuotaStruct.setDVencCuo(c.getFechaVencimiento().toString());
-                    gPagCred.getGCuotas().add(gCuotaStruct);
+                if (condOpe == 1) {
+                    TgPagCont gPagCont = factory.createTgPagCont();
+                    gPagCont.setITiPago(BigInteger.valueOf(1)); // Efectivo
+                    gPagCont.setDDesTiPag("Efectivo");
+                    // En PYG los montos deben ser enteros sin decimales (norma SIFEN v150)
+                    gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
+                    gPagCont.setCMoneTiPag(CMondT.PYG);
+                    gPagCont.setDDMoneTiPag("Guarani");
+                    gCamCond.getGPaConEIni().add(gPagCont);
+                } else {
+                    TgPagCred gPagCred = factory.createTgPagCred();
+                    gPagCred.setICondCred(BigInteger.valueOf(2)); // Cuotas
+                    gPagCred.setDDCondCred(TdDCondCred.CUOTA);
+                    gPagCred.setDCuotas(BigInteger.valueOf(dte.getCuotas().size()));
+                    
+                    for (Cuota c : dte.getCuotas()) {
+                        TgCuotas gCuotaStruct = factory.createTgCuotas();
+                        gCuotaStruct.setCMoneCuo(CMondT.PYG);
+                        gCuotaStruct.setDDMoneCuo("Guarani");
+                        gCuotaStruct.setDMonCuota(BigDecimal.valueOf(c.getMonto()));
+                        gCuotaStruct.setDVencCuo(c.getFechaVencimiento().toString());
+                        gPagCred.getGCuotas().add(gCuotaStruct);
+                    }
+                    gCamCond.setGPagCred(gPagCred);
                 }
-                gCamCond.setGPagCred(gPagCred);
+                gDtipDE.setGCamCond(gCamCond);
             }
-            gDtipDE.setGCamCond(gCamCond);
 
             // Mapeo dinámico de Ítems
             BigDecimal totalExenta = BigDecimal.ZERO;
@@ -322,7 +479,7 @@ public class DteXmlGenerator {
 
             if (dte.getItems() != null) {
                 for (ItemDocumento it : dte.getItems()) {
-                    TgCamItem gCamItem = mapearItem(it);
+                    TgCamItem gCamItem = mapearItem(it, tipoDoc);
                     gDtipDE.getGCamItem().add(gCamItem);
                     
                     totalDescuentoItems = totalDescuentoItems.add(BigDecimal.valueOf(it.getMontoDescuento() != null ? it.getMontoDescuento() : 0.0));
@@ -403,7 +560,10 @@ public class DteXmlGenerator {
             gTotSub.setDBaseGrav10(acumBaseGrav10);
             gTotSub.setDTBasGraIVA(entero(acumBaseGrav5.add(acumBaseGrav10)));
             
-            de.setGTotSub(gTotSub);
+            // gTotSub no es requerido/permitido en Notas de Remisión (7)
+            if (!"7".equals(tipoDoc)) {
+                de.setGTotSub(gTotSub);
+            }
 
             // CAMBIO v2-5: gCamGen — nodo vacío requerido por InventivaFE aprobado en producción.
             // El XSD lo define como minOccurs="0" pero InventivaFE siempre lo incluye como <gCamGen/>.
@@ -411,8 +571,13 @@ public class DteXmlGenerator {
 
             // Propagar los totales calculados al modelo DTE.
             // El firmador (XmlSignerService) los necesita para construir la URL del QR.
-            dte.setTotalIva(totIvaAcum.doubleValue());
-            dte.setTotalOperacion(totGralOpe.doubleValue());
+            if ("7".equals(tipoDoc)) {
+                dte.setTotalIva(0.0);
+                dte.setTotalOperacion(0.0);
+            } else {
+                dte.setTotalIva(totIvaAcum.doubleValue());
+                dte.setTotalOperacion(totGralOpe.doubleValue());
+            }
 
             rde.setDE(de);
 
@@ -583,11 +748,60 @@ public class DteXmlGenerator {
             gDatRec.setCPaisRec(PaisType.PRY);
         }
         gDatRec.setDDesPaisRe(codPais.equals("PRY") ? "Paraguay" : codPais);
+
+        // --- Dirección y Contacto del Receptor ---
+        // XSD D013: dDirRec es obligatorio si iTiOpe = 4 (B2F) o si tDoc = 7 (Nota de Remisión)
+        String direccion = dte.getReceptorDireccion();
+        String tipoDoc = dte.getTipoDocumento();
+        if ("7".equals(tipoDoc) || (direccion != null && !direccion.isBlank())) {
+            gDatRec.setDDirRec(direccion != null && !direccion.isBlank() ? direccion : "Sin Direccion");
+            
+            // Número de Casa Dinámico
+            String numCas = dte.getReceptorNumeroCasa() != null && !dte.getReceptorNumeroCasa().isBlank() 
+                            ? dte.getReceptorNumeroCasa() : "0";
+            try {
+                // SIFEN: dNumCasRec es BigInteger (max 6 dígitos)
+                gDatRec.setDNumCasRec(new BigInteger(numCas.replaceAll("\\D", ""))); 
+            } catch (Exception e) {
+                gDatRec.setDNumCasRec(BigInteger.ZERO);
+            }
+            
+            // Departamento Dinámico (Fallback: 1 - CAPITAL)
+            Integer codDepto = dte.getReceptorCodigoDepartamento();
+            gDatRec.setCDepRec(BigInteger.valueOf(codDepto != null ? codDepto : 1));
+            
+            String descDepto = dte.getReceptorDescripcionDepartamento() != null 
+                               ? dte.getReceptorDescripcionDepartamento() : "CAPITAL";
+            try {
+                // SIFEN: dDesDepRec es enum TDesDepartamento
+                gDatRec.setDDesDepRec(TDesDepartamento.fromValue(descDepto.toUpperCase().trim()));
+            } catch (Exception e) {
+                gDatRec.setDDesDepRec(TDesDepartamento.CAPITAL);
+            }
+            
+            // Ciudad Dinámica (Fallback: 1 - ASUNCION (DISTRITO))
+            Integer codCiud = dte.getReceptorCodigoCiudad();
+            int finalCodCiud = codCiud != null ? codCiud : 1;
+            gDatRec.setCCiuRec(BigInteger.valueOf(finalCodCiud));
+            
+            String desCiuRec = dte.getReceptorDescripcionCiudad() != null ? dte.getReceptorDescripcionCiudad() : "ASUNCION (DISTRITO)";
+            if (finalCodCiud == 1 && (desCiuRec.equalsIgnoreCase("ASUNCION") || desCiuRec.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
+                desCiuRec = "ASUNCION (DISTRITO)";
+            }
+            gDatRec.setDDesCiuRec(desCiuRec);
+        }
+
+        if (dte.getReceptorTelefono() != null && !dte.getReceptorTelefono().isBlank()) {
+            gDatRec.setDTelRec(dte.getReceptorTelefono());
+        }
+        if (dte.getReceptorEmail() != null && !dte.getReceptorEmail().isBlank()) {
+            gDatRec.setDEmailRec(dte.getReceptorEmail());
+        }
         
         return gDatRec;
     }
 
-    private TgCamItem mapearItem(ItemDocumento it) {
+    private TgCamItem mapearItem(ItemDocumento it, String tipoDoc) {
         TgCamItem item = factory.createTgCamItem();
         item.setDCodInt(it.getCodigo());
         item.setDDesProSer(it.getDescripcion());
@@ -595,46 +809,49 @@ public class DteXmlGenerator {
         item.setDDesUniMed(it.getUnidadMedida());
         item.setDCantProSer(BigDecimal.valueOf(it.getCantidad()));
         
-        TgValorItem v = factory.createTgValorItem();
-        // Montos en PYG: sin decimales según norma SIFEN v150
-        v.setDPUniProSer(entero(it.getPrecioUnitario()));
-        v.setDTotBruOpeItem(entero(it.getPrecioUnitario() * it.getCantidad()));
-        
-        TgValorRestaItem r = factory.createTgValorRestaItem();
-        BigDecimal descIt = BigDecimal.valueOf(it.getMontoDescuento() != null ? it.getMontoDescuento() : 0.0);
-        r.setDDescItem(entero(descIt));
-        r.setDTotOpeItem(entero(it.getMontoTotalItem()));
-        v.setGValorRestaItem(r);
-        item.setGValorItem(v);
-        
-        TgCamIVA iva = factory.createTgCamIVA();
-        double tasa = it.getTasaIva() != null ? it.getTasaIva() : 10.0;
-        
-        if (tasa > 0) {
-            iva.setIAfecIVA(BigInteger.valueOf(1)); // Gravado
-            iva.setDDesAfecIVA(TdDesAfecIVA.GRAVADO_IVA);
-            // Base gravada sin decimales: monto / (1 + tasa%)
-            BigDecimal baseGrav = BigDecimal.valueOf(it.getMontoTotalItem()).divide(
-                tasa == 10.0 ? BigDecimal.valueOf(1.1) : BigDecimal.valueOf(1.05),
-                0, RoundingMode.HALF_UP);
-            iva.setDPropIVA(BigDecimal.valueOf(100));
-            iva.setDTasaIVA(BigInteger.valueOf((long)tasa));
-            iva.setDBasGravIVA(baseGrav);
-            // dLiqIVAItem = monto total - base neta (complemento exacto, evita diferencias de redondeo)
-            BigDecimal liqIva = entero(it.getMontoTotalItem()).subtract(baseGrav);
-            iva.setDLiqIVAItem(liqIva);
-            iva.setDBasExe(BigDecimal.ZERO); // Obligatorio siempre en el XSD
-        } else {
-            iva.setIAfecIVA(BigInteger.valueOf(3)); // Exento/No grabado
-            iva.setDDesAfecIVA(TdDesAfecIVA.EXENTO);
-            iva.setDPropIVA(BigDecimal.ZERO);
-            iva.setDTasaIVA(BigInteger.ZERO);            // Obligatorio siempre en el XSD
-            iva.setDBasGravIVA(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
-            iva.setDLiqIVAItem(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
-            // NT13: para iAfecIVA=3 (Exento), dBasExe = 0. El monto exento va en gTotSub.dSubExe
-            iva.setDBasExe(BigDecimal.ZERO);
+        // En Nota de Remisión (7) no deben ir montos ni IVA
+        if (!"7".equals(tipoDoc)) {
+            TgValorItem v = factory.createTgValorItem();
+            // Montos en PYG: sin decimales según norma SIFEN v150
+            v.setDPUniProSer(entero(it.getPrecioUnitario()));
+            v.setDTotBruOpeItem(entero(it.getPrecioUnitario() * it.getCantidad()));
+            
+            TgValorRestaItem r = factory.createTgValorRestaItem();
+            BigDecimal descIt = BigDecimal.valueOf(it.getMontoDescuento() != null ? it.getMontoDescuento() : 0.0);
+            r.setDDescItem(entero(descIt));
+            r.setDTotOpeItem(entero(it.getMontoTotalItem()));
+            v.setGValorRestaItem(r);
+            item.setGValorItem(v);
+            
+            TgCamIVA iva = factory.createTgCamIVA();
+            double tasa = it.getTasaIva() != null ? it.getTasaIva() : 10.0;
+            
+            if (tasa > 0) {
+                iva.setIAfecIVA(BigInteger.valueOf(1)); // Gravado
+                iva.setDDesAfecIVA(TdDesAfecIVA.GRAVADO_IVA);
+                // Base gravada sin decimales: monto / (1 + tasa%)
+                BigDecimal baseGrav = BigDecimal.valueOf(it.getMontoTotalItem()).divide(
+                    tasa == 10.0 ? BigDecimal.valueOf(1.1) : BigDecimal.valueOf(1.05),
+                    0, RoundingMode.HALF_UP);
+                iva.setDPropIVA(BigDecimal.valueOf(100));
+                iva.setDTasaIVA(BigInteger.valueOf((long)tasa));
+                iva.setDBasGravIVA(baseGrav);
+                // dLiqIVAItem = monto total - base neta (complemento exacto, evita diferencias de redondeo)
+                BigDecimal liqIva = entero(it.getMontoTotalItem()).subtract(baseGrav);
+                iva.setDLiqIVAItem(liqIva);
+                iva.setDBasExe(BigDecimal.ZERO); // Obligatorio siempre en el XSD
+            } else {
+                iva.setIAfecIVA(BigInteger.valueOf(3)); // Exento/No grabado
+                iva.setDDesAfecIVA(TdDesAfecIVA.EXENTO);
+                iva.setDPropIVA(BigDecimal.ZERO);
+                iva.setDTasaIVA(BigInteger.ZERO);            // Obligatorio siempre en el XSD
+                iva.setDBasGravIVA(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
+                iva.setDLiqIVAItem(BigDecimal.ZERO);         // Obligatorio siempre en el XSD
+                // NT13: para iAfecIVA=3 (Exento), dBasExe = 0. El monto exento va en gTotSub.dSubExe
+                iva.setDBasExe(BigDecimal.ZERO);
+            }
+            item.setGCamIVA(iva);
         }
-        item.setGCamIVA(iva);
         
         return item;
     }
@@ -683,15 +900,65 @@ public class DteXmlGenerator {
         };
     }
 
+    /**
+     * Mapea el código de responsable de emisión (iRespEmiNR) al texto exacto
+     * definido en la enumeración XSD tdDesRespEmiNR (minLen=20, maxLen=36).
+     * Se usan nombres genéricos ("Comprobante") en lugar de "factura"
+     * para reflejar que aplica a cualquier tipo de documento.
+     */
+    private String mapearResponsableEmisionNR(int cod) {
+        return switch (cod) {
+            case 1 -> "Emisor de la factura";           // XSD: minLen=20 ✓ (22 chars)
+            case 2 -> "Poseedor de la factura y bienes"; // XSD ✓ (31 chars)
+            case 3 -> "Empresa transportista";           // XSD ✓ (21 chars)
+            case 4 -> "Despachante de Aduanas";          // XSD ✓ (22 chars)
+            case 5 -> "Agente de transporte o intermediario"; // XSD ✓ (36 chars)
+            default -> "Emisor de la factura";
+        };
+    }
+
     private String mapearMotivoRemision(int cod) {
         return switch (cod) {
-            case 1 -> "Traslado por venta";
-            case 2 -> "Traslado por consignación";
-            case 3 -> "Traslado por devolución";
-            case 4 -> "Traslado por compra";
-            case 5 -> "Traslado por exportación";
-            default -> "Traslado";
+            // Valores exactos según XSD tdDMotivTras
+            case 1  -> "Traslado por ventas";
+            case 2  -> "Traslado por consignación";
+            case 3  -> "Exportación";
+            case 4  -> "Traslado por compra";
+            case 5  -> "Importación";
+            case 6  -> "Traslado por devolución";
+            case 7  -> "Traslado entre locales de la empresa";
+            case 8  -> "Traslado de bienes por transformación";
+            case 9  -> "Traslado de bienes para reparación";
+            case 10 -> "Traslado por emisor móvil";
+            case 11 -> "Exhibición o Demostración";
+            case 12 -> "Participación en ferias";
+            case 13 -> "Traslado de encomienda";
+            case 14 -> "Decomiso";
+            default -> "Traslado por ventas"; // Fallback al código 1
         };
+    }
+
+    private TDesDepartamento mapearDepartamento(String dDesDep) {
+        if (dDesDep == null || dDesDep.trim().isEmpty()) {
+            return TDesDepartamento.CAPITAL;
+        }
+        String deptoClean = dDesDep.trim().toUpperCase()
+                .replace("Á", "A")
+                .replace("É", "E")
+                .replace("Í", "I")
+                .replace("Ó", "O")
+                .replace("Ú", "U")
+                .replace("Ñ", "N");
+        try {
+            return TDesDepartamento.fromValue(deptoClean);
+        } catch (Exception e) {
+            logger.warning("Nombre de departamento no reconocido por SIFEN: " + dDesDep + ". Usando CAPITAL.");
+            if (deptoClean.contains("CENTRAL")) return TDesDepartamento.CENTRAL;
+            if (deptoClean.contains("ALTO PARANA")) return TDesDepartamento.ALTO_PARANA;
+            if (deptoClean.contains("PTE") || deptoClean.contains("HAYES")) return TDesDepartamento.PTE_HAYES;
+            if (deptoClean.contains("SAN PEDRO")) return TDesDepartamento.SAN_PEDRO;
+            return TDesDepartamento.CAPITAL;
+        }
     }
 
     /**

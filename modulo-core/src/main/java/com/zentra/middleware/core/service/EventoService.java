@@ -400,10 +400,8 @@ public class EventoService {
      * @throws IllegalArgumentException si no se encuentra el DTE.
      */
     private String buscarIdPorCdc(String cdc) {
-        return documentoRepository.findAll().stream()
-                .filter(d -> cdc.equals(d.getCdc()))
+        return documentoRepository.findByCdc(cdc)
                 .map(DocumentoElectronico::getId)
-                .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No existe un DTE registrado con CDC: " + cdc));
     }
