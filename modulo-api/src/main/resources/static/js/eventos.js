@@ -8,6 +8,26 @@ let _eventoEmpresaId = null;
 let _cancelacionDocId = null;  // ID interno del DTE a cancelar
 let _cancelacionCdc   = null;  // CDC del DTE a cancelar
 
+// Mapeo de códigos de tipo de documento SIFEN a nombres legibles
+const TIPOS_DOCUMENTO_SIFEN = {
+    1: 'Factura Electrónica',
+    2: 'Factura Electrónica de Exportación',
+    3: 'Factura Electrónica de Importación',
+    4: 'Autofactura Electrónica',
+    5: 'Nota de Crédito Electrónica',
+    6: 'Nota de Débito Electrónica',
+    7: 'Nota de Remisión Electrónica'
+};
+
+/**
+ * Retorna el nombre legible del tipo de documento SIFEN.
+ * Si no existe en el mapeo, retorna "Tipo [código]".
+ */
+function nombreTipoDocSifen(codigo) {
+    if (codigo == null) return '—';
+    return TIPOS_DOCUMENTO_SIFEN[codigo] || `Tipo ${codigo}`;
+}
+
 // ============================================================
 // Inicialización de la vista de Eventos
 // ============================================================
@@ -53,6 +73,25 @@ async function cargarEmpresasEnEvento() {
             }
             sel.appendChild(opt);
         });
+    }
+
+    // Seleccionar automáticamente la empresa actual y bloquear los selectores
+    const empresaData = localStorage.getItem('empresa_activa');
+    if (empresaData) {
+        try {
+            const empresa = JSON.parse(empresaData);
+            selectIds.forEach(id => {
+                const sel = document.getElementById(id);
+                if (sel) {
+                    sel.value = empresa.id;
+                    sel.disabled = true;
+                }
+            });
+            // Rellenar los datos de inutilización basados en la empresa seleccionada
+            onInutEmpresaChange();
+        } catch (e) {
+            console.error("Error al pre-seleccionar empresa activa en eventos:", e);
+        }
     }
 }
 
@@ -229,6 +268,19 @@ window.submitInutilizacion = async function(event) {
         if (res.ok && data.aprobado) {
             showToast('✓ Inutilización aprobada por SIFEN.', 'success');
             document.getElementById('formInutilizacion').reset();
+            // Restaurar selección de empresa activa después del reset
+            const empresaData = localStorage.getItem('empresa_activa');
+            if (empresaData) {
+                try {
+                    const empresa = JSON.parse(empresaData);
+                    const sel = document.getElementById('inutEmpresaSelect');
+                    if (sel) {
+                        sel.value = empresa.id;
+                        sel.disabled = true;
+                    }
+                } catch(e) {}
+            }
+            onInutEmpresaChange();
             document.getElementById('sectionInutilizacion').style.display = 'none';
             cargarHistorialEventos();
         } else if (res.ok && !data.aprobado) {
@@ -276,12 +328,18 @@ async function cargarHistorialEventos() {
                             : ev.tipoEvento === 'INUTILIZACION'  ? '<span class="badge-type inutilizacion">Inutilización</span>'
                             : ev.tipoEvento;
 
+            let refLabel = ev.cdcRelacionado || '—';
+            if (ev.tipoEvento === 'INUTILIZACION') {
+                const rangoDesdeStr = String(ev.rangoDesde || 0).padStart(7, '0');
+                const rangoHastaStr = String(ev.rangoHasta || 0).padStart(7, '0');
+                const tipoDoc = nombreTipoDocSifen(ev.tipoDocumentoInutilizar);
+                refLabel = `${tipoDoc} | Timb: ${ev.timbrado || '—'} | ${ev.establecimiento || '—'}-${ev.puntoExpedicion || '—'}-[${rangoDesdeStr}..${rangoHastaStr}]`;
+            }
+
             tr.innerHTML = `
                 <td>${formatDate(ev.fechaCreacion)}</td>
                 <td>${tipoLabel}</td>
-                <td class="mono" style="font-size:0.75em; word-break:break-all; max-width:320px;" title="${ev.cdcRelacionado || ''}">${
-                    ev.cdcRelacionado || '—'
-                }</td>
+                <td class="mono" style="font-size:0.75em; word-break:break-all; max-width:320px;" title="${refLabel}">${refLabel}</td>
                 <td><span class="badge-status ${estadoClass}">${ev.estado}</span></td>
                 <td class="mono">${ev.codigoSifen || '—'}</td>
                 <td title="${ev.mensajeUsuario || ''}">${truncar(ev.mensajeUsuario, 45)}</td>
@@ -322,6 +380,34 @@ window.abrirDetalleEvento = async function(eventoId) {
         document.getElementById('evDetFecha').textContent   = ev.fechaCreacion  || '—';
         document.getElementById('evDetRespuesta').textContent = ev.xmlRespuestaSifen || '(sin respuesta)';
         document.getElementById('evDetRespuestaBox').style.display = 'none';
+
+        // Manejar visualización condicional para inutilización
+        const timbradoCol = document.getElementById('evDetInutTimbradoCol');
+        const estPuntoCol = document.getElementById('evDetInutEstPuntoCol');
+        const tipoDocCol  = document.getElementById('evDetInutTipoDocCol');
+        const rangoCol    = document.getElementById('evDetInutRangoCol');
+        const cdcCol      = document.getElementById('evDetCdcCol');
+
+        if (ev.tipoEvento === 'INUTILIZACION') {
+            document.getElementById('evDetInutTimbrado').textContent = ev.timbrado || '—';
+            document.getElementById('evDetInutEstPunto').textContent = `${ev.establecimiento || '—'}-${ev.puntoExpedicion || '—'}`;
+            document.getElementById('evDetInutTipoDoc').textContent  = nombreTipoDocSifen(ev.tipoDocumentoInutilizar);
+            const rangoDesdeStr = String(ev.rangoDesde || 0).padStart(7, '0');
+            const rangoHastaStr = String(ev.rangoHasta || 0).padStart(7, '0');
+            document.getElementById('evDetInutRango').textContent    = `${rangoDesdeStr} a ${rangoHastaStr}`;
+
+            if (timbradoCol) timbradoCol.style.display = 'block';
+            if (estPuntoCol) estPuntoCol.style.display = 'block';
+            if (tipoDocCol)  tipoDocCol.style.display  = 'block';
+            if (rangoCol)    rangoCol.style.display    = 'block';
+            if (cdcCol)      cdcCol.style.display      = 'none';
+        } else {
+            if (timbradoCol) timbradoCol.style.display = 'none';
+            if (estPuntoCol) estPuntoCol.style.display = 'none';
+            if (tipoDocCol)  tipoDocCol.style.display  = 'none';
+            if (rangoCol)    rangoCol.style.display    = 'none';
+            if (cdcCol)      cdcCol.style.display      = 'block';
+        }
 
         // Guardar para ver XML
         document.getElementById('evDetRespuestaBox').dataset.eventoId = eventoId;

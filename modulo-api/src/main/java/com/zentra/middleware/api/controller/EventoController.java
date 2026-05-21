@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/v1/eventos")
-@Transactional
 public class EventoController {
 
     private static final Logger logger = Logger.getLogger(EventoController.class.getName());
@@ -526,22 +525,28 @@ public class EventoController {
      * Incluye los datos de auditoría y el resultado de SIFEN.
      */
     private Map<String, Object> construirRespuesta(EventoDocumento evento) {
-        return Map.of(
-            "eventoId",       evento.getId(),
-            "tipoEvento",     evento.getTipoEvento() != null ? evento.getTipoEvento().name() : "",
-            "estado",         evento.getEstado() != null ? evento.getEstado().name() : "",
-            "codigoSifen",    evento.getCodigoSifen()    != null ? evento.getCodigoSifen()    : "",
-            "mensajeSifen",   evento.getMensajeSifen()   != null ? evento.getMensajeSifen()   : "",
-            "mensajeUsuario", evento.getMensajeUsuario() != null ? evento.getMensajeUsuario() : "",
-            "aprobado",       EstadoEvento.APROBADO == evento.getEstado(),
-            "cdcRelacionado", evento.getCdcRelacionado() != null ? evento.getCdcRelacionado() : "",
-            "fechaCreacion",  evento.getFechaCreacion()  != null ? evento.getFechaCreacion().toString() : ""
-        );
+        java.util.Map<String, Object> base = new java.util.LinkedHashMap<>();
+        base.put("eventoId",       evento.getId());
+        base.put("tipoEvento",     evento.getTipoEvento() != null ? evento.getTipoEvento().name() : "");
+        base.put("estado",         evento.getEstado() != null ? evento.getEstado().name() : "");
+        base.put("codigoSifen",    evento.getCodigoSifen()    != null ? evento.getCodigoSifen()    : "");
+        base.put("mensajeSifen",   evento.getMensajeSifen()   != null ? evento.getMensajeSifen()   : "");
+        base.put("mensajeUsuario", evento.getMensajeUsuario() != null ? evento.getMensajeUsuario() : "");
+        base.put("aprobado",       EstadoEvento.APROBADO == evento.getEstado());
+        base.put("cdcRelacionado", evento.getCdcRelacionado() != null ? evento.getCdcRelacionado() : "");
+        base.put("fechaCreacion",  evento.getFechaCreacion()  != null ? evento.getFechaCreacion().toString() : "");
+
+        if (evento.getTipoEvento() == TipoEvento.INUTILIZACION) {
+            base.put("timbrado",                 evento.getTimbrado());
+            base.put("establecimiento",          evento.getEstablecimiento());
+            base.put("puntoExpedicion",          evento.getPuntoExpedicion());
+            base.put("tipoDocumentoInutilizar",  evento.getTipoDocumentoInutilizar());
+            base.put("rangoDesde",               evento.getRangoDesde());
+            base.put("rangoHasta",               evento.getRangoHasta());
+        }
+        return base;
     }
 
-    /**
-     * Construye el mapa de respuesta detallado (incluye fechas de envío/respuesta).
-     */
     private Map<String, Object> construirRespuestaDetalle(EventoDocumento evento) {
         java.util.Map<String, Object> base = new java.util.LinkedHashMap<>(construirRespuesta(evento));
         base.put("fechaEnvio",     evento.getFechaEnvio()     != null ? evento.getFechaEnvio().toString() : "");
@@ -550,11 +555,12 @@ public class EventoController {
         base.put("xmlRespuestaSifen", evento.getXmlRespuestaSifen() != null ? evento.getXmlRespuestaSifen() : "");
         // Datos de inutilización (si aplica)
         if (evento.getTipoEvento() == TipoEvento.INUTILIZACION) {
-            base.put("timbrado",        evento.getTimbrado());
-            base.put("establecimiento", evento.getEstablecimiento());
-            base.put("puntoExpedicion", evento.getPuntoExpedicion());
-            base.put("rangoDesde",      evento.getRangoDesde());
-            base.put("rangoHasta",      evento.getRangoHasta());
+            base.put("timbrado",                 evento.getTimbrado());
+            base.put("establecimiento",          evento.getEstablecimiento());
+            base.put("puntoExpedicion",          evento.getPuntoExpedicion());
+            base.put("tipoDocumentoInutilizar",  evento.getTipoDocumentoInutilizar());
+            base.put("rangoDesde",               evento.getRangoDesde());
+            base.put("rangoHasta",               evento.getRangoHasta());
         }
         return base;
     }

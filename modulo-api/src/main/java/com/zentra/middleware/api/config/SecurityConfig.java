@@ -45,7 +45,8 @@ public class SecurityConfig {
                         "/css/**",
                         "/js/**",
                         "/favicon.ico",
-                        "/api/v1/auth/**"
+                        "/api/v1/auth/**",
+                        "/error"
                 ).permitAll()
                 // Todo lo demás requiere autenticación
                 .anyRequest().authenticated()
