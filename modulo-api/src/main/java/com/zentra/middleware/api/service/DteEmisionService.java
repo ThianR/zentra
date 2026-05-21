@@ -15,10 +15,8 @@ import com.zentra.middleware.crypto.service.XmlSignerService;
 import com.zentra.middleware.sifen.SifenSoapClient;
 import com.zentra.middleware.core.repository.SifenReferenciaRepository;
 import com.zentra.middleware.core.repository.EmpresaRepository;
-import com.zentra.middleware.core.repository.DocumentoElectronicoRepository;
 import com.zentra.middleware.core.service.HistorialSifenService;
 import com.zentra.middleware.api.security.EmpresaContext;
-import com.zentra.middleware.api.service.DteValidationException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,9 +26,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -51,7 +47,6 @@ public class DteEmisionService {
     private final SifenReferenciaRepository referenciaRepository;
     private final XsdValidatorService xsdValidatorService;
     private final EmpresaRepository empresaRepository;
-    private final DocumentoElectronicoRepository dteRepository;
     private final HistorialSifenService historialSifenService;
     private final com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository;
     private final HttpClient httpClient;
@@ -65,7 +60,6 @@ public class DteEmisionService {
             SifenReferenciaRepository referenciaRepository,
             XsdValidatorService xsdValidatorService,
             EmpresaRepository empresaRepository,
-            DocumentoElectronicoRepository dteRepository,
             HistorialSifenService historialSifenService,
             com.zentra.middleware.core.repository.PadronRucRepository padronRucRepository,
             HttpClient httpClient) {
@@ -77,7 +71,6 @@ public class DteEmisionService {
         this.referenciaRepository = referenciaRepository;
         this.xsdValidatorService = xsdValidatorService;
         this.empresaRepository = empresaRepository;
-        this.dteRepository = dteRepository;
         this.historialSifenService = historialSifenService;
         this.padronRucRepository = padronRucRepository;
         this.httpClient = httpClient;

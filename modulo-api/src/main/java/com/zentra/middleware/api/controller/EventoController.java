@@ -9,7 +9,6 @@ import com.zentra.middleware.core.service.EventoService;
 import com.zentra.middleware.crypto.service.XmlSignerService;
 import com.zentra.middleware.sifen.SifenSoapClient;
 import com.zentra.middleware.xml.EventoXmlGenerator;
-import com.zentra.middleware.xml.XsdValidatorService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,18 +48,15 @@ public class EventoController {
     private final EventoXmlGenerator eventoXmlGenerator;
     private final XmlSignerService signerService;
     private final SifenSoapClient sifenClient;
-    private final XsdValidatorService xsdValidatorService;
 
     public EventoController(EventoService eventoService,
                             EventoXmlGenerator eventoXmlGenerator,
                             XmlSignerService signerService,
-                            SifenSoapClient sifenClient,
-                            XsdValidatorService xsdValidatorService) {
+                            SifenSoapClient sifenClient) {
         this.eventoService = eventoService;
         this.eventoXmlGenerator = eventoXmlGenerator;
         this.signerService = signerService;
         this.sifenClient = sifenClient;
-        this.xsdValidatorService = xsdValidatorService;
     }
 
     // =========================================================================

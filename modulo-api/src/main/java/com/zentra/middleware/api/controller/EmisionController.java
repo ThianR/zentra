@@ -1,8 +1,6 @@
 package com.zentra.middleware.api.controller;
 
 import com.zentra.middleware.core.model.DocumentoElectronico;
-import com.zentra.middleware.core.model.EstadoDte;
-import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.model.EventoDocumento;
 import com.zentra.middleware.core.service.DocumentoService;
 import com.zentra.middleware.kude.KudeGenerator;

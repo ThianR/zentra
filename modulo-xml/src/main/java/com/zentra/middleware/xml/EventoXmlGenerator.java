@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.UUID;
 import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -364,19 +363,5 @@ public class EventoXmlGenerator {
             .atZone(ZoneId.systemDefault())
             .withZoneSameInstant(ZoneId.of("America/Asuncion"));
         return zdtAsuncion.format(FMT_FECHA);
-    }
-
-    /**
-     * Mapea el código de tipo de documento SIFEN a su descripción oficial.
-     */
-    private String mapearDescripcionTipoDoc(int tipoDoc) {
-        return switch (tipoDoc) {
-            case 1 -> "Factura electrónica";
-            case 4 -> "Autofactura electrónica";
-            case 5 -> "Nota de crédito electrónica";
-            case 6 -> "Nota de débito electrónica";
-            case 7 -> "Nota de remisión electrónica";
-            default -> "Documento electrónico";
-        };
     }
 }

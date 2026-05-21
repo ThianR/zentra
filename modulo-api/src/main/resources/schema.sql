@@ -1,15 +1,23 @@
 -- =============================================================================
--- ZENTRA SIFEN Middleware - Schema DDL Idempotente
--- Ejecutado por Spring Boot al iniciar si spring.sql.init.mode=always
--- Cada sentencia usa IF NOT EXISTS para garantizar idempotencia total.
+-- ZENTRA SIFEN Middleware - Esquema de Base de Datos Completo (PostgreSQL)
+-- v1.5.0 compatible con SIFEN Paraguay
+-- Archivo unificado e idempotente
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- Tabla: empresas
--- Almacena la configuraciÃ³n del emisor (RUC, certificado, timbrado, etc.)
+-- 1. Tablas Base (Multi-Tenant y Autenticación)
 -- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clientes (
+    id                          VARCHAR(36)  PRIMARY KEY,
+    nombre                      VARCHAR(255),
+    identificador               VARCHAR(100) UNIQUE,
+    activo                      BOOLEAN      DEFAULT TRUE,
+    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS empresas (
     id                          VARCHAR(36)  PRIMARY KEY,
+    cliente_id                  VARCHAR(36)  REFERENCES clientes(id),
     ruc                         VARCHAR(20)  UNIQUE,
     dv                          VARCHAR(1),
     razon_social                VARCHAR(255),
@@ -18,7 +26,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     punto_expedicion            VARCHAR(3),
     timbrado                    VARCHAR(8),
     fecha_inicio_timbrado       DATE,
-    fecha_vencimiento_timbrado    DATE,
+    fecha_vencimiento_timbrado  DATE,
     direccion                   VARCHAR(500),
     numero_casa                 VARCHAR(10),
     cod_departamento            INTEGER,
@@ -39,13 +47,28 @@ CREATE TABLE IF NOT EXISTS empresas (
     ambiente                    INTEGER      DEFAULT 2,
     id_csc                      VARCHAR(10)  DEFAULT '0001',
     valor_csc                   VARCHAR(255),
-    logo_base64                 TEXT
+    logo_base64                 TEXT,
+    frecuencia_lote_minutos     INTEGER      DEFAULT 15,
+    frecuencia_consulta_ticket_minutos INTEGER DEFAULT 5
+);
+
+CREATE TABLE IF NOT EXISTS usuarios (
+    id                          VARCHAR(36)  PRIMARY KEY,
+    username                    VARCHAR(100) UNIQUE NOT NULL,
+    password_hash               VARCHAR(255),
+    nombre_completo             VARCHAR(255),
+    email                       VARCHAR(150),
+    rol                         VARCHAR(50)  DEFAULT 'OPERADOR',
+    activo                      BOOLEAN      DEFAULT TRUE,
+    debe_cambiar_password       BOOLEAN      DEFAULT FALSE,
+    cliente_id                  VARCHAR(36)  REFERENCES clientes(id),
+    empresa_default_id          VARCHAR(36)  REFERENCES empresas(id),
+    ultimo_acceso               TIMESTAMP,
+    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
--- Tabla: sifen_referencia
--- CatÃ¡logos oficiales SIFEN v150: departamentos, ciudades, monedas, etc.
--- RestricciÃ³n UNIQUE: (tipo, codigo, padre_codigo) para soporte de idempotencia
+-- 2. Catálogos SIFEN y Datos Maestros
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sifen_referencia (
     id              BIGSERIAL    PRIMARY KEY,
@@ -59,17 +82,26 @@ CREATE TABLE IF NOT EXISTS sifen_referencia (
     activo          BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
--- Nota: Los Ã­ndices parciales de esta tabla son gestionados por
--- DatabaseMigrationConfig.java al arrancar la aplicaciÃ³n, dado que
--- requieren lÃ³gica condicional (DROP constraint viejo + CREATE nuevos)
--- que Spring Boot ScriptUtils no puede ejecutar (no soporta PL/pgSQL).
-
-
+CREATE TABLE IF NOT EXISTS padron_ruc (
+    ruc                         VARCHAR(20)  PRIMARY KEY,
+    dv                          VARCHAR(1),
+    razon_social                VARCHAR(255),
+    estado                      VARCHAR(50)
+);
 
 -- -----------------------------------------------------------------------------
--- Tabla: documentos_electronicos
--- Registro de cada DTE generado y transmitido a SIFEN.
+-- 3. Emisión de Documentos y Lotes
 -- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lotes_transmision (
+    id                          VARCHAR(36)  PRIMARY KEY,
+    numero_ticket               VARCHAR(50),
+    estado                      VARCHAR(50)  DEFAULT 'PENDIENTE',
+    fecha_envio                 TIMESTAMP,
+    fecha_ultima_consulta       TIMESTAMP,
+    intentos_consulta           INTEGER      DEFAULT 0,
+    empresa_id                  VARCHAR(36)  REFERENCES empresas(id)
+);
+
 CREATE TABLE IF NOT EXISTS documentos_electronicos (
     id                          VARCHAR(36)  PRIMARY KEY,
     cdc                         VARCHAR(44)  UNIQUE,
@@ -112,7 +144,6 @@ CREATE TABLE IF NOT EXISTS documentos_electronicos (
     total_iva5                  NUMERIC(18,2),
     descuento_global            NUMERIC(18,2),
     porcentaje_descuento_global NUMERIC(5,2),
-    -- Campos para nota de remisiÃ³n/traslado
     motivo_traslado             INTEGER,
     descripcion_motivo_traslado VARCHAR(255),
     nombre_transportista        VARCHAR(255),
@@ -126,16 +157,14 @@ CREATE TABLE IF NOT EXISTS documentos_electronicos (
     kms_recorrido               NUMERIC(10,2),
     precio_flete                NUMERIC(18,2),
     responsable_emision         VARCHAR(255),
-    -- Datos de contrataciÃ³n pÃºblica
     modalidad_contratacion      INTEGER,
     entidad_contratante         VARCHAR(255),
     anio_contratacion           INTEGER,
     secuencial_contrato         VARCHAR(20),
     fecha_codigo_contrato       DATE,
-    -- Datos del documento asociado (NC/ND)
     tipo_documento_asociado     INTEGER,
     cdc_documento_asociado      VARCHAR(44),
-    -- XMLs y respuestas
+    lote_transmision_id         VARCHAR(36)  REFERENCES lotes_transmision(id),
     xml_generado                TEXT,
     xml_firmado                 TEXT,
     xml_respuesta_sifen         TEXT,
@@ -144,13 +173,9 @@ CREATE TABLE IF NOT EXISTS documentos_electronicos (
     fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------------------------------
--- Tabla: documentos_items
--- LÃ­neas de detalle de cada documento electrÃ³nico.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS documentos_items (
     id              VARCHAR(36)  PRIMARY KEY,
-    documento_id    VARCHAR(36)  REFERENCES documentos_electronicos(id),
+    documento_id    VARCHAR(36)  REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
     codigo          VARCHAR(50),
     descripcion     VARCHAR(500),
     cantidad        NUMERIC(14,4),
@@ -162,22 +187,27 @@ CREATE TABLE IF NOT EXISTS documentos_items (
     monto_iva_item  NUMERIC(18,2)
 );
 
--- -----------------------------------------------------------------------------
--- Tabla: documento_cuotas
--- Cuotas de pago a crÃ©dito para documentos con condiciÃ³n_operacion = 2
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS documento_cuotas (
     id                  VARCHAR(36)  PRIMARY KEY,
-    documento_id        VARCHAR(36)  REFERENCES documentos_electronicos(id),
+    documento_id        VARCHAR(36)  REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
     numero_cuota        INTEGER,
     fecha_vencimiento   DATE,
     monto               NUMERIC(18,2)
 );
 
--- -----------------------------------------------------------------------------
--- Tabla: documento_historial_sifen
--- BitÃ¡cora de interacciones con el WebService (ENVIO, CONSULTA, etc.)
--- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS documento_pagos (
+    id                          BIGSERIAL    PRIMARY KEY,
+    documento_id                VARCHAR(36)  REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
+    tipo_pago                   INTEGER,
+    monto                       NUMERIC(18,2),
+    safe_secure                 BOOLEAN      DEFAULT TRUE,
+    tarjeta_denominacion        INTEGER,
+    tarjeta_descripcion         VARCHAR(100),
+    tarjeta_forma_procesamiento INTEGER,
+    cheque_numero               VARCHAR(30),
+    cheque_banco                VARCHAR(50)
+);
+
 CREATE TABLE IF NOT EXISTS documento_historial_sifen (
     id                  VARCHAR(36)  PRIMARY KEY,
     documento_id        VARCHAR(36)  NOT NULL REFERENCES documentos_electronicos(id) ON DELETE CASCADE,
@@ -188,10 +218,32 @@ CREATE TABLE IF NOT EXISTS documento_historial_sifen (
     fecha_registro      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- -----------------------------------------------------------------------------
--- Tabla: documentos_papelera
--- Respaldo de documentos eliminados (ej: rechazados que fueron re-generados)
--- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS eventos_sifen (
+    id                          VARCHAR(36)  PRIMARY KEY,
+    tipo_evento                 VARCHAR(50),
+    estado                      VARCHAR(50)  DEFAULT 'PENDIENTE',
+    empresa_id                  VARCHAR(36)  REFERENCES empresas(id),
+    documento_asociado_id       VARCHAR(36)  REFERENCES documentos_electronicos(id),
+    cdc_relacionado             VARCHAR(44),
+    motivo                      VARCHAR(500),
+    timbrado                    VARCHAR(8),
+    establecimiento             VARCHAR(3),
+    punto_expedicion            VARCHAR(3),
+    tipo_documento_inutilizar   INTEGER,
+    rango_desde                 BIGINT,
+    rango_hasta                 BIGINT,
+    xml_generado                TEXT,
+    xml_firmado                 TEXT,
+    xml_respuesta_sifen         TEXT,
+    codigo_sifen                VARCHAR(10),
+    mensaje_sifen               VARCHAR(500),
+    mensaje_usuario             VARCHAR(500),
+    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    fecha_envio                 TIMESTAMP,
+    fecha_respuesta             TIMESTAMP,
+    id_firma                    VARCHAR(255)
+);
+
 CREATE TABLE IF NOT EXISTS documentos_papelera (
     id                      VARCHAR(36)  PRIMARY KEY,
     documento_id_original   VARCHAR(36),
@@ -210,16 +262,15 @@ CREATE TABLE IF NOT EXISTS documentos_papelera (
 );
 
 -- -----------------------------------------------------------------------------
--- Índices para Paginación y Filtrado Eficiente de DTEs (Server-Side)
+-- 4. Índices para Optimización y Búsqueda (Server-Side)
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_documento_ambiente_fecha ON documentos_electronicos (ambiente, fecha_creacion DESC);
 CREATE INDEX IF NOT EXISTS idx_documento_estado ON documentos_electronicos (estado);
 CREATE INDEX IF NOT EXISTS idx_documento_tipo ON documentos_electronicos (tipo_documento);
 CREATE INDEX IF NOT EXISTS idx_documento_ruc ON documentos_electronicos (ruc_receptor);
 
--- Extensión y búsqueda trigram para búsqueda global parcial e instantánea en millones de registros
+-- Extensión y búsqueda trigram para búsqueda global parcial e instantánea
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_documento_cdc_trgm ON documentos_electronicos USING gin (cdc gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_documento_nro_trgm ON documentos_electronicos USING gin (numero_comprobante gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_documento_razon_trgm ON documentos_electronicos USING gin (receptor_razon_social gin_trgm_ops);
-
