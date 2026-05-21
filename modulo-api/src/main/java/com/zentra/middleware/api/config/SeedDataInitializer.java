@@ -59,14 +59,19 @@ public class SeedDataInitializer implements CommandLineRunner {
         if (!usuarioRepository.existsByUsername("admin")) {
             Usuario admin = new Usuario();
             admin.setUsername("admin");
-            admin.setPasswordHash(passwordEncoder.encode("zentra2026"));
+            String adminPassword = System.getenv("ZENTRA_ADMIN_PASSWORD");
+            if (adminPassword == null || adminPassword.trim().isEmpty()) {
+                adminPassword = "zentra2026";
+                log.warn("[Seed] ZENTRA_ADMIN_PASSWORD no configurado en el entorno. Usando contraseña inicial por defecto.");
+            }
+            admin.setPasswordHash(passwordEncoder.encode(adminPassword));
             admin.setNombreCompleto("Administrador");
             admin.setEmail("admin@zentra.local");
             admin.setRol("ADMIN");
             admin.setCliente(cliente);
             admin.setDebeCambiarPassword(true);
             usuarioRepository.save(admin);
-            log.info("[Seed] Usuario admin creado (usuario: admin, contraseña: zentra2026)");
+            log.info("[Seed] Usuario admin creado (usuario: admin)");
         }
 
         // 3. Asociar empresas existentes sin cliente al cliente semilla

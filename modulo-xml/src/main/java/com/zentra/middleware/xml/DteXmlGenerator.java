@@ -677,75 +677,106 @@ public class DteXmlGenerator {
     private TgEmis mapearEmisor(DocumentoElectronico dte) {
         Empresa emisor = dte.getEmisor();
         TgEmis gEmis = factory.createTgEmis();
+        if (emisor.getRuc() == null || emisor.getRuc().isBlank()) {
+            throw new IllegalArgumentException("El RUC del emisor es obligatorio.");
+        }
         gEmis.setDRucEm(emisor.getRuc());
-        gEmis.setDDVEmi(new BigInteger(emisor.getDv() != null ? emisor.getDv() : "0"));
+
+        if (emisor.getDv() == null || emisor.getDv().isBlank()) {
+            throw new IllegalArgumentException("El dígito verificador del emisor es obligatorio.");
+        }
+        gEmis.setDDVEmi(new BigInteger(emisor.getDv()));
+
         // SIFEN v150: iTipCont debe coincidir con el valor usado en el CDC.
-        // Si el RUC es >= 80000000 es Persona Jurídica (2), de lo contrario
-        // se respeta el valor configurado en la entidad Empresa.
         long rucNum = 0;
         try { rucNum = Long.parseLong(emisor.getRuc().replaceAll("[^0-9]", "0")); } catch (Exception ignored) {}
         int tipCont = (rucNum >= 80000000) ? 2 : (emisor.getTipoContribuyente() != null ? emisor.getTipoContribuyente() : 1);
         gEmis.setITipCont(BigInteger.valueOf(tipCont));
+
+        if (emisor.getRazonSocial() == null || emisor.getRazonSocial().isBlank()) {
+            throw new IllegalArgumentException("La razón social del emisor es obligatoria.");
+        }
         gEmis.setDNomEmi(emisor.getRazonSocial());
-        gEmis.setDDirEmi(emisor.getDireccion() != null ? emisor.getDireccion() : "Calle Mock 123");
+
+        if (emisor.getDireccion() == null || emisor.getDireccion().isBlank()) {
+            throw new IllegalArgumentException("La dirección del emisor es obligatoria.");
+        }
+        gEmis.setDDirEmi(emisor.getDireccion());
         gEmis.setDNumCas(new BigInteger(emisor.getNumeroCasa() != null ? emisor.getNumeroCasa() : "0"));
         
-        gEmis.setCDepEmi(BigInteger.valueOf(emisor.getCodDepartamento() != null ? emisor.getCodDepartamento() : 1));
-        String depto = emisor.getDepartamento() != null ? emisor.getDepartamento() : "CAPITAL";
+        if (emisor.getCodDepartamento() == null) {
+            throw new IllegalArgumentException("El código de departamento del emisor es obligatorio.");
+        }
+        gEmis.setCDepEmi(BigInteger.valueOf(emisor.getCodDepartamento()));
+
+        if (emisor.getDepartamento() == null || emisor.getDepartamento().isBlank()) {
+            throw new IllegalArgumentException("El departamento del emisor es obligatorio.");
+        }
+        String depto = emisor.getDepartamento();
         try {
             gEmis.setDDesDepEmi(TDesDepartamento.fromValue(depto));
         } catch (Exception e) {
             logger.warning("Nombre de departamento no reconocido por SIFEN: " + depto + ". Usando CAPITAL.");
             gEmis.setDDesDepEmi(TDesDepartamento.CAPITAL);
         }
-        // CAMBIO v2-3: cDisEmi y dDesDisEmi — obligatorios cuando cDepEmi está presente.
-        // InventivaFE aprobado: <cDisEmi>1</cDisEmi><dDesDisEmi>ASUNCION (DISTRITO)</dDesDisEmi>
-        int codDistrito = (emisor.getCodDistrito() != null && emisor.getCodDistrito() > 0)
-            ? emisor.getCodDistrito() : 1;
-        gEmis.setCDisEmi(BigInteger.valueOf(codDistrito));
-        String desDistrito = (emisor.getDistrito() != null && !emisor.getDistrito().isBlank())
-            ? emisor.getDistrito() : "ASUNCION (DISTRITO)";
-            
-        if (codDistrito == 1 && (desDistrito.equalsIgnoreCase("ASUNCION") || desDistrito.equalsIgnoreCase("ASUNCION (DISTRITO)"))) {
+
+        if (emisor.getCodDistrito() == null || emisor.getCodDistrito() <= 0) {
+            throw new IllegalArgumentException("El código de distrito del emisor es obligatorio.");
+        }
+        gEmis.setCDisEmi(BigInteger.valueOf(emisor.getCodDistrito()));
+
+        if (emisor.getDistrito() == null || emisor.getDistrito().isBlank()) {
+            throw new IllegalArgumentException("El distrito del emisor es obligatorio.");
+        }
+        String desDistrito = emisor.getDistrito();
+        if (emisor.getCodDistrito() == 1 && (desDistrito.equalsIgnoreCase("ASUNCION") || desDistrito.equalsIgnoreCase("ASUNCION (DISTRITO)"))) {
             desDistrito = "ASUNCION (DISTRITO)";
         }
         gEmis.setDDesDisEmi(desDistrito);
         
-        int codCiu = emisor.getCodCiudad() != null ? emisor.getCodCiudad() : 1;
-        gEmis.setCCiuEmi(codCiu);
-        String desCiu = emisor.getCiudad() != null ? emisor.getCiudad() : "ASUNCION (DISTRITO)";
-        
-        if (codCiu == 1 && (desCiu.equalsIgnoreCase("ASUNCION") || desCiu.equalsIgnoreCase("ASUNCION (DISTRITO)") || desCiu.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
+        if (emisor.getCodCiudad() == null || emisor.getCodCiudad() <= 0) {
+            throw new IllegalArgumentException("El código de ciudad del emisor es obligatorio.");
+        }
+        gEmis.setCCiuEmi(emisor.getCodCiudad());
+
+        if (emisor.getCiudad() == null || emisor.getCiudad().isBlank()) {
+            throw new IllegalArgumentException("La ciudad del emisor es obligatoria.");
+        }
+        String desCiu = emisor.getCiudad();
+        if (emisor.getCodCiudad() == 1 && (desCiu.equalsIgnoreCase("ASUNCION") || desCiu.equalsIgnoreCase("ASUNCION (DISTRITO)") || desCiu.equalsIgnoreCase("ASUNCION (CAPITAL)"))) {
             desCiu = "ASUNCION (DISTRITO)";
         }
         gEmis.setDDesCiuEmi(desCiu);
         
-        gEmis.setDTelEmi(emisor.getTelefono() != null ? emisor.getTelefono() : "021000000");
-        gEmis.setDEmailE(emisor.getEmail() != null ? emisor.getEmail() : "emisor@example.com");
+        if (emisor.getTelefono() == null || emisor.getTelefono().isBlank()) {
+            throw new IllegalArgumentException("El teléfono del emisor es obligatorio.");
+        }
+        gEmis.setDTelEmi(emisor.getTelefono());
 
-        // PLAN 4: Actividad Económica tomada del emisor (BD) en lugar de valor mock hardcodeado.
-        // La BD tiene el código real registrado en Marangatu para RUC 80014603-4.
-        // Actividad Económica: se prioriza el par código-descripción de la BD
+        if (emisor.getEmail() == null || emisor.getEmail().isBlank()) {
+            throw new IllegalArgumentException("El correo electrónico del emisor es obligatorio.");
+        }
+        gEmis.setDEmailE(emisor.getEmail());
+
         TgActEco gActEco = factory.createTgActEco();
         String codAct = emisor.getCodActividadEconomica();
         String desAct = emisor.getActividadEconomica();
 
-        if (codAct != null && !codAct.isBlank() && codAct.matches("^\\d+$")) {
-            // Caso ideal: tenemos el código numérico y la descripción por separado
-            gActEco.setCActEco(codAct);
-            gActEco.setDDesActEco(desAct != null && !desAct.isBlank() ? desAct : "Actividad económica");
-        } else {
-            // Fallback por compatibilidad con datos legacy o formatos combinados
-            String actEcoRaw = (desAct != null && !desAct.isBlank()) ? desAct : "45301";
-            if (actEcoRaw.contains("|")) {
-                String[] partes = actEcoRaw.split("\\|", 2);
-                gActEco.setCActEco(partes[0].trim());
-                gActEco.setDDesActEco(partes[1].trim());
+        if (codAct == null || codAct.isBlank()) {
+            if (desAct != null && desAct.contains("|")) {
+                String[] partes = desAct.split("\\|", 2);
+                codAct = partes[0].trim();
+                desAct = partes[1].trim();
             } else {
-                gActEco.setCActEco("45301"); // Genérico: Comercio
-                gActEco.setDDesActEco(actEcoRaw);
+                throw new IllegalArgumentException("El código de actividad económica del emisor es obligatorio.");
             }
         }
+        if (desAct == null || desAct.isBlank()) {
+            throw new IllegalArgumentException("La descripción de la actividad económica del emisor es obligatoria.");
+        }
+
+        gActEco.setCActEco(codAct);
+        gActEco.setDDesActEco(desAct);
         
         if (dte.getAmbiente() != null && "TEST".equals(dte.getAmbiente().name())) {
             gActEco.setCActEco("46699");

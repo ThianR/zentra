@@ -240,6 +240,17 @@ class DteXmlGeneratorTest {
         emisor.setRazonSocial("EMPRESA MOCK");
         emisor.setCodEstablecimiento("001");
         emisor.setPuntoExpedicion("001");
+        emisor.setDireccion("Calle Mock 123");
+        emisor.setCodDepartamento(1);
+        emisor.setDepartamento("CAPITAL");
+        emisor.setCodDistrito(1);
+        emisor.setDistrito("ASUNCION (DISTRITO)");
+        emisor.setCodCiudad(1);
+        emisor.setCiudad("ASUNCION (DISTRITO)");
+        emisor.setTelefono("021000000");
+        emisor.setEmail("emisor@example.com");
+        emisor.setCodActividadEconomica("45301");
+        emisor.setActividadEconomica("COMERCIO");
 
         DocumentoElectronico dte = new DocumentoElectronico();
         dte.setEmisor(emisor);

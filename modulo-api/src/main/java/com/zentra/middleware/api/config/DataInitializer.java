@@ -39,11 +39,31 @@ public class DataInitializer {
                 rg.setEmail("fact.electronicargsa@gmail.com");
                 rg.setActividadEconomica("COMERCIO DE PARTES, PIEZAS Y ACCESORIOS NUEVOS PARA VEHICULOS AUTOMOTORES");
                 rg.setTipoContribuyente(2);
-                rg.setRutaCertificado("d:/Personales/SISTEMAS/SIFEN/zentra/context/certificado_para_facturacion.pfx");
-                rg.setPasswordCertificado("77145137");
+                String certPath = System.getenv("ZENTRA_DEV_CERT_PATH");
+                if (certPath == null || certPath.trim().isEmpty()) {
+                    certPath = "d:/Personales/SISTEMAS/SIFEN/zentra/context/certificado_para_facturacion.pfx";
+                }
+                rg.setRutaCertificado(certPath);
+
+                String certPass = System.getenv("ZENTRA_DEV_CERT_PASS");
+                if (certPass == null || certPass.trim().isEmpty()) {
+                    certPass = "77145137";
+                }
+                rg.setPasswordCertificado(certPass);
+                
                 rg.setAmbiente(com.zentra.middleware.core.enums.Ambiente.TEST);
-                rg.setIdCsc("0001");
-                rg.setValorCsc("73c9BeeA5AFb8fD17a3fD93a32A07A1a");
+
+                String cscId = System.getenv("ZENTRA_DEV_CSC_ID");
+                if (cscId == null || cscId.trim().isEmpty()) {
+                    cscId = "0001";
+                }
+                rg.setIdCsc(cscId);
+
+                String cscVal = System.getenv("ZENTRA_DEV_CSC_VAL");
+                if (cscVal == null || cscVal.trim().isEmpty()) {
+                    cscVal = "73c9BeeA5AFb8fD17a3fD93a32A07A1a";
+                }
+                rg.setValorCsc(cscVal);
                 empresaRepo.save(rg);
 
 /* 
