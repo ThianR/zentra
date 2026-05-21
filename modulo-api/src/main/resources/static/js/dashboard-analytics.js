@@ -273,20 +273,25 @@ function updateHealthGauge(stats) {
     
     if (!fill) return;
 
-    // Transformación del gauge (0.5turn = 100%)
-    const rotation = (percent / 100) * 0.5;
-    fill.style.transform = `rotate(${rotation}turn)`;
+    // Cálculo del stroke-dashoffset para el círculo SVG (circunferencia = 2 * PI * r)
+    // Con r = 34, la circunferencia es de 213.63px
+    const circumference = 2 * Math.PI * 34;
+    const offset = circumference - (percent / 100) * circumference;
+    
+    // Aplicar la animación y el porcentaje de texto
+    fill.style.strokeDashoffset = offset;
     value.innerText = `${percent}%`;
     
+    // Determinar estado de salud y aplicar variables de color semánticas CSS
     if (percent >= 95) {
         status.innerText = "Excelente — Sin observaciones";
-        fill.style.background = "#198754";
+        fill.style.stroke = "var(--accent-success, #198754)";
     } else if (percent >= 80) {
         status.innerText = "Atención — Revisar rechazos";
-        fill.style.background = "#ffc107";
+        fill.style.stroke = "var(--accent-warning, #ffc107)";
     } else {
         status.innerText = "Crítico — Acción requerida";
-        fill.style.background = "#dc3545";
+        fill.style.stroke = "var(--accent-danger, #dc3545)";
     }
 
     generateSmartAlerts(stats, percent);

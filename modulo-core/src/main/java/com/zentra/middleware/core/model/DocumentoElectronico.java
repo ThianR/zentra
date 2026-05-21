@@ -108,6 +108,9 @@ public class DocumentoElectronico {
     @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, fetch = jakarta.persistence.FetchType.EAGER)
     private List<Cuota> cuotas = new ArrayList<>();
 
+    @OneToMany(mappedBy = "documento", cascade = CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.EAGER)
+    private List<PagoContado> pagos = new ArrayList<>();
+
     private Integer indicadorPresencia = 1; // 1=Operación presencial, etc.
 
     @jakarta.persistence.Embedded
@@ -224,6 +227,8 @@ public class DocumentoElectronico {
     public void setItems(java.util.List<ItemDocumento> items) { this.items = items; }
     public java.util.List<Cuota> getCuotas() { return cuotas; }
     public void setCuotas(java.util.List<Cuota> cuotas) { this.cuotas = cuotas; }
+    public java.util.List<PagoContado> getPagos() { return pagos; }
+    public void setPagos(java.util.List<PagoContado> pagos) { this.pagos = pagos; }
     public Integer getIndicadorPresencia() { return indicadorPresencia; }
     public void setIndicadorPresencia(Integer indicadorPresencia) { this.indicadorPresencia = indicadorPresencia; }
     public ComprasPublicas getComprasPublicas() { return comprasPublicas; }

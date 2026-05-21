@@ -1,175 +1,278 @@
-﻿// --- Initialization ---
+// --- Estado y Variables Globales de Paginación ---
+
+let pagState = {
+    currentPage: 0,
+    pageSize: 50,
+    totalPages: 1,
+    totalElements: 0,
+    filtros: null
+};
+
+// --- Inicialización ---
 
 function initDashboard() {
+    // Registrar escuchadores de eventos para los controles de paginación
+    setupPaginationEventListeners();
+    
+    // Realizar la carga inicial
     loadDocumentos();
     
-    document.getElementById('btnRefresh').addEventListener('click', () => {
-        loadDocumentos();
-        showToast('Datos actualizados', 'info');
-    });
-}
-
-// --- Data Loading ---
-
-async function loadDocumentos(filtros = null) {
-    const tbody = document.getElementById('tbodyDocumentos');
-    try {
-        const response = await fetch(API.emision + '/documentos');
-        let docs = await response.json();
-        const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
-        const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
-        if (docs && docs.length > 0) docs = docs.filter(doc => doc.ambiente === expectedAmbiente);
-        
-        // Aplicar filtros en memoria si existen
-        if (filtros) {
-            docs = docs.filter(doc => {
-                let cumple = true;
-                
-                // Filtro por fecha exacta (del gráfico)
-                if (filtros.fecha) {
-                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
-                    if (fDoc !== filtros.fecha) cumple = false;
-                }
-                
-                // Filtro por estado
-                if (filtros.estado && doc.estado !== filtros.estado) cumple = false;
-                
-                // Filtro por RUC (del gráfico top receptores)
-                if (filtros.ruc && doc.rucReceptor !== filtros.ruc) cumple = false;
-                
-                // Filtro por Tipo
-                if (filtros.tipo && String(doc.tipoDocumento) !== String(filtros.tipo)) cumple = false;
-                
-                // Rango de fechas (de la barra de filtros)
-                if (filtros.desde) {
-                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
-                    if (fDoc < filtros.desde) cumple = false;
-                }
-                if (filtros.hasta) {
-                    const fDoc = doc.fechaCreacion ? doc.fechaCreacion.split('T')[0] : '';
-                    if (fDoc > filtros.hasta) cumple = false;
-                }
-                
-                // Búsqueda Global (Fase A6.2)
-                if (filtros.search) {
-                    const s = filtros.search.toLowerCase();
-                    const cdc = (doc.cdc || '').toLowerCase();
-                    const ruc = (doc.rucReceptor || '').toLowerCase();
-                    const nro = (doc.numeroComprobante || '').toLowerCase();
-                    const razon = (doc.receptorRazonSocial || '').toLowerCase();
-                    
-                    if (!cdc.includes(s) && !ruc.includes(s) && !nro.includes(s) && !razon.includes(s)) {
-                        cumple = false;
-                    }
-                }
-                
-                return cumple;
-            });
-        }
-
-        updateStats(docs);
-
-        if (docs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay documentos que coincidan con los filtros</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = '';
-        docs.reverse().forEach(doc => {
-            const tr = document.createElement('tr');
-            let statusClass = 'pendiente';
-            if (doc.estado === 'APROBADO') statusClass = 'aprobado';
-            else if (doc.estado === 'RECHAZADO' || doc.estado === 'ERROR_ENVIO') statusClass = 'rechazado';
-            else if (doc.estado === 'EN_PROCESO') statusClass = 'warning';
-
-            // Indicador visual de ticket disponible
-            const tieneTicket = doc.numeroTicketLote && doc.numeroTicketLote !== '';
-            const badgeTicket = tieneTicket
-                ? `<span class="badge-ticket" title="Ticket: ${doc.numeroTicketLote}"><i class="fas fa-ticket-alt"></i></span>`
-                : '';
-
-            // Validar 72 horas para Cancelación
-            let pasado72h = false;
-            if (doc.fechaCreacion) {
-                const fechaEmi = new Date(doc.fechaCreacion);
-                const horas = (new Date() - fechaEmi) / (1000 * 60 * 60);
-                pasado72h = horas > 72;
-            }
-
-            const btnAnular = doc.estado === 'APROBADO' ? 
-                (pasado72h ? 
-                    `<button class="btn btn-xs btn-danger disabled" style="opacity: 0.5; cursor: not-allowed;" title="Plazo Expirado: Han transcurrido más de 72 horas desde la emisión. SIFEN no permite su cancelación.">
-                        <i class="fas fa-ban"></i>
-                    </button>` 
-                    : 
-                    `<button class="btn btn-xs btn-danger" onclick="iniciarCancelacionDte('${doc.id}', '${doc.cdc || ''}')" title="Cancelar DTE en SIFEN">
-                        <i class="fas fa-ban"></i>
-                    </button>`
-                ) : '';
-
-            tr.innerHTML = `
-                <td>${formatDate(doc.fechaCreacion)}</td>
-                <td><span class="badge-type">${getTipoLabel(doc.tipoDocumento)}</span></td>
-                <td title="CDC: ${doc.cdc || ''}"><strong>${doc.numeroComprobante || 'N/A'}</strong><br>${doc.cdc ? `<a href="${doc.qrUrl || (doc.ambiente === 'PRODUCCION' ? 'https://ekuatia.set.gov.py/consultas/' : 'https://ekuatia.set.gov.py/consultas-test/')}" target="_blank" style="font-size: 0.8em; text-decoration: none; color: #3b82f6;" title="Consultar en SIFEN Ekuatia"><i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i> ${doc.cdc}</a>` : `<span style="font-size: 0.8em; color: #9ca3af;">Sin CDC</span>`}</td>
-                <td>${doc.receptorRazonSocial || doc.rucReceptor || 'Consumidor Final'}</td>
-                <td>${formatCurrency(doc.totalOperacion)}</td>
-                <td>
-                    <span class="badge-status ${statusClass}">${doc.estado || 'PENDIENTE'}</span>
-                    ${badgeTicket}
-                </td>
-                <td class="acciones-col">
-                    <button class="btn btn-xs btn-info" onclick="abrirModalDetalle('${doc.id}')" title="Ver detalle y estado SIFEN">
-                        <i class="fas fa-info-circle"></i>
-                    </button>
-                    ${(doc.estado === 'EN_PROCESO' || tieneTicket) ? `
-                    <button class="btn btn-xs btn-primary" onclick="consultarLoteSifen('${doc.id}')" title="Consultar Lote en SIFEN">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>` : ''}
-                    ${(doc.estado === 'RECHAZADO' && doc.cdc) ? `
-                    <button class="btn btn-xs btn-secondary" onclick="consultarCdcSifen('${doc.cdc}')" title="Consultar CDC en SIFEN">
-                        <i class="fas fa-search"></i>
-                    </button>` : ''}
-                    <button class="btn btn-xs btn-outline" onclick="descargarKude('${doc.id}')" title="Descargar KuDE (A4)">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="btn btn-xs btn-outline" onclick="descargarTicket('${doc.id}')" title="Descargar Ticket">
-                        <i class="fas fa-receipt"></i>
-                    </button>
-                    <button class="btn btn-xs btn-outline" onclick="descargarXml('${doc.id}')" title="Descargar XML Firmado">
-                        <i class="fas fa-file-code"></i>
-                    </button>
-                    ${btnAnular}
-                </td>
-            `;
-            tbody.appendChild(tr);
+    const btnRefresh = document.getElementById('btnRefresh');
+    if (btnRefresh) {
+        btnRefresh.addEventListener('click', () => {
+            loadDocumentos();
+            showToast('Datos actualizados', 'info');
         });
-    } catch (error) {
-        console.error('Error cargando documentos:', error);
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center error">Error de conexión con el servidor</td></tr>';
     }
 }
 
-async function updateStats(docs) {
-    const total = docs.length;
-    const aprobados = docs.filter(d => d.estado === 'APROBADO').length;
-    const rechazados = docs.filter(d => d.estado && d.estado.includes('ERROR')).length;
-    const pendientes = total - aprobados - rechazados;
+// --- Carga de Datos Paginados ---
 
-    // Calcular Emitidos Hoy
-    const hoy = new Date();
-    const emitidosHoy = docs.filter(d => {
-        if (!d.fechaCreacion) return false;
-        const dFecha = new Date(d.fechaCreacion);
-        return dFecha.getDate() === hoy.getDate() && 
-               dFecha.getMonth() === hoy.getMonth() && 
-               dFecha.getFullYear() === hoy.getFullYear();
-    }).length;
+async function loadDocumentos(filtros) {
+    const tbody = document.getElementById('tbodyDocumentos');
+    if (!tbody) return;
 
-    // Animación de números
-    animateValue("statsAprobados", 0, aprobados, 1000);
-    animateValue("statsPendientes", 0, pendientes, 1000);
-    animateValue("statsRechazados", 0, rechazados, 1000);
-    animateValue("statsEmitidosHoy", 0, emitidosHoy, 1000);
+    // Si se especifican filtros nuevos, reiniciar a la página 0 y actualizar filtros
+    if (filtros !== undefined) {
+        pagState.filtros = filtros;
+        pagState.currentPage = 0;
+    }
+
+    // Sincronizar el filtro de búsqueda global con el input real si existe
+    const globalSearchInput = document.getElementById('globalSearch');
+    if (globalSearchInput) {
+        const query = globalSearchInput.value.trim();
+        if (query.length >= 3) {
+            if (!pagState.filtros) pagState.filtros = {};
+            pagState.filtros.search = query;
+        } else {
+            if (pagState.filtros) {
+                delete pagState.filtros.search;
+            }
+        }
+    }
+
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando documentos...</td></tr>';
+    
+    try {
+        const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
+        const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
+        
+        // Construir URL con los parámetros de paginación y entorno
+        let url = `${API.emision}/documentos?page=${pagState.currentPage}&size=${pagState.pageSize}&ambiente=${expectedAmbiente}`;
+        
+        // Adjuntar filtros dinámicos si están activos
+        if (pagState.filtros) {
+            if (pagState.filtros.estado) url += `&estado=${encodeURIComponent(pagState.filtros.estado)}`;
+            if (pagState.filtros.tipo) url += `&tipo=${encodeURIComponent(pagState.filtros.tipo)}`;
+            if (pagState.filtros.desde) url += `&desde=${encodeURIComponent(pagState.filtros.desde)}`;
+            if (pagState.filtros.hasta) url += `&hasta=${encodeURIComponent(pagState.filtros.hasta)}`;
+            if (pagState.filtros.search) url += `&search=${encodeURIComponent(pagState.filtros.search)}`;
+            if (pagState.filtros.fecha) url += `&desde=${encodeURIComponent(pagState.filtros.fecha)}&hasta=${encodeURIComponent(pagState.filtros.fecha)}`;
+            if (pagState.filtros.ruc) url += `&search=${encodeURIComponent(pagState.filtros.ruc)}`;
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Error en servidor al obtener documentos paginados");
+        
+        const data = await response.json();
+        
+        const docs = data.content || [];
+        pagState.totalPages = data.totalPages || 1;
+        pagState.totalElements = data.totalElements || 0;
+        
+        // Renderizar las filas de la página actual
+        renderTableRows(docs);
+        
+        // Actualizar la visualización de los controles de paginación
+        updatePaginationUI();
+        
+        // Cargar y animar estadísticas globales asíncronamente
+        loadGlobalStats();
+
+    } catch (error) {
+        console.error('Error cargando documentos paginados:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center error"><i class="fas fa-exclamation-triangle"></i> Error de conexión con el servidor</td></tr>';
+    }
+}
+
+// --- Renderizado de Filas de la Tabla ---
+
+function renderTableRows(docs) {
+    const tbody = document.getElementById('tbodyDocumentos');
+    if (!tbody) return;
+
+    if (docs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay documentos que coincidan con los filtros</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    
+    // Procesamos directamente el arreglo sin hacer .reverse() porque el servidor ya los entrega ordenados descendente
+    docs.forEach(doc => {
+        const tr = document.createElement('tr');
+        let statusClass = 'pendiente';
+        if (doc.estado === 'APROBADO') statusClass = 'aprobado';
+        else if (doc.estado === 'RECHAZADO' || doc.estado === 'ERROR_ENVIO') statusClass = 'rechazado';
+        else if (doc.estado === 'EN_PROCESO') statusClass = 'warning';
+
+        // Indicador visual de ticket disponible
+        const tieneTicket = doc.numeroTicketLote && doc.numeroTicketLote !== '';
+        const badgeTicket = tieneTicket
+            ? `<span class="badge-ticket" title="Ticket: ${doc.numeroTicketLote}"><i class="fas fa-ticket-alt"></i></span>`
+            : '';
+
+        // Validar 72 horas para Cancelación
+        let pasado72h = false;
+        if (doc.fechaCreacion) {
+            const fechaEmi = new Date(doc.fechaCreacion);
+            const horas = (new Date() - fechaEmi) / (1000 * 60 * 60);
+            pasado72h = horas > 72;
+        }
+
+        const btnAnular = doc.estado === 'APROBADO' ? 
+            (pasado72h ? 
+                `<button class="btn btn-xs btn-danger disabled" style="opacity: 0.5; cursor: not-allowed;" title="Plazo Expirado: Han transcurrido más de 72 horas desde la emisión. SIFEN no permite su cancelación.">
+                    <i class="fas fa-ban"></i>
+                </button>` 
+                : 
+                `<button class="btn btn-xs btn-danger" onclick="iniciarCancelacionDte('${doc.id}', '${doc.cdc || ''}')" title="Cancelar DTE en SIFEN">
+                    <i class="fas fa-ban"></i>
+                </button>`
+            ) : '';
+
+        tr.innerHTML = `
+            <td>${formatDate(doc.fechaCreacion)}</td>
+            <td><span class="badge-type">${getTipoLabel(doc.tipoDocumento)}</span></td>
+            <td title="CDC: ${doc.cdc || ''}"><strong>${doc.numeroComprobante || 'N/A'}</strong><br>${doc.cdc ? `<a href="${doc.qrUrl || (doc.ambiente === 'PRODUCCION' ? 'https://ekuatia.set.gov.py/consultas/' : 'https://ekuatia.set.gov.py/consultas-test/')}" target="_blank" style="font-size: 0.8em; text-decoration: none; color: #3b82f6;" title="Consultar en SIFEN Ekuatia"><i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i> ${doc.cdc}</a>` : `<span style="font-size: 0.8em; color: #9ca3af;">Sin CDC</span>`}</td>
+            <td>${doc.receptorRazonSocial || doc.rucReceptor || 'Consumidor Final'}</td>
+            <td>${formatCurrency(doc.totalOperacion)}</td>
+            <td>
+                <span class="badge-status ${statusClass}">${doc.estado || 'PENDIENTE'}</span>
+                ${badgeTicket}
+            </td>
+            <td class="acciones-col">
+                <button class="btn btn-xs btn-info" onclick="abrirModalDetalle('${doc.id}')" title="Ver detalle y estado SIFEN">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+                ${(doc.estado === 'EN_PROCESO' || tieneTicket) ? `
+                <button class="btn btn-xs btn-primary" onclick="consultarLoteSifen('${doc.id}')" title="Consultar Lote en SIFEN">
+                    <i class="fas fa-sync-alt"></i>
+                </button>` : ''}
+                ${(doc.estado === 'RECHAZADO' && doc.cdc) ? `
+                <button class="btn btn-xs btn-secondary" onclick="consultarCdcSifen('${doc.cdc}')" title="Consultar CDC en SIFEN">
+                    <i class="fas fa-search"></i>
+                </button>` : ''}
+                <button class="btn btn-xs btn-outline" onclick="descargarKude('${doc.id}')" title="Descargar KuDE (A4)">
+                    <i class="fas fa-file-pdf"></i>
+                </button>
+                <button class="btn btn-xs btn-outline" onclick="descargarTicket('${doc.id}')" title="Descargar Ticket">
+                    <i class="fas fa-receipt"></i>
+                </button>
+                <button class="btn btn-xs btn-outline" onclick="descargarXml('${doc.id}')" title="Descargar XML Firmado">
+                    <i class="fas fa-file-code"></i>
+                </button>
+                ${btnAnular}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// --- Controles de Interfaz de Paginación ---
+
+function updatePaginationUI() {
+    const startIdx = pagState.totalElements === 0 ? 0 : (pagState.currentPage * pagState.pageSize) + 1;
+    const endIdx = Math.min((pagState.currentPage + 1) * pagState.pageSize, pagState.totalElements);
+    
+    document.getElementById('pagStart').textContent = startIdx;
+    document.getElementById('pagEnd').textContent = endIdx;
+    document.getElementById('pagTotalElements').textContent = pagState.totalElements;
+    document.getElementById('pagCurrentPage').textContent = pagState.currentPage + 1;
+    document.getElementById('pagTotalPages').textContent = pagState.totalPages;
+    
+    document.getElementById('btnFirstPage').disabled = pagState.currentPage === 0;
+    document.getElementById('btnPrevPage').disabled = pagState.currentPage === 0;
+    document.getElementById('btnNextPage').disabled = pagState.currentPage >= pagState.totalPages - 1;
+    document.getElementById('btnLastPage').disabled = pagState.currentPage >= pagState.totalPages - 1;
+}
+
+// --- Vinculación de Eventos de Paginación ---
+
+function setupPaginationEventListeners() {
+    if (window.paginationListenersInitialized) return;
+
+    const btnFirst = document.getElementById('btnFirstPage');
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+    const btnLast = document.getElementById('btnLastPage');
+    const selectSize = document.getElementById('selectPageSize');
+
+    if (btnFirst) {
+        btnFirst.addEventListener('click', () => {
+            if (pagState.currentPage > 0) {
+                pagState.currentPage = 0;
+                loadDocumentos();
+            }
+        });
+    }
+    
+    if (btnPrev) {
+        btnPrev.addEventListener('click', () => {
+            if (pagState.currentPage > 0) {
+                pagState.currentPage--;
+                loadDocumentos();
+            }
+        });
+    }
+    
+    if (btnNext) {
+        btnNext.addEventListener('click', () => {
+            if (pagState.currentPage < pagState.totalPages - 1) {
+                pagState.currentPage++;
+                loadDocumentos();
+            }
+        });
+    }
+    
+    if (btnLast) {
+        btnLast.addEventListener('click', () => {
+            if (pagState.currentPage < pagState.totalPages - 1) {
+                pagState.currentPage = pagState.totalPages - 1;
+                loadDocumentos();
+            }
+        });
+    }
+    
+    if (selectSize) {
+        selectSize.addEventListener('change', (e) => {
+            pagState.pageSize = parseInt(e.target.value);
+            pagState.currentPage = 0;
+            loadDocumentos();
+        });
+    }
+
+    window.paginationListenersInitialized = true;
+}
+
+// --- Carga Optimizada de Estadísticas Globales ---
+
+async function loadGlobalStats() {
+    try {
+        const response = await fetch('/api/v1/estadisticas/resumen-estado');
+        if (response.ok) {
+            const stats = await response.json();
+            
+            // Animación suave de los contadores agregados principales
+            animateValue("statsAprobados", 0, stats.aprobados || 0, 1000);
+            animateValue("statsPendientes", 0, stats.pendientes || 0, 1000);
+            animateValue("statsRechazados", 0, stats.rechazados || 0, 1000);
+            animateValue("statsEmitidosHoy", 0, stats.emitidosHoy || 0, 1000);
+        }
+    } catch (e) {
+        console.error("Error cargando estadísticas globales:", e);
+    }
 
     // Lotes Huérfanos
     try {
@@ -184,10 +287,10 @@ async function updateStats(docs) {
             const countBanner = document.getElementById('huerfanosCountBanner');
             
             if (huerfanosCount > 0) {
-                alertBox.style.display = 'block';
-                countBanner.textContent = huerfanosCount;
+                if (alertBox) alertBox.style.display = 'block';
+                if (countBanner) countBanner.textContent = huerfanosCount;
             } else {
-                alertBox.style.display = 'none';
+                if (alertBox) alertBox.style.display = 'none';
             }
         }
     } catch (e) {
@@ -460,7 +563,15 @@ window.limpiarFiltrosGlobales = function() {
     document.getElementById('filtroEstado').value = '';
     document.getElementById('filtroTipo').value = '';
     
-    loadDocumentos();
+    // Limpiar también el input de búsqueda global en la UI
+    const globalSearchInput = document.getElementById('globalSearch');
+    if (globalSearchInput) globalSearchInput.value = '';
+    
+    // Limpiar explícitamente el estado de filtros y la página en el estado global
+    pagState.filtros = null;
+    pagState.currentPage = 0;
+    
+    loadDocumentos(null);
     showToast("Filtros limpiados", "info");
 };
 

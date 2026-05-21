@@ -208,3 +208,18 @@ CREATE TABLE IF NOT EXISTS documentos_papelera (
     motivo_eliminacion      VARCHAR(255),
     fecha_eliminacion       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
+
+-- -----------------------------------------------------------------------------
+-- Índices para Paginación y Filtrado Eficiente de DTEs (Server-Side)
+-- -----------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_documento_ambiente_fecha ON documentos_electronicos (ambiente, fecha_creacion DESC);
+CREATE INDEX IF NOT EXISTS idx_documento_estado ON documentos_electronicos (estado);
+CREATE INDEX IF NOT EXISTS idx_documento_tipo ON documentos_electronicos (tipo_documento);
+CREATE INDEX IF NOT EXISTS idx_documento_ruc ON documentos_electronicos (ruc_receptor);
+
+-- Extensión y búsqueda trigram para búsqueda global parcial e instantánea en millones de registros
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_documento_cdc_trgm ON documentos_electronicos USING gin (cdc gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_documento_nro_trgm ON documentos_electronicos USING gin (numero_comprobante gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_documento_razon_trgm ON documentos_electronicos USING gin (receptor_razon_social gin_trgm_ops);
+

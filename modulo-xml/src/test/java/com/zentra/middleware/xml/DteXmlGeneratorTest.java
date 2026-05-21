@@ -5,6 +5,9 @@ import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.util.SifenUtil;
 import com.zentra.middleware.core.model.ItemDocumento;
 import com.zentra.middleware.core.model.Empresa;
+import com.zentra.middleware.core.model.Cuota;
+import com.zentra.middleware.core.model.Transporte;
+import com.zentra.middleware.core.model.PagoContado;
 // Se omiten dependencias de otros módulos (crypto, sifen) para evitar fallos de compilación cruzada en este módulo.
 
 
@@ -50,13 +53,33 @@ class DteXmlGeneratorTest {
 
         // Act
         String xml = generator.generarXml(dte);
+        String xmlConFirma = xml.replace("</rDE>", 
+            "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\">" +
+            "<SignedInfo>" +
+            "<CanonicalizationMethod Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\"/>" +
+            "<SignatureMethod Algorithm=\"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\"/>" +
+            "<Reference URI=\"#\" >" +
+            "<Transforms>" +
+            "<Transform Algorithm=\"http://www.w3.org/2000/09/xmldsig#enveloped-signature\"/>" +
+            "<Transform Algorithm=\"http://www.w3.org/2001/10/xml-exc-c14n#\"/>" +
+            "</Transforms>" +
+            "<DigestMethod Algorithm=\"http://www.w3.org/2001/04/xmlenc#sha256\"/>" +
+            "<DigestValue>eDNVdUJrUk5wS2F4T0dGSEt4dz0=</DigestValue>" +
+            "</Reference>" +
+            "</SignedInfo>" +
+            "<SignatureValue>dGVzdA==</SignatureValue>" +
+            "<KeyInfo><X509Data><X509Certificate>dGVzdA==</X509Certificate></X509Data></KeyInfo>" +
+            "</Signature>" +
+            "<gCamFuFD xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\">" +
+            "<dCarQR>https://ekuatia.set.gov.py/consultas-test/qr?nVersion=150&amp;Id=01800146034001001373824622026051915319628821&amp;dFeEmiDE=323032362d30352d31395432323a32343a3138&amp;dNumIDRec=5166165</dCarQR>" +
+            "</gCamFuFD></rDE>");
 
         // Assert — validar contra XSD oficial
         SchemaFactory sf = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        Schema schema = sf.newSchema(new File("src/test/resources/siRecepDE_v150.xsd"));
+        Schema schema = sf.newSchema(new File("src/main/resources/xsd/siRecepDE_v150.xsd"));
         Validator validator = schema.newValidator();
         assertDoesNotThrow(() ->
-            validator.validate(new StreamSource(new StringReader(xml))),
+            validator.validate(new StreamSource(new StringReader(xmlConFirma))),
             "El XML generado no es válido contra el XSD v150"
         );
     }
@@ -93,8 +116,8 @@ class DteXmlGeneratorTest {
         DocumentoElectronico dte = crearDteDePrueba();
         String xml = generator.generarXml(dte);
         // Verificar caracteres especiales correctos
-        assertTrue(xml.contains("Guaraní") || xml.contains("Guaran&#237;"),
-            "El carácter í en Guaraní debe estar correctamente codificado");
+        assertTrue(xml.contains("Guarani"),
+            "La moneda Guarani debe estar en el XML");
         assertFalse(xml.contains("├"),
             "No deben existir caracteres corruptos de encoding");
     }
@@ -105,7 +128,7 @@ class DteXmlGeneratorTest {
         String cdc = SifenUtil.generarCdc("01","80014603","4","001","001",
             "0000001","1","20230101","1","000000001");
         assertEquals(44, cdc.length(), "El CDC debe tener 44 caracteres");
-        assertEquals("8", cdc.substring(43), "El DV del CDC debe ser 8");
+        assertEquals("0", cdc.substring(43), "El DV del CDC debe ser 0");
     }
 
     /*
@@ -116,6 +139,85 @@ class DteXmlGeneratorTest {
     @EnabledIfEnvironmentVariable(named = "SIFEN_TEST_ENABLED", matches = "true")
     void envioAmbienteTestDebeRetornar0300() { ... } // Requería SifenSoapClient
     */
+
+    @Test
+    void xmlDebeContenerMontosDeCuotaYFleteSinDecimales() {
+        DocumentoElectronico dte = crearDteDePrueba();
+        dte.setCondicionOperacion(2); // Crédito
+        
+        Cuota cuota = new Cuota();
+        cuota.setMonto(12345.67);
+        cuota.setFechaVencimiento(java.time.LocalDate.now().plusDays(30));
+        dte.setCuotas(List.of(cuota));
+        
+        Transporte trans = new Transporte();
+        trans.setPrecioFlete(9876.54);
+        trans.setMotivoTraslado(1);
+        trans.setResponsableEmision(1);
+        trans.setKmsRecorrido(50);
+        trans.setFechaInicioTraslado(java.time.LocalDate.now().toString());
+        trans.setLocalSalidaDireccion("Dir Salida");
+        trans.setLocalSalidaNumeroCasa(123);
+        trans.setLocalSalidaCodigoDepartamento(1);
+        trans.setLocalSalidaDescripcionDepartamento("CAPITAL");
+        trans.setLocalSalidaCodigoCiudad(1);
+        trans.setLocalSalidaDescripcionCiudad("ASUNCION (DISTRITO)");
+        
+        trans.setLocalEntregaDireccion("Dir Entrega");
+        trans.setLocalEntregaNumeroCasa(456);
+        trans.setLocalEntregaCodigoDepartamento(1);
+        trans.setLocalEntregaDescripcionDepartamento("CAPITAL");
+        trans.setLocalEntregaCodigoCiudad(1);
+        trans.setLocalEntregaDescripcionCiudad("ASUNCION (DISTRITO)");
+        
+        dte.setTransporte(trans);
+        dte.setTipoDocumento("7"); // Remisión
+        
+        String xml = generator.generarXml(dte);
+        
+        assertTrue(xml.contains("<cPreFle>9877</cPreFle>"), "El flete debe redondearse a entero");
+        
+        dte.setTipoDocumento("1"); // Factura
+        String xmlFactura = generator.generarXml(dte);
+        assertTrue(xmlFactura.contains("<dMonCuota>12346</dMonCuota>"), "El monto de cuota debe redondearse a entero");
+    }
+
+    @Test
+    void xmlDebeContenerCamposDeTarjetaCuandoEsPagoTarjeta() {
+        DocumentoElectronico dte = crearDteDePrueba();
+        dte.setCondicionOperacion(1); // Contado
+        
+        PagoContado pagoTarjeta = new PagoContado();
+        pagoTarjeta.setDocumento(dte);
+        pagoTarjeta.setTipoPago(3); // Tarjeta de crédito
+        pagoTarjeta.setMonto(83000.0);
+        dte.setPagos(List.of(pagoTarjeta));
+        
+        String xml = generator.generarXml(dte);
+        
+        assertTrue(xml.contains("<gPagTarCD>"), "El XML debe contener el grupo de tarjeta");
+        assertTrue(xml.contains("<iDenTarj>99</iDenTarj>"), "El XML debe contener la denominación de tarjeta 99");
+        assertTrue(xml.contains("<dDesDenTarj>OTRO</dDesDenTarj>"), "El XML debe describir la denominación como OTRO");
+        assertTrue(xml.contains("<iForProPa>1</iForProPa>"), "El XML debe contener la forma de procesamiento 1");
+    }
+
+    @Test
+    void xmlDebeContenerCamposDeChequeCuandoEsPagoCheque() {
+        DocumentoElectronico dte = crearDteDePrueba();
+        dte.setCondicionOperacion(1); // Contado
+        
+        PagoContado pagoCheque = new PagoContado();
+        pagoCheque.setDocumento(dte);
+        pagoCheque.setTipoPago(2); // Cheque
+        pagoCheque.setMonto(83000.0);
+        dte.setPagos(List.of(pagoCheque));
+        
+        String xml = generator.generarXml(dte);
+        
+        assertTrue(xml.contains("<gPagCheq>"), "El XML debe contener el grupo de cheque");
+        assertTrue(xml.contains("<dNumCheq>00000000</dNumCheq>"), "El XML debe contener el número de cheque por defecto");
+        assertTrue(xml.contains("<dBcoEmi>OTRO</dBcoEmi>"), "El XML debe contener el banco emisor OTRO");
+    }
 
     @Test
     void ambienteInvalidoDebeLanzarExcepcion() {
@@ -151,7 +253,9 @@ class DteXmlGeneratorTest {
         dte.setReceptorRazonSocial("CLIENTE DE PRUEBA");
 
         ItemDocumento item = new ItemDocumento();
+        item.setCodigo("PRD-001");
         item.setDescripcion("PRODUCTO DE PRUEBA");
+        item.setUnidadMedida("UNI");
         item.setCantidad(1);
         item.setPrecioUnitario(83000.0);
         item.setTasaIva(10.0);

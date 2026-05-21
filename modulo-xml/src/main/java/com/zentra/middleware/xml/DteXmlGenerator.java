@@ -1,6 +1,8 @@
 package com.zentra.middleware.xml;
 
 import com.zentra.middleware.core.model.DocumentoElectronico;
+import com.zentra.middleware.core.model.PagoContado;
+import com.zentra.middleware.core.model.Transporte;
 import com.zentra.middleware.core.util.DescripcionTipoTransaccion;
 import com.zentra.middleware.core.util.SifenUtil;
 import java.math.BigDecimal;
@@ -149,20 +151,22 @@ public class DteXmlGenerator {
             // Mapeo detallado del Emisor
             gDatGralOpe.setGEmis(mapearEmisor(dte));
             
-            // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura/Autofactura)
-            // No debe informarse para Notas de Crédito (5), Débito (6) o Remisión (7)
+            // gOpeCom (Operación Comercial - OBLIGATORIO en v150 para Factura, Autofactura, N.Crédito y N.Débito)
+            // No debe informarse para Notas de Remisión (7)
             int tDoc = Integer.parseInt(tipoDoc != null ? tipoDoc : "1");
-            if (tDoc <= 4) {
+            if (tDoc == 1 || tDoc == 4 || tDoc == 5 || tDoc == 6) {
                 TgOpeCom gOpeCom = factory.createTgOpeCom();
                 // 1 = IVA, 2 = ISC, 3 = Renta, 4 = Ninguno, 5 = IVA-Renta
                 gOpeCom.setITImp(BigInteger.valueOf(1));
                 gOpeCom.setDDesTImp(TdDesTImp.IVA);
                 gOpeCom.setCMoneOpe(CMondT.PYG);
                 gOpeCom.setDDesMoneOpe("Guarani");
-                // Tipo de transacción: Obligatorio si C002 = 1, 2, 3 o 4.
-                int tipTra = resolverTipoTransaccion(dte);
-                gOpeCom.setITipTra(tipTra);
-                gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
+                // Tipo de transacción: Obligatorio si C002 = 1, 2, 3 o 4. No informar si C002 = 5 o 6.
+                if (tDoc <= 4) {
+                    int tipTra = resolverTipoTransaccion(dte);
+                    gOpeCom.setITipTra(tipTra);
+                    gOpeCom.setDDesTipTra(TdDesTiTran.fromValue(DescripcionTipoTransaccion.getDescripcion(tipTra)));
+                }
                 gDatGralOpe.setGOpeCom(gOpeCom);
             }
 
@@ -248,7 +252,7 @@ public class DteXmlGenerator {
                     gCamNRE.setDKmR(t.getKmsRecorrido() != null ? t.getKmsRecorrido() : 10);
                     gCamNRE.setDFecEm(dte.getFechaCreacion().toLocalDate().toString());
                     if (t.getPrecioFlete() != null) {
-                        gCamNRE.setCPreFle(BigDecimal.valueOf(t.getPrecioFlete()));
+                        gCamNRE.setCPreFle(entero(t.getPrecioFlete()));
                     }
                     gDtipDE.setGCamNRE(gCamNRE);
                 }
@@ -439,14 +443,68 @@ public class DteXmlGenerator {
                 gCamCond.setDDCondOpe(condOpe == 1 ? TdDCondOpe.CONTADO : TdDCondOpe.CRÉDITO);
                 
                 if (condOpe == 1) {
-                    TgPagCont gPagCont = factory.createTgPagCont();
-                    gPagCont.setITiPago(BigInteger.valueOf(1)); // Efectivo
-                    gPagCont.setDDesTiPag("Efectivo");
-                    // En PYG los montos deben ser enteros sin decimales (norma SIFEN v150)
-                    gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
-                    gPagCont.setCMoneTiPag(CMondT.PYG);
-                    gPagCont.setDDMoneTiPag("Guarani");
-                    gCamCond.getGPaConEIni().add(gPagCont);
+                    if (dte.getPagos() != null && !dte.getPagos().isEmpty()) {
+                        for (PagoContado p : dte.getPagos()) {
+                            TgPagCont gPagCont = factory.createTgPagCont();
+                            int tipoPagoId = p.getTipoPago() != null ? p.getTipoPago() : 1;
+                            gPagCont.setITiPago(BigInteger.valueOf(tipoPagoId));
+                            gPagCont.setDDesTiPag(getDescripcionTipoPago(tipoPagoId));
+                            gPagCont.setDMonTiPag(entero(p.getMonto() != null ? p.getMonto() : 0.0));
+                            gPagCont.setCMoneTiPag(CMondT.PYG);
+                            gPagCont.setDDMoneTiPag("Guarani");
+
+                            // Indicador de modo seguro: si es null se interpreta como true
+                            boolean safe = p.getSafeSecure() == null || p.getSafeSecure();
+
+                            // Si el pago es con tarjeta (crédito=3, débito=4)
+                            if (tipoPagoId == 3 || tipoPagoId == 4) {
+                                TgPagTarCD gPagTarCD = factory.createTgPagTarCD();
+
+                                // Denominación: usar dato real o fallback genérico si safeSecure
+                                int den = (p.getTarjetaDenominacion() != null) ? p.getTarjetaDenominacion() : (safe ? 99 : 99);
+                                gPagTarCD.setIDenTarj(BigInteger.valueOf(den));
+
+                                // Descripción: calcular según denominación o usar dato libre del usuario
+                                String desc = resolverDescripcionDenominacion(den, p.getTarjetaDescripcion(), safe);
+                                gPagTarCD.setDDesDenTarj(desc);
+
+                                // Forma de procesamiento: usar dato real o fallback POS
+                                int forma = (p.getTarjetaFormaProcesamiento() != null) ? p.getTarjetaFormaProcesamiento() : (safe ? 1 : 1);
+                                gPagTarCD.setIForProPa((short) forma);
+
+                                gPagCont.setGPagTarCD(gPagTarCD);
+                            }
+
+                            // Si el pago es con cheque (tipo 2)
+                            if (tipoPagoId == 2) {
+                                TgPagCheq gPagCheq = factory.createTgPagCheq();
+
+                                // Número de cheque: usar dato real o fallback genérico si safeSecure
+                                String numCheq = (p.getChequeNumero() != null && !p.getChequeNumero().isBlank())
+                                        ? p.getChequeNumero() : (safe ? "00000000" : "00000000");
+                                gPagCheq.setDNumCheq(numCheq);
+
+                                // Banco emisor: usar dato real o fallback genérico si safeSecure
+                                String banco = (p.getChequeBanco() != null && !p.getChequeBanco().isBlank())
+                                        ? p.getChequeBanco() : (safe ? "OTRO" : "OTRO");
+                                gPagCheq.setDBcoEmi(banco);
+
+                                gPagCont.setGPagCheq(gPagCheq);
+                            }
+
+                            gCamCond.getGPaConEIni().add(gPagCont);
+                        }
+
+                    } else {
+                        // Fallback por si la UI no envió nada, asumimos 100% efectivo
+                        TgPagCont gPagCont = factory.createTgPagCont();
+                        gPagCont.setITiPago(BigInteger.valueOf(1));
+                        gPagCont.setDDesTiPag("Efectivo");
+                        gPagCont.setDMonTiPag(entero(dte.getTotalOperacion() != null ? dte.getTotalOperacion() : 0.0));
+                        gPagCont.setCMoneTiPag(CMondT.PYG);
+                        gPagCont.setDDMoneTiPag("Guarani");
+                        gCamCond.getGPaConEIni().add(gPagCont);
+                    }
                 } else {
                     TgPagCred gPagCred = factory.createTgPagCred();
                     gPagCred.setICondCred(BigInteger.valueOf(2)); // Cuotas
@@ -457,7 +515,7 @@ public class DteXmlGenerator {
                         TgCuotas gCuotaStruct = factory.createTgCuotas();
                         gCuotaStruct.setCMoneCuo(CMondT.PYG);
                         gCuotaStruct.setDDMoneCuo("Guarani");
-                        gCuotaStruct.setDMonCuota(BigDecimal.valueOf(c.getMonto()));
+                        gCuotaStruct.setDMonCuota(entero(c.getMonto()));
                         gCuotaStruct.setDVencCuo(c.getFechaVencimiento().toString());
                         gPagCred.getGCuotas().add(gCuotaStruct);
                     }
@@ -603,6 +661,10 @@ public class DteXmlGenerator {
                 "<rDE xmlns=\"http://ekuatia.set.gov.py/sifen/xsd\" " +
                 "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" " +
                 "xsi:schemaLocation=\"http://ekuatia.set.gov.py/sifen/xsd siRecepDE_v150.xsd\">");
+
+            // Limpiar de forma robusta cualquier decimal .0 en campos monetarios o de monto (que inician con d o c)
+            // Esto evita incompatibilidades de JAXB con tipos decimales en guaraníes (PYG) ante SIFEN.
+            xmlGenerated = xmlGenerated.replaceAll("<([dc][A-Za-z0-9]+)>([0-9]+)\\.0+</\\1>", "<$1>$2</$1>");
 
             dte.setXmlGenerado(xmlGenerated);
             return xmlGenerated;
@@ -981,11 +1043,65 @@ public class DteXmlGenerator {
         return BigDecimal.valueOf(Math.round(valor));
     }
 
+    private String getDescripcionTipoPago(int codigo) {
+        switch (codigo) {
+            case 1: return "Efectivo";
+            case 2: return "Cheque";
+            case 3: return "Tarjeta de crédito";
+            case 4: return "Tarjeta de débito";
+            case 5: return "Transferencia";
+            case 6: return "Giro";
+            case 7: return "Billetera electrónica";
+            case 8: return "Tarjeta empresarial";
+            case 9: return "Vale";
+            case 10: return "Retención";
+            case 11: return "Pago por anticipo";
+            case 12: return "Valor fiscal";
+            case 13: return "Valor comercial";
+            case 14: return "Compensación";
+            case 15: return "Permuta";
+            case 16: return "Pago bancario";
+            case 17: return "Pago Móvil";
+            case 18: return "Donación";
+            case 19: return "Promoción";
+            case 20: return "Consumo Interno";
+            case 21: return "Pago Electrónico";
+            default: return "Otro";
+        }
+    }
+
     /**
      * Convierte un BigDecimal a escala 0 sin decimales.
      * Retorna ZERO si el valor es nulo.
      */
     private BigDecimal entero(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor.setScale(0, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Resuelve la descripción de la denominación de la tarjeta según el código SIFEN.
+     * Para códigos conocidos (1-6) retorna el nombre oficial.
+     * Para código 99 (Otro) usa la descripción libre del usuario o "OTRO" como fallback.
+     *
+     * @param codigoDenominacion  código de denominación SIFEN (1=Visa, ..., 99=Otro)
+     * @param descripcionLibre    texto libre del usuario (solo aplicable cuando es 99)
+     * @param safe                indica si está en modo seguro (usa fallback si está vacío)
+     * @return descripción final a enviar en el XML
+     */
+    private String resolverDescripcionDenominacion(int codigoDenominacion, String descripcionLibre, boolean safe) {
+        switch (codigoDenominacion) {
+            case 1: return "VISA";
+            case 2: return "MASTERCARD";
+            case 3: return "AMERICAN EXPRESS";
+            case 4: return "MAESTRO";
+            case 5: return "PANAL";
+            case 6: return "CABALL";
+            default:
+                // Para código 99 (Otro) o cualquier otro valor, usar la descripción libre
+                if (descripcionLibre != null && !descripcionLibre.isBlank()) {
+                    return descripcionLibre.trim().toUpperCase();
+                }
+                return safe ? "OTRO" : "OTRO";
+        }
     }
 }

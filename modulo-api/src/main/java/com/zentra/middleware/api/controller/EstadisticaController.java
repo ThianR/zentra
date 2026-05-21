@@ -70,12 +70,21 @@ public class EstadisticaController {
                 else if (estado.equals("ANULADO")) anulados += count;
             }
 
+            // Calcular DTEs emitidos el día de hoy de manera eficiente
+            java.time.LocalDateTime hoyStart = java.time.LocalDate.now().atStartOfDay();
+            List<Object[]> diarioData = dteRepository.resumenDiario(empresaId, hoyStart);
+            long emitidosHoy = 0;
+            for (Object[] row : diarioData) {
+                emitidosHoy += (long) row[2];
+            }
+
             Map<String, Object> res = new HashMap<>();
             res.put("aprobados", aprobados);
             res.put("rechazados", rechazados);
             res.put("pendientes", pendientes);
             res.put("enProceso", enProceso);
             res.put("anulados", anulados);
+            res.put("emitidosHoy", emitidosHoy);
             
             return ResponseEntity.ok(res);
         } catch (Exception e) {

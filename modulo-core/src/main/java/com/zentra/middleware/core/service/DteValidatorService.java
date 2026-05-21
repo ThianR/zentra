@@ -3,6 +3,7 @@ package com.zentra.middleware.core.service;
 import com.zentra.middleware.core.model.DocumentoElectronico;
 import com.zentra.middleware.core.model.ItemDocumento;
 import com.zentra.middleware.core.model.Cuota;
+import com.zentra.middleware.core.model.PagoContado;
 import com.zentra.middleware.core.model.Transporte;
 
 import org.springframework.stereotype.Service;
@@ -305,6 +306,51 @@ public class DteValidatorService {
                             "CONDICION: La suma de las cuotas (%.2f) debe ser igual al Total de la Operación (%.2f).",
                             sumaCuotas, totalOp));
                 }
+            }
+        }
+
+        // Validar detalles de tarjeta/cheque cuando safeSecure está desactivado (condición contado)
+        if (cond != null && cond == 1 && dte.getPagos() != null) {
+            int numeroPago = 1;
+            for (PagoContado pago : dte.getPagos()) {
+                int tipoPago = pago.getTipoPago() != null ? pago.getTipoPago() : 1;
+                boolean esTarjeta = tipoPago == 3 || tipoPago == 4;
+                boolean esCheque  = tipoPago == 2;
+                boolean safe = pago.getSafeSecure() == null || pago.getSafeSecure();
+                String prefijoPago = "PAGO " + numeroPago + ": ";
+
+                if (!safe && esTarjeta) {
+                    // Denominación de tarjeta obligatoria
+                    if (pago.getTarjetaDenominacion() == null) {
+                        r.agregar(prefijoPago + "La denominación de la tarjeta es obligatoria "
+                                + "(1=Visa, 2=Mastercard, 3=Amex, 4=Maestro, 5=Panal, 6=Caball, 99=Otro).");
+                    } else if (pago.getTarjetaDenominacion() == 99) {
+                        // Si es 'Otro', la descripción es obligatoria
+                        if (isBlank(pago.getTarjetaDescripcion()) || pago.getTarjetaDescripcion().length() < 4) {
+                            r.agregar(prefijoPago + "Al seleccionar Denominación 'Otro' (99), "
+                                    + "la descripción de la tarjeta es obligatoria (mínimo 4 caracteres).");
+                        }
+                    }
+                    // Forma de procesamiento obligatoria (1=POS, 2=Pago Electrónico)
+                    if (pago.getTarjetaFormaProcesamiento() == null) {
+                        r.agregar(prefijoPago + "La forma de procesamiento de la tarjeta es obligatoria "
+                                + "(1=POS, 2=Pago Electrónico).");
+                    } else if (pago.getTarjetaFormaProcesamiento() != 1 && pago.getTarjetaFormaProcesamiento() != 2) {
+                        r.agregar(prefijoPago + "La forma de procesamiento de la tarjeta debe ser 1=POS o 2=Pago Electrónico.");
+                    }
+                }
+
+                if (!safe && esCheque) {
+                    // Número de cheque: mínimo 8 caracteres
+                    if (isBlank(pago.getChequeNumero()) || pago.getChequeNumero().length() < 8) {
+                        r.agregar(prefijoPago + "El número de cheque es obligatorio y debe tener al menos 8 caracteres.");
+                    }
+                    // Banco emisor: mínimo 4 caracteres
+                    if (isBlank(pago.getChequeBanco()) || pago.getChequeBanco().length() < 4) {
+                        r.agregar(prefijoPago + "El banco emisor del cheque es obligatorio (mínimo 4 caracteres).");
+                    }
+                }
+                numeroPago++;
             }
         }
     }

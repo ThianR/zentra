@@ -29,24 +29,26 @@ function initEnvironment() {
     
     const setEnv = (env) => {
         if (env === 'prod') {
-            envSwitch.checked = true;
-            devTools.classList.add('hidden');
+            if (envSwitch) envSwitch.checked = true;
+            if (devTools) devTools.classList.add('hidden');
         } else {
-            envSwitch.checked = false;
-            devTools.classList.remove('hidden');
+            if (envSwitch) envSwitch.checked = false;
+            if (devTools) devTools.classList.remove('hidden');
         }
         sessionStorage.setItem('zentra-env', env);
     };
 
     setEnv(savedEnv);
 
-    envSwitch.addEventListener('change', () => {
-        const newEnv = envSwitch.checked ? 'prod' : 'dev';
-        setEnv(newEnv);
-        showToast(`Cambiado a ambiente: ${newEnv.toUpperCase()}`, 'info');
-        if (typeof window.loadDocumentos === 'function') window.loadDocumentos();
-        if (typeof window.loadDashboard === 'function') window.loadDashboard();
-    });
+    if (envSwitch) {
+        envSwitch.addEventListener('change', () => {
+            const newEnv = envSwitch.checked ? 'prod' : 'dev';
+            setEnv(newEnv);
+            showToast(`Cambiado a ambiente: ${newEnv.toUpperCase()}`, 'info');
+            if (typeof window.loadDocumentos === 'function') window.loadDocumentos();
+            if (typeof window.loadDashboard === 'function') window.loadDashboard();
+        });
+    }
 }
 function initSidebar() {
     const menuToggle = document.getElementById('menuToggle');

@@ -130,12 +130,15 @@
                 <section class="dashboard-top-insights">
                     <div class="health-card glass slide-up">
                         <div class="gauge-container">
-                            <div class="gauge">
-                                <div class="gauge-body">
-                                    <div id="healthFill" class="gauge-fill"></div>
-                                    <div class="gauge-cover">
-                                        <span id="healthValue">0%</span>
-                                    </div>
+                            <div class="gauge-circular">
+                                <svg class="progress-ring" width="80" height="80" viewBox="0 0 80 80">
+                                    <circle class="progress-ring-track" cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" />
+                                    <circle id="healthFill" class="progress-ring-fill" cx="40" cy="40" r="34" fill="none" stroke="var(--accent-success, #198754)" stroke-width="6"
+                                            stroke-dasharray="213.63" stroke-dashoffset="213.63" stroke-linecap="round"
+                                            transform="rotate(-90 40 40)" />
+                                </svg>
+                                <div class="gauge-value">
+                                    <span id="healthValue">0%</span>
                                 </div>
                             </div>
                         </div>
@@ -368,6 +371,29 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Controles de Paginación del Servidor (Premium) -->
+                    <div class="pagination-controls glass">
+                        <div class="pagination-info">
+                            Mostrando <span id="pagStart">0</span> - <span id="pagEnd">0</span> de <span id="pagTotalElements">0</span> comprobantes
+                        </div>
+                        <div class="pagination-buttons">
+                            <button id="btnFirstPage" class="btn-pag" title="Primera Página" disabled><i class="fas fa-angle-double-left"></i></button>
+                            <button id="btnPrevPage" class="btn-pag" title="Página Anterior" disabled><i class="fas fa-angle-left"></i></button>
+                            <span class="pagination-current-label">Página <strong id="pagCurrentPage">1</strong> de <strong id="pagTotalPages">1</strong></span>
+                            <button id="btnNextPage" class="btn-pag" title="Página Siguiente" disabled><i class="fas fa-angle-right"></i></button>
+                            <button id="btnLastPage" class="btn-pag" title="Última Página" disabled><i class="fas fa-angle-double-right"></i></button>
+                        </div>
+                        <div class="pagination-size">
+                            <span>Filas por página:</span>
+                            <select id="selectPageSize" class="select-pag-size">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -637,6 +663,40 @@
                                         <option value="">Cargando...</option>
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección de Múltiples Pagos (Solo para Contado) -->
+                        <div class="form-section full-width" id="sectionPagos">
+                            <div class="section-header">
+                                <h4 class="section-title">Formas de Pago (Contado)</h4>
+                            </div>
+                            <div class="table-container">
+                                <table class="table-items" id="tablePagos">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo de Pago</th>
+                                            <th>Monto</th>
+                                            <th width="50" class="text-center" title="Detalles">Detalle</th>
+                                            <th width="50"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbodyPagos">
+                                        <!-- Filas generadas dinámicamente -->
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td class="text-right font-medium">TOTAL PAGOS</td>
+                                            <td class="text-right font-bold"><span id="sumPagos">0</span></td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <div style="margin-top: 10px; display: flex; justify-content: flex-start;">
+                                <button type="button" class="btn btn-sm btn-outline" onclick="addPagoRow()">
+                                    <i class="fas fa-plus"></i> Agregar Pago
+                                </button>
                             </div>
                         </div>
 
@@ -1468,6 +1528,79 @@
 
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Modal: Detalles de Pago -->
+    <div id="modalDetallePago" class="modal-overlay" style="display:none;" onclick="cerrarModalDetallePago(event)">
+        <div class="modal-card glass" onclick="event.stopPropagation()" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-credit-card"></i> <span id="modalDetallePagoTitulo">Detalles de Pago</span></h3>
+                <button class="btn-icon-only" onclick="cerrarModalDetallePago()" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="detallePagoRowIndex">
+                
+                <div class="safesecure-container">
+                    <div class="safesecure-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                        <span class="font-medium" style="color: var(--accent);"><i class="fas fa-shield-alt"></i> Modo Seguro (SafeSecure)</span>
+                        <label class="switch">
+                            <input type="checkbox" id="detallePagoSafeSecure" onchange="toggleSafeSecureFields()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <p class="text-muted text-sm" style="margin-bottom: 15px;">
+                        Si está activo, se usarán valores genéricos seguros para evitar rechazos de SIFEN al omitir los campos obligatorios.
+                    </p>
+                </div>
+
+                <!-- Campos de Tarjeta -->
+                <div id="camposTarjeta" style="display: none; padding-top: 10px; border-top: 1px solid var(--border);">
+                    <div class="form-group">
+                        <label>Denominación de la Tarjeta <span class="text-danger">*</span></label>
+                        <select id="tarjetaDenominacion" class="form-control" onchange="toggleTarjetaDescripcion()">
+                            <option value="">Seleccione...</option>
+                            <option value="1">Visa</option>
+                            <option value="2">Mastercard</option>
+                            <option value="3">American Express</option>
+                            <option value="4">Maestro</option>
+                            <option value="5">Panal</option>
+                            <option value="6">Caball</option>
+                            <option value="99">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="groupTarjetaDescripcion" style="display: none;">
+                        <label>Descripción de Denominación <span class="text-danger">*</span></label>
+                        <input type="text" id="tarjetaDescripcion" class="form-control" placeholder="Ej: TARJETA COOP" minlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label>Forma de Procesamiento <span class="text-danger">*</span></label>
+                        <select id="tarjetaFormaProcesamiento" class="form-control">
+                            <option value="">Seleccione...</option>
+                            <option value="1">POS</option>
+                            <option value="2">Pago Electrónico</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Campos de Cheque -->
+                <div id="camposCheque" style="display: none; padding-top: 10px; border-top: 1px solid var(--border);">
+                    <div class="form-group">
+                        <label>Número de Cheque <span class="text-danger">*</span></label>
+                        <input type="text" id="chequeNumero" class="form-control" placeholder="Mínimo 8 caracteres" minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label>Banco Emisor <span class="text-danger">*</span></label>
+                        <input type="text" id="chequeBanco" class="form-control" placeholder="Mínimo 4 caracteres" minlength="4">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
+                <button class="btn btn-outline" onclick="cerrarModalDetallePago()">Cancelar</button>
+                <button class="btn btn-primary" onclick="guardarDetallePago()">Guardar Detalles</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Detalle del Documento SIFEN -->
     <div id="modalDetalleDte" class="modal-overlay" style="display:none;" onclick="cerrarModalDetalle(event)">

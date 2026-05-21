@@ -297,17 +297,233 @@ function toggleSections(type) {
 
 function toggleCuotas() {
     const sectionCuotas = document.getElementById('sectionCuotas');
+    const sectionPagos = document.getElementById('sectionPagos');
     const condicion = document.getElementById('condicionOperacion');
     const isCredito = condicion && condicion.value === '2';
-    
+
     if (isCredito) {
+        if (sectionPagos) sectionPagos.classList.add('hidden');
         sectionCuotas.classList.remove('hidden');
         if (document.getElementById('tbodyCuotas').children.length === 0) {
             addCuotaRow(); // Add first cuota
         }
     } else {
         sectionCuotas.classList.add('hidden');
+        if (sectionPagos) {
+            sectionPagos.classList.remove('hidden');
+            if (document.getElementById('tbodyPagos').children.length === 0) {
+                // Agregar por defecto 1 fila con el total en Efectivo si no hay pagos
+                const totalGral = document.getElementById('totalGral').innerText.replace(/\./g, '');
+                addPagoRow(1, parseFloat(totalGral) || 0);
+            }
+        }
     }
+}
+
+function addPagoRow(tipo = 1, monto = 0) {
+    const tbody = document.getElementById('tbodyPagos');
+    const row = document.createElement('tr');
+    
+    // Autocompletado con el saldo pendiente si monto = 0
+    if (monto === 0) {
+        let totalGralStr = document.getElementById('totalGral') ? document.getElementById('totalGral').innerText : '0';
+        let totalGral = parseFloat(totalGralStr.replace(/\./g, '').replace(',', '.')) || 0;
+        let sumPagosVal = 0;
+        Array.from(tbody.children).forEach(r => {
+            sumPagosVal += parseFloat(r.querySelector('.pago-monto').value.replace(/\./g, '').replace(',', '.')) || 0;
+        });
+        monto = Math.max(0, totalGral - sumPagosVal);
+    }
+    
+    // Opciones sacadas del modelo
+    const opciones = `
+        <option value="1" ${tipo==1?'selected':''}>Efectivo</option>
+        <option value="2" ${tipo==2?'selected':''}>Cheque</option>
+        <option value="3" ${tipo==3?'selected':''}>Tarjeta de crédito</option>
+        <option value="4" ${tipo==4?'selected':''}>Tarjeta de débito</option>
+        <option value="5" ${tipo==5?'selected':''}>Transferencia</option>
+        <option value="6" ${tipo==6?'selected':''}>Giro</option>
+        <option value="7" ${tipo==7?'selected':''}>Billetera electrónica</option>
+        <option value="8" ${tipo==8?'selected':''}>Tarjeta empresarial</option>
+        <option value="9" ${tipo==9?'selected':''}>Vale</option>
+        <option value="10" ${tipo==10?'selected':''}>Retención</option>
+        <option value="11" ${tipo==11?'selected':''}>Pago por anticipo</option>
+        <option value="16" ${tipo==16?'selected':''}>Pago bancario</option>
+        <option value="17" ${tipo==17?'selected':''}>Pago Móvil</option>
+        <option value="21" ${tipo==21?'selected':''}>Pago Electrónico</option>
+        <option value="99" ${tipo==99?'selected':''}>Otro</option>
+    `;
+
+    // Guardamos estado inicial en dataset
+    row.dataset.detalles = JSON.stringify({ safeSecure: true });
+
+    row.innerHTML = `
+        <td><select class="form-control pago-tipo" onchange="evaluarDetallePago(this)">${opciones}</select></td>
+        <td><input type="text" class="form-control text-right pago-monto" value="${formatCurrency(monto)}" 
+            onkeyup="this.value = formatCurrency(this.value.replace(/\\./g, '')); calcSumPagos()" onclick="this.select()"></td>
+        <td class="text-center">
+            <button type="button" class="btn-icon text-info btn-detalle-pago" onclick="abrirModalDetallePago(this)" style="display: none;" title="Detalles">
+                <i class="fas fa-edit"></i>
+            </button>
+            <span class="badge badge-success badge-safesecure" style="font-size: 0.65rem; display: none;">Safe</span>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn-icon text-danger" onclick="this.closest('tr').remove(); calcSumPagos()"><i class="fas fa-trash"></i></button>
+        </td>
+    `;
+    tbody.appendChild(row);
+    evaluarDetallePago(row.querySelector('.pago-tipo'));
+    calcSumPagos();
+}
+
+function evaluarDetallePago(selectElem) {
+    const row = selectElem.closest('tr');
+    const btnDetalle = row.querySelector('.btn-detalle-pago');
+    const badge = row.querySelector('.badge-safesecure');
+    const tipo = parseInt(selectElem.value);
+    
+    // Requiere detalles: Cheque (2), Tarjeta CD (3, 4)
+    if (tipo === 2 || tipo === 3 || tipo === 4) {
+        btnDetalle.style.display = 'inline-block';
+        
+        // Evaluar estado del dataset
+        let detalles = { safeSecure: true };
+        if (row.dataset.detalles) {
+            try { detalles = JSON.parse(row.dataset.detalles); } catch(e){}
+        }
+        
+        if (detalles.safeSecure) {
+            badge.style.display = 'inline-block';
+            badge.className = 'badge badge-success badge-safesecure';
+            badge.innerText = 'Safe';
+            badge.title = 'Modo Seguro Activado';
+        } else {
+            badge.style.display = 'inline-block';
+            badge.className = 'badge badge-primary badge-safesecure';
+            badge.innerText = 'Real';
+            badge.title = 'Datos Reales Ingresados';
+        }
+    } else {
+        btnDetalle.style.display = 'none';
+        badge.style.display = 'none';
+    }
+}
+
+// --- MODAL DETALLE PAGO ---
+function abrirModalDetallePago(btn) {
+    const row = btn.closest('tr');
+    const tbody = row.parentElement;
+    const rowIndex = Array.from(tbody.children).indexOf(row);
+    const tipoPago = parseInt(row.querySelector('.pago-tipo').value);
+    
+    document.getElementById('detallePagoRowIndex').value = rowIndex;
+    
+    // Limpiar campos
+    document.getElementById('detallePagoSafeSecure').checked = true;
+    document.getElementById('tarjetaDenominacion').value = '';
+    document.getElementById('tarjetaDescripcion').value = '';
+    document.getElementById('tarjetaFormaProcesamiento').value = '';
+    document.getElementById('chequeNumero').value = '';
+    document.getElementById('chequeBanco').value = '';
+    
+    // Títulos y secciones según tipo
+    if (tipoPago === 2) {
+        document.getElementById('modalDetallePagoTitulo').innerText = 'Detalles de Cheque';
+        document.getElementById('camposCheque').style.display = 'block';
+        document.getElementById('camposTarjeta').style.display = 'none';
+    } else {
+        document.getElementById('modalDetallePagoTitulo').innerText = 'Detalles de Tarjeta';
+        document.getElementById('camposCheque').style.display = 'none';
+        document.getElementById('camposTarjeta').style.display = 'block';
+    }
+    
+    // Cargar datos existentes
+    if (row.dataset.detalles) {
+        try {
+            const det = JSON.parse(row.dataset.detalles);
+            document.getElementById('detallePagoSafeSecure').checked = det.safeSecure !== false; // por defecto true
+            if (det.tarjetaDenominacion) document.getElementById('tarjetaDenominacion').value = det.tarjetaDenominacion;
+            if (det.tarjetaDescripcion) document.getElementById('tarjetaDescripcion').value = det.tarjetaDescripcion;
+            if (det.tarjetaFormaProcesamiento) document.getElementById('tarjetaFormaProcesamiento').value = det.tarjetaFormaProcesamiento;
+            if (det.chequeNumero) document.getElementById('chequeNumero').value = det.chequeNumero;
+            if (det.chequeBanco) document.getElementById('chequeBanco').value = det.chequeBanco;
+        } catch(e) {}
+    }
+    
+    toggleSafeSecureFields();
+    toggleTarjetaDescripcion();
+    
+    document.getElementById('modalDetallePago').style.display = 'flex';
+}
+
+function cerrarModalDetallePago(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('modalDetallePago').style.display = 'none';
+}
+
+function toggleSafeSecureFields() {
+    const isSafe = document.getElementById('detallePagoSafeSecure').checked;
+    
+    // Deshabilitar campos si está en modo seguro
+    document.getElementById('tarjetaDenominacion').disabled = isSafe;
+    document.getElementById('tarjetaDescripcion').disabled = isSafe;
+    document.getElementById('tarjetaFormaProcesamiento').disabled = isSafe;
+    document.getElementById('chequeNumero').disabled = isSafe;
+    document.getElementById('chequeBanco').disabled = isSafe;
+}
+
+function toggleTarjetaDescripcion() {
+    const den = document.getElementById('tarjetaDenominacion').value;
+    if (den === '99') {
+        document.getElementById('groupTarjetaDescripcion').style.display = 'block';
+    } else {
+        document.getElementById('groupTarjetaDescripcion').style.display = 'none';
+    }
+}
+
+function guardarDetallePago() {
+    const rowIndex = document.getElementById('detallePagoRowIndex').value;
+    const row = document.getElementById('tbodyPagos').children[rowIndex];
+    const tipoPago = parseInt(row.querySelector('.pago-tipo').value);
+    const isSafe = document.getElementById('detallePagoSafeSecure').checked;
+    
+    const det = { safeSecure: isSafe };
+    
+    if (!isSafe) {
+        if (tipoPago === 3 || tipoPago === 4) {
+            det.tarjetaDenominacion = document.getElementById('tarjetaDenominacion').value || null;
+            det.tarjetaDescripcion = document.getElementById('tarjetaDescripcion').value || null;
+            det.tarjetaFormaProcesamiento = document.getElementById('tarjetaFormaProcesamiento').value || null;
+            
+            // UI simple validación
+            if (!det.tarjetaDenominacion) return showToast('Denominación es requerida', 'warning');
+            if (det.tarjetaDenominacion === '99' && (!det.tarjetaDescripcion || det.tarjetaDescripcion.length < 4)) {
+                return showToast('Descripción de tarjeta requerida (mín. 4 chars)', 'warning');
+            }
+            if (!det.tarjetaFormaProcesamiento) return showToast('Forma de procesamiento requerida', 'warning');
+            
+        } else if (tipoPago === 2) {
+            det.chequeNumero = document.getElementById('chequeNumero').value || null;
+            det.chequeBanco = document.getElementById('chequeBanco').value || null;
+            
+            if (!det.chequeNumero || det.chequeNumero.length < 8) return showToast('Número de cheque inválido (mín. 8 chars)', 'warning');
+            if (!det.chequeBanco || det.chequeBanco.length < 4) return showToast('Banco emisor requerido (mín. 4 chars)', 'warning');
+        }
+    }
+    
+    row.dataset.detalles = JSON.stringify(det);
+    evaluarDetallePago(row.querySelector('.pago-tipo'));
+    cerrarModalDetallePago();
+}
+
+
+function calcSumPagos() {
+    let sum = 0;
+    const rows = Array.from(document.getElementById('tbodyPagos').children);
+    rows.forEach(row => {
+        sum += parseFloat(row.querySelector('.pago-monto').value.replace(/\./g, '').replace(',', '.')) || 0;
+    });
+    document.getElementById('sumPagos').innerText = formatCurrency(sum);
 }
 
 function addCuotaRow(nro = null, fecha = null, monto = 0) {
@@ -519,6 +735,13 @@ window.calculateTotals = function() {
     document.getElementById('totalGravada10').innerText = formatCurrency(gravada10);
     document.getElementById('totalIva10').innerText = formatCurrency(iva10Val);
     document.getElementById('totalGral').innerText = formatCurrency(total);
+    
+    // Auto-ajustar pago al contado si hay exactamente una sola fila (comodidad para el usuario)
+    const tbodyPagos = document.getElementById('tbodyPagos');
+    if (tbodyPagos && tbodyPagos.children.length === 1) {
+        tbodyPagos.children[0].querySelector('.pago-monto').value = formatCurrency(total);
+    }
+    if (typeof calcSumPagos === 'function') calcSumPagos();
 };
 
 async function submitDte() {
@@ -600,6 +823,37 @@ async function submitDte() {
             if (Math.abs(totalCuotasVal - totalGral) > 1) {
                 return showToast(`El plan de pagos (${formatCurrency(totalCuotasVal)}) no coincide con el total (${formatCurrency(totalGral)})`, 'warning');
             }
+        } else {
+            // Contado - Validar Pagos
+            const rowsPagos = Array.from(document.getElementById('tbodyPagos').children);
+            if (rowsPagos.length === 0) return showToast('Debe agregar al menos una forma de pago al contado', 'error');
+            
+            let totalPagosVal = 0;
+            rowsPagos.forEach(row => {
+                totalPagosVal += parseFloat(row.querySelector('.pago-monto').value.replace(/\./g, '').replace(',', '.')) || 0;
+            });
+            
+            if (Math.abs(totalPagosVal - totalGral) > 1) {
+                return showToast(`La suma de formas de pago (${formatCurrency(totalPagosVal)}) no coincide con el total de la factura (${formatCurrency(totalGral)})`, 'warning');
+            }
+            
+            // Validar que los pagos que requieran detalle lo tengan si safeSecure=false
+            for (let i = 0; i < rowsPagos.length; i++) {
+                const row = rowsPagos[i];
+                const tipo = parseInt(row.querySelector('.pago-tipo').value);
+                if (tipo === 2 || tipo === 3 || tipo === 4) {
+                    let det = { safeSecure: true };
+                    try { if(row.dataset.detalles) det = JSON.parse(row.dataset.detalles); } catch(e){}
+                    if (!det.safeSecure) {
+                        if ((tipo === 3 || tipo === 4) && (!det.tarjetaDenominacion || !det.tarjetaFormaProcesamiento)) {
+                            return showToast(`Faltan detalles en la Tarjeta de la fila ${i+1}. Active SafeSecure o complete los datos.`, 'error');
+                        }
+                        if (tipo === 2 && (!det.chequeNumero || !det.chequeBanco)) {
+                            return showToast(`Faltan detalles en el Cheque de la fila ${i+1}. Active SafeSecure o complete los datos.`, 'error');
+                        }
+                    }
+                }
+            }
         }
     } else if (tipoDoc === '5' || tipoDoc === '6') {
         const cdc = document.getElementById('cdcAsociado').value.trim();
@@ -656,6 +910,21 @@ async function submitDte() {
             },
             naturalezaVendedor: tipoDoc === '4' ? parseInt(document.getElementById('naturalezaVendedor').value) : null,
             condicionOperacion: document.getElementById('condicionOperacion') ? document.getElementById('condicionOperacion').value : '1',
+            pagos: Array.from(document.getElementById('tbodyPagos').children).map(row => {
+                let det = { safeSecure: true };
+                try { if(row.dataset.detalles) det = JSON.parse(row.dataset.detalles); } catch(e){}
+                
+                return {
+                    tipoPago: parseInt(row.querySelector('.pago-tipo').value) || 1,
+                    monto: parseFloat(row.querySelector('.pago-monto').value.replace(/\./g, '').replace(',', '.')) || 0,
+                    safeSecure: det.safeSecure,
+                    tarjetaDenominacion: det.tarjetaDenominacion ? parseInt(det.tarjetaDenominacion) : null,
+                    tarjetaDescripcion: det.tarjetaDescripcion || null,
+                    tarjetaFormaProcesamiento: det.tarjetaFormaProcesamiento ? parseInt(det.tarjetaFormaProcesamiento) : null,
+                    chequeNumero: det.chequeNumero || null,
+                    chequeBanco: det.chequeBanco || null
+                };
+            }),
             cuotas: Array.from(document.getElementById('tbodyCuotas').children).map(row => ({
                 numero: row.querySelector('.cuota-nro').value,
                 vencimiento: row.querySelector('.cuota-fecha').value,
