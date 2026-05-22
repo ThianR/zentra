@@ -63,6 +63,70 @@ function logout() {
     window.location.href = '/login.html';
 }
 
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
+
+function applyRoleRestrictions() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) return;
+    
+    const payload = parseJwt(token);
+    if (!payload) return;
+    
+    let isOperador = false;
+    if (payload.roles && payload.roles.includes('ROLE_OPERADOR')) isOperador = true;
+    if (payload.authorities && payload.authorities.includes('ROLE_OPERADOR')) isOperador = true;
+    if (payload.role === 'OPERADOR') isOperador = true;
+    if (payload.rol === 'OPERADOR') isOperador = true;
+    if (payload.rol === 'ROLE_OPERADOR') isOperador = true;
+
+    // Obtener y actualizar avatar
+    const avatarImg = document.getElementById('userProfileAvatar');
+    const displayNombre = payload.nombreCompleto || payload.sub || 'Usuario';
+    
+    if (avatarImg) {
+        avatarImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayNombre)}&background=0D8ABC&color=fff`;
+    }
+
+    if (isOperador) {
+        const navEmpresas = document.getElementById('nav-empresas');
+        const navUsuarios = document.getElementById('nav-usuarios');
+        const navConfig = document.getElementById('nav-config');
+        const navLotes = document.getElementById('nav-lotes');
+        
+        if(navEmpresas) navEmpresas.style.display = 'none';
+        if(navUsuarios) navUsuarios.style.display = 'none';
+        if(navConfig) navConfig.style.display = 'none';
+        
+        // Hide name and role of super admin in sidebar footer to show correct info
+        const userRoleElement = document.querySelector('.user-role');
+        const userNameElement = document.querySelector('.user-name');
+        if(userRoleElement) userRoleElement.textContent = 'Operador';
+        if(userNameElement) {
+            userNameElement.textContent = displayNombre;
+            userNameElement.title = displayNombre;
+        }
+    } else {
+        const userRoleElement = document.querySelector('.user-role');
+        const userNameElement = document.querySelector('.user-name');
+        if(userRoleElement) userRoleElement.textContent = 'Administrador';
+        if(userNameElement) {
+            userNameElement.textContent = displayNombre;
+            userNameElement.title = displayNombre;
+        }
+    }
+}
+
 // Inicializar UI de usuario (ej: Header)
 document.addEventListener('DOMContentLoaded', () => {
     const empresaInfo = document.getElementById('active-empresa-info');
@@ -81,6 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnChange) {
         btnChange.addEventListener('click', abrirModalCambio);
     }
+    
+    applyRoleRestrictions();
 });
 
 async function abrirModalCambio() {

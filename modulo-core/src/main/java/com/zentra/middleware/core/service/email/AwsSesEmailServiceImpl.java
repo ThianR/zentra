@@ -15,7 +15,13 @@ public class AwsSesEmailServiceImpl implements ZentraEmailService {
     public void sendEmail(String to, String subject, String body) {
         logger.info("[AWS SES] Enviando email a: {}", to);
         logger.debug("[AWS SES] Asunto: {}", subject);
-        // Lógica de llamada al SDK de AWS SES
+        // Lógica de llamada a AWS SES
         logger.info("[AWS SES] Email enviado exitosamente a {}", to);
+    }
+
+    @Override
+    public void sendEmail(com.zentra.middleware.core.model.Empresa empresa, String to, String subject, String body) {
+        // AWS SES usualmente se configura por IAM Role o perfil por empresa.
+        sendEmail(to, subject, body);
     }
 }

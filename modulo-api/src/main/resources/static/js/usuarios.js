@@ -75,6 +75,7 @@ window.invitarUsuario = async function(event) {
     
     const email = document.getElementById('invEmail').value;
     const rol = document.getElementById('invRol').value;
+    const verSoloSusDtes = document.getElementById('invVerSoloSusDtes').checked;
     const btn = document.getElementById('btnSubmitInvitar');
     
     const oldHtml = btn.innerHTML;
@@ -89,7 +90,7 @@ window.invitarUsuario = async function(event) {
                 'Authorization': 'Bearer ' + sessionStorage.getItem('token'),
                 'X-Empresa-Id': sessionStorage.getItem('activeEmpresa')
             },
-            body: JSON.stringify({ email, rol })
+            body: JSON.stringify({ email, rol, verSoloSusDtes })
         });
         
         if (res.ok) {

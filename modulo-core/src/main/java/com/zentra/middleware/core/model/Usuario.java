@@ -37,6 +37,9 @@ public class Usuario {
     /** Indica si el usuario debe cambiar su contraseña en el próximo login */
     private Boolean debeCambiarPassword = false;
 
+    /** Indica si el usuario (rol OPERADOR) solo puede ver los DTEs emitidos por él mismo */
+    private Boolean verSoloSusDtes = false;
+
     @ManyToOne
     private Cliente cliente;
 
@@ -73,6 +76,9 @@ public class Usuario {
 
     public Boolean getDebeCambiarPassword() { return debeCambiarPassword; }
     public void setDebeCambiarPassword(Boolean debeCambiarPassword) { this.debeCambiarPassword = debeCambiarPassword; }
+
+    public Boolean getVerSoloSusDtes() { return verSoloSusDtes; }
+    public void setVerSoloSusDtes(Boolean verSoloSusDtes) { this.verSoloSusDtes = verSoloSusDtes; }
 
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }

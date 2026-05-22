@@ -1,4 +1,4 @@
-package com.zentra.middleware.crypto.util;
+package com.zentra.middleware.core.util;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;

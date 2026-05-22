@@ -59,6 +59,7 @@ public class UsuarioController {
             "nombreCompleto", u.getNombreCompleto() != null ? u.getNombreCompleto() : "",
             "email", u.getEmail(),
             "rol", u.getRol(),
+            "verSoloSusDtes", u.getVerSoloSusDtes(),
             "activo", u.getActivo()
         )).toList();
 
@@ -78,6 +79,7 @@ public class UsuarioController {
 
         String email = payload.get("email");
         String rol = payload.get("rol"); // ADMIN o OPERADOR
+        boolean verSoloSusDtes = Boolean.parseBoolean(payload.getOrDefault("verSoloSusDtes", "false"));
 
         if (email == null || email.isBlank() || rol == null || rol.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Email y rol son requeridos"));
@@ -97,6 +99,7 @@ public class UsuarioController {
         UsuarioInvitacion invitacion = new UsuarioInvitacion();
         invitacion.setEmail(email.toLowerCase());
         invitacion.setRol(rol.toUpperCase());
+        invitacion.setVerSoloSusDtes(verSoloSusDtes);
         invitacion.setCliente(clienteOpt.get());
         invitacion.setFechaExpiracion(LocalDateTime.now().plusHours(48)); // 48 horas de validez
         invitacionRepository.save(invitacion);
@@ -168,6 +171,7 @@ public class UsuarioController {
         nuevoUsuario.setEmail(invitacion.getEmail());
         nuevoUsuario.setPasswordHash(passwordEncoder.encode(password));
         nuevoUsuario.setRol(invitacion.getRol());
+        nuevoUsuario.setVerSoloSusDtes(invitacion.getVerSoloSusDtes() != null ? invitacion.getVerSoloSusDtes() : false);
         nuevoUsuario.setCliente(invitacion.getCliente());
         nuevoUsuario.setActivo(true);
         nuevoUsuario.setDebeCambiarPassword(false);

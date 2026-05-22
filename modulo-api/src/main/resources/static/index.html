@@ -1,4 +1,5 @@
-?<!DOCTYPE html>
+?
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -8,7 +9,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Librerías Externas -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
@@ -35,7 +36,7 @@
                     banner.innerHTML = '<i class="fas fa-lock"></i> Su cuenta ha sido bloqueada por falta de pago. Regularice su situación para continuar operando.';
                 }
             }
-            
+
             // Si el usuario acaba de crear su cuenta y no tiene empresa activa, forzar vista de empresas
             setTimeout(() => {
                 if (!localStorage.getItem('empresa_activa')) {
@@ -54,26 +55,34 @@
         <!-- Sidebar -->
         <aside id="sidebar" class="sidebar glass">
             <div class="logo-container">
-                <div class="logo-icon">Z</div>
-                <span class="logo-text">ZENTRA</span>
+                <div class="login-logo">
+                    <i class="fa-solid fa-bolt"></i> Zentra
+                </div>
             </div>
             <nav class="sidebar-nav">
                 <a href="#" class="nav-item active" onclick="switchView('dashboard')"><i class="fas fa-th-large"></i>
                     Dashboard</a>
                 <a href="#" class="nav-item" onclick="switchView('emision')"><i class="fas fa-file-invoice"></i> Nuevo
                     DTE</a>
-                <a href="#" class="nav-item" onclick="switchView('emision-masiva')"><i class="fas fa-upload"></i> Emisión Masiva</a>
-                <a href="#" class="nav-item" onclick="switchView('lista-dtes')"><i class="fas fa-list-alt"></i> Lista de DTEs</a>
-                <a href="#" class="nav-item" onclick="switchView('eventos')"><i class="fas fa-calendar-times"></i> Eventos SIFEN</a>
-                <a href="#" class="nav-item" onclick="switchView('receptor')"><i class="fas fa-inbox"></i> Recepción DTEs</a>
-                <a href="#" class="nav-item" onclick="switchView('empresas')"><i class="fas fa-building"></i> Empresas</a>
-                <a href="#" class="nav-item" onclick="switchView('usuarios')"><i class="fas fa-users"></i> Usuarios</a>
-                <a href="#" class="nav-item" onclick="switchView('lotes')"><i class="fas fa-layer-group"></i> Lotes Asíncronos</a>
-                <a href="#" class="nav-item" onclick="switchView('configuracion')"><i class="fas fa-cog"></i> Configuración</a>
+                <a href="#" class="nav-item" onclick="switchView('emision-masiva')"><i class="fas fa-upload"></i>
+                    Emisión Masiva</a>
+                <a href="#" class="nav-item" onclick="switchView('lista-dtes')"><i class="fas fa-list-alt"></i> Lista de
+                    DTEs</a>
+                <a href="#" class="nav-item" onclick="switchView('eventos')"><i class="fas fa-calendar-times"></i>
+                    Eventos SIFEN</a>
+                <a href="#" class="nav-item" onclick="switchView('receptor')"><i class="fas fa-inbox"></i> Recepción
+                    DTEs</a>
+                <a href="#" class="nav-item" id="nav-empresas" onclick="switchView('empresas')"><i class="fas fa-building"></i>
+                    Empresas</a>
+                <a href="#" class="nav-item" id="nav-usuarios" onclick="switchView('usuarios')"><i class="fas fa-users"></i> Usuarios</a>
+                <a href="#" class="nav-item" id="nav-lotes" onclick="switchView('lotes')"><i class="fas fa-layer-group"></i> Lotes
+                    Asíncronos</a>
+                <a href="#" class="nav-item" id="nav-config" onclick="switchView('configuracion')"><i class="fas fa-cog"></i>
+                    Configuración</a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-profile">
-                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=0D8ABC&color=fff" alt="User">
+                    <img id="userProfileAvatar" src="https://ui-avatars.com/api/?name=Usuario&background=0D8ABC&color=fff" alt="User">
                     <div class="user-info">
                         <span class="user-name">Admin</span>
                         <span class="user-role">Super Admin</span>
@@ -95,12 +104,15 @@
                     </div>
                 </div>
                 <div class="header-actions">
-                    <div class="active-tenant-info" id="btnChangeEmpresa" title="Cambiar Empresa" style="cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--bg-input); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <div class="active-tenant-info" id="btnChangeEmpresa" title="Cambiar Empresa"
+                        style="cursor: pointer; display: flex; align-items: center; gap: 8px; background: var(--bg-input); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
                         <i class="fas fa-building" style="color: var(--accent-primary);"></i>
                         <span id="active-empresa-info" style="font-size: 0.85rem; font-weight: 600;">Cargando...</span>
-                        <i class="fas fa-exchange-alt" style="margin-left: 5px; color: var(--text-secondary); font-size: 0.75rem;"></i>
+                        <i class="fas fa-exchange-alt"
+                            style="margin-left: 5px; color: var(--text-secondary); font-size: 0.75rem;"></i>
                     </div>
-                    <button class="btn-logout" onclick="logout()" title="Cerrar Sesión" style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 5px; font-size: 1.1rem;">
+                    <button class="btn-logout" onclick="logout()" title="Cerrar Sesión"
+                        style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 5px; font-size: 1.1rem;">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
                     <div class="env-selector">
@@ -125,7 +137,9 @@
             </header>
 
             <!-- Subscription Alert Banner -->
-            <div id="subscriptionAlertBanner" class="fade-in" style="display:none; padding: 15px; margin: 15px; border-radius: 8px; font-weight: bold; text-align: center;"></div>
+            <div id="subscriptionAlertBanner" class="fade-in"
+                style="display:none; padding: 15px; margin: 15px; border-radius: 8px; font-weight: bold; text-align: center;">
+            </div>
 
             <!-- Dashboard View -->
             <div id="view-dashboard" class="content-view active">
@@ -148,129 +162,135 @@
 
                 <div id="tab-analiticas" class="dashboard-tab-content fade-in active">
 
-                <!-- Banner Alerta de Lotes Huérfanos -->
-                <div id="huerfanosAlert" class="alert-banner-danger fade-in" style="display:none;">
-                    <div class="alert-inner">
-                        <div>
-                            <i class="fas fa-exclamation-triangle text-error"></i>
-                            <strong class="text-error">¡Atención!</strong> Tienes <span id="huerfanosCountBanner">0</span> lotes asíncronos que superaron las 24 horas sin respuesta (Huérfanos).
+                    <!-- Banner Alerta de Lotes Huérfanos -->
+                    <div id="huerfanosAlert" class="alert-banner-danger fade-in" style="display:none;">
+                        <div class="alert-inner">
+                            <div>
+                                <i class="fas fa-exclamation-triangle text-error"></i>
+                                <strong class="text-error">¡Atención!</strong> Tienes <span
+                                    id="huerfanosCountBanner">0</span> lotes asíncronos que superaron las 24 horas sin
+                                respuesta (Huérfanos).
+                            </div>
+                            <button class="btn btn-sm btn-outline btn-alert" onclick="switchView('lotes')">
+                                Ir a revisar lotes
+                            </button>
                         </div>
-                        <button class="btn btn-sm btn-outline btn-alert" onclick="switchView('lotes')">
-                            Ir a revisar lotes
-                        </button>
                     </div>
-                </div>
 
-                <!-- Indicadores de Salud y Alertas Inteligentes -->
-                <section class="dashboard-top-insights">
-                    <div class="health-card glass slide-up">
-                        <div class="gauge-container">
-                            <div class="gauge-circular">
-                                <svg class="progress-ring" width="80" height="80" viewBox="0 0 80 80">
-                                    <circle class="progress-ring-track" cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" />
-                                    <circle id="healthFill" class="progress-ring-fill" cx="40" cy="40" r="34" fill="none" stroke="var(--accent-success, #198754)" stroke-width="6"
+                    <!-- Indicadores de Salud y Alertas Inteligentes -->
+                    <section class="dashboard-top-insights">
+                        <div class="health-card glass slide-up">
+                            <div class="gauge-container">
+                                <div class="gauge-circular">
+                                    <svg class="progress-ring" width="80" height="80" viewBox="0 0 80 80">
+                                        <circle class="progress-ring-track" cx="40" cy="40" r="34" fill="none"
+                                            stroke="rgba(255,255,255,0.06)" stroke-width="6" />
+                                        <circle id="healthFill" class="progress-ring-fill" cx="40" cy="40" r="34"
+                                            fill="none" stroke="var(--accent-success, #198754)" stroke-width="6"
                                             stroke-dasharray="213.63" stroke-dashoffset="213.63" stroke-linecap="round"
                                             transform="rotate(-90 40 40)" />
-                                </svg>
-                                <div class="gauge-value">
-                                    <span id="healthValue">0%</span>
+                                    </svg>
+                                    <div class="gauge-value">
+                                        <span id="healthValue">0%</span>
+                                    </div>
                                 </div>
                             </div>
+                            <div class="health-info">
+                                <h4>Salud Fiscal</h4>
+                                <p id="healthStatus">Calculando...</p>
+                            </div>
                         </div>
-                        <div class="health-info">
-                            <h4>Salud Fiscal</h4>
-                            <p id="healthStatus">Calculando...</p>
-                        </div>
-                    </div>
 
-                    <div id="smartAlerts" class="smart-alerts-card glass slide-up" style="animation-delay: 0.1s">
-                        <div class="alerts-header">
-                            <h4><i class="fas fa-lightbulb text-warning"></i> Insights & Alertas</h4>
+                        <div id="smartAlerts" class="smart-alerts-card glass slide-up" style="animation-delay: 0.1s">
+                            <div class="alerts-header">
+                                <h4><i class="fas fa-lightbulb text-warning"></i> Insights & Alertas</h4>
+                            </div>
+                            <div id="alertsList" class="alerts-list">
+                                <div class="alert-item empty">Analizando comportamiento...</div>
+                            </div>
                         </div>
-                        <div id="alertsList" class="alerts-list">
-                            <div class="alert-item empty">Analizando comportamiento...</div>
-                        </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section class="dashboard-stats">
-                    <div class="stat-card glass slide-up">
-                        <div class="stat-icon success"><i class="fas fa-check-circle"></i></div>
-                        <div class="stat-data">
-                            <span class="stat-label">Aprobados</span>
-                            <span class="stat-value" id="statsAprobados">0</span>
+                    <section class="dashboard-stats">
+                        <div class="stat-card glass slide-up">
+                            <div class="stat-icon success"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-label">Aprobados</span>
+                                <span class="stat-value" id="statsAprobados">0</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card glass slide-up" style="animation-delay: 0.1s">
-                        <div class="stat-icon warning"><i class="fas fa-clock"></i></div>
-                        <div class="stat-data">
-                            <span class="stat-label">Pendientes</span>
-                            <span class="stat-value" id="statsPendientes">0</span>
+                        <div class="stat-card glass slide-up" style="animation-delay: 0.1s">
+                            <div class="stat-icon warning"><i class="fas fa-clock"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-label">Pendientes</span>
+                                <span class="stat-value" id="statsPendientes">0</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card glass slide-up" style="animation-delay: 0.2s">
-                        <div class="stat-icon error"><i class="fas fa-times-circle"></i></div>
-                        <div class="stat-data">
-                            <span class="stat-label">Rechazados</span>
-                            <span class="stat-value" id="statsRechazados">0</span>
+                        <div class="stat-card glass slide-up" style="animation-delay: 0.2s">
+                            <div class="stat-icon error"><i class="fas fa-times-circle"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-label">Rechazados</span>
+                                <span class="stat-value" id="statsRechazados">0</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card glass slide-up" style="animation-delay: 0.3s">
-                        <div class="stat-icon primary"><i class="fas fa-file-invoice"></i></div>
-                        <div class="stat-data">
-                            <span class="stat-label">Emitidos Hoy</span>
-                            <span class="stat-value" id="statsEmitidosHoy">0</span>
+                        <div class="stat-card glass slide-up" style="animation-delay: 0.3s">
+                            <div class="stat-icon primary"><i class="fas fa-file-invoice"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-label">Emitidos Hoy</span>
+                                <span class="stat-value" id="statsEmitidosHoy">0</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-card glass slide-up" style="animation-delay: 0.4s" style="border-bottom: 2px solid var(--accent-danger);">
-                        <div class="stat-icon" style="color:var(--accent-danger)"><i class="fas fa-layer-group"></i></div>
-                        <div class="stat-data">
-                            <span class="stat-label">Lotes Huérfanos</span>
-                            <span class="stat-value text-error" id="statsLotesHuerfanos">0</span>
+                        <div class="stat-card glass slide-up" style="animation-delay: 0.4s"
+                            style="border-bottom: 2px solid var(--accent-danger);">
+                            <div class="stat-icon" style="color:var(--accent-danger)"><i class="fas fa-layer-group"></i>
+                            </div>
+                            <div class="stat-data">
+                                <span class="stat-label">Lotes Huérfanos</span>
+                                <span class="stat-value text-error" id="statsLotesHuerfanos">0</span>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
 
-                <!-- Sección de Gráficos Analíticos -->
-                <section id="seccionGraficos" class="dashboard-charts fade-in">
-                    <div class="chart-card glass">
-                        <div class="chart-header">
-                            <h4><i class="fas fa-chart-bar"></i> Emisiones por Día</h4>
-                            <select id="chartRangoDias" class="form-select form-select-sm">
-                                <option value="7">Últimos 7 días</option>
-                                <option value="15">Últimos 15 días</option>
-                                <option value="30" selected>Últimos 30 días</option>
-                            </select>
+                    <!-- Sección de Gráficos Analíticos -->
+                    <section id="seccionGraficos" class="dashboard-charts fade-in">
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h4><i class="fas fa-chart-bar"></i> Emisiones por Día</h4>
+                                <select id="chartRangoDias" class="form-select form-select-sm">
+                                    <option value="7">Últimos 7 días</option>
+                                    <option value="15">Últimos 15 días</option>
+                                    <option value="30" selected>Últimos 30 días</option>
+                                </select>
+                            </div>
+                            <div class="chart-container-inner">
+                                <canvas id="chartEmisionesDiarias"></canvas>
+                            </div>
                         </div>
-                        <div class="chart-container-inner">
-                            <canvas id="chartEmisionesDiarias"></canvas>
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h4><i class="fas fa-chart-pie"></i> Distribución por Estado</h4>
+                            </div>
+                            <div class="chart-container-inner">
+                                <canvas id="chartEstados"></canvas>
+                            </div>
                         </div>
-                    </div>
-                    <div class="chart-card glass">
-                        <div class="chart-header">
-                            <h4><i class="fas fa-chart-pie"></i> Distribución por Estado</h4>
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h4><i class="fas fa-users"></i> Top 10 Receptores</h4>
+                            </div>
+                            <div class="chart-container-inner">
+                                <canvas id="chartTopReceptores"></canvas>
+                            </div>
                         </div>
-                        <div class="chart-container-inner">
-                            <canvas id="chartEstados"></canvas>
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h4><i class="fas fa-chart-line"></i> Facturación Mensual</h4>
+                            </div>
+                            <div class="chart-container-inner">
+                                <canvas id="chartFacturacionMensual"></canvas>
+                            </div>
                         </div>
-                    </div>
-                    <div class="chart-card glass">
-                        <div class="chart-header">
-                            <h4><i class="fas fa-users"></i> Top 10 Receptores</h4>
-                        </div>
-                        <div class="chart-container-inner">
-                            <canvas id="chartTopReceptores"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-card glass">
-                        <div class="chart-header">
-                            <h4><i class="fas fa-chart-line"></i> Facturación Mensual</h4>
-                        </div>
-                        <div class="chart-container-inner">
-                            <canvas id="chartFacturacionMensual"></canvas>
-                        </div>
-                    </div>
-                </section>
+                    </section>
                 </div> <!-- fin tab-analiticas -->
 
                 <!-- Tab Últimos Comprobantes -->
@@ -283,7 +303,7 @@
                             <i class="fas fa-search"></i> Ver Historial Completo
                         </button>
                     </div>
-                    
+
                     <div class="recent-docs-grid">
                         <!-- Facturas -->
                         <div class="recent-docs-card glass">
@@ -294,7 +314,7 @@
                                 <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
                             </div>
                         </div>
-                        
+
                         <!-- Notas de Crédito / Débito -->
                         <div class="recent-docs-card glass">
                             <div class="card-header">
@@ -304,7 +324,7 @@
                                 <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
                             </div>
                         </div>
-                        
+
                         <!-- Autofacturas -->
                         <div class="recent-docs-card glass">
                             <div class="card-header">
@@ -314,7 +334,7 @@
                                 <div class="text-center" style="opacity: 0.6; padding: 20px;">Cargando...</div>
                             </div>
                         </div>
-                        
+
                         <!-- Notas de Remisión -->
                         <div class="recent-docs-card glass">
                             <div class="card-header">
@@ -380,8 +400,10 @@
                     <div class="table-header">
                         <h3>Documentos Recientes</h3>
                         <div class="filter-actions">
-                            <button class="btn btn-outline btn-sm" onclick="exportarPdfDocumentos()" title="Exportar a PDF"><i class="fas fa-file-pdf"></i> PDF</button>
-                            <button class="btn btn-outline btn-sm" onclick="exportarExcelDocumentos()" title="Exportar a Excel"><i class="fas fa-file-excel"></i> Excel</button>
+                            <button class="btn btn-outline btn-sm" onclick="exportarPdfDocumentos()"
+                                title="Exportar a PDF"><i class="fas fa-file-pdf"></i> PDF</button>
+                            <button class="btn btn-outline btn-sm" onclick="exportarExcelDocumentos()"
+                                title="Exportar a Excel"><i class="fas fa-file-excel"></i> Excel</button>
                             <button class="btn btn-outline btn-sm"><i class="fas fa-filter"></i> Filtrar</button>
                             <button id="btnRefresh" class="btn btn-outline btn-sm"><i
                                     class="fas fa-sync-alt"></i></button>
@@ -411,14 +433,20 @@
                     <!-- Controles de Paginación del Servidor (Premium) -->
                     <div class="pagination-controls glass">
                         <div class="pagination-info">
-                            Mostrando <span id="pagStart">0</span> - <span id="pagEnd">0</span> de <span id="pagTotalElements">0</span> comprobantes
+                            Mostrando <span id="pagStart">0</span> - <span id="pagEnd">0</span> de <span
+                                id="pagTotalElements">0</span> comprobantes
                         </div>
                         <div class="pagination-buttons">
-                            <button id="btnFirstPage" class="btn-pag" title="Primera Página" disabled><i class="fas fa-angle-double-left"></i></button>
-                            <button id="btnPrevPage" class="btn-pag" title="Página Anterior" disabled><i class="fas fa-angle-left"></i></button>
-                            <span class="pagination-current-label">Página <strong id="pagCurrentPage">1</strong> de <strong id="pagTotalPages">1</strong></span>
-                            <button id="btnNextPage" class="btn-pag" title="Página Siguiente" disabled><i class="fas fa-angle-right"></i></button>
-                            <button id="btnLastPage" class="btn-pag" title="Última Página" disabled><i class="fas fa-angle-double-right"></i></button>
+                            <button id="btnFirstPage" class="btn-pag" title="Primera Página" disabled><i
+                                    class="fas fa-angle-double-left"></i></button>
+                            <button id="btnPrevPage" class="btn-pag" title="Página Anterior" disabled><i
+                                    class="fas fa-angle-left"></i></button>
+                            <span class="pagination-current-label">Página <strong id="pagCurrentPage">1</strong> de
+                                <strong id="pagTotalPages">1</strong></span>
+                            <button id="btnNextPage" class="btn-pag" title="Página Siguiente" disabled><i
+                                    class="fas fa-angle-right"></i></button>
+                            <button id="btnLastPage" class="btn-pag" title="Última Página" disabled><i
+                                    class="fas fa-angle-double-right"></i></button>
                         </div>
                         <div class="pagination-size">
                             <span>Filas por página:</span>
@@ -446,7 +474,8 @@
                         <span class="dev-label">DEV TOOLS:</span>
                         <button class="btn-dev" data-mock="factura" onclick="loadMockData('factura')">Factura</button>
                         <button class="btn-dev" data-mock="nc" onclick="loadMockData('nc')">Nota Crédito</button>
-                        <button class="btn-dev" data-mock="remision" onclick="loadMockData('remision')">Remisión</button>
+                        <button class="btn-dev" data-mock="remision"
+                            onclick="loadMockData('remision')">Remisión</button>
                         <button class="btn-dev" data-mock="licitacion">Licitación (CP)</button>
                     </div>
                 </div>
@@ -456,7 +485,7 @@
                         <!-- Configuración del Emisor -->
                         <div class="form-section full-width collapsible">
                             <h4 class="section-title collapsible-trigger" onclick="toggleSection('sectionEmisor')">
-                                <i class="fas fa-building"></i> Configuración del Emisor (SIFEN) 
+                                <i class="fas fa-building"></i> Configuración del Emisor (SIFEN)
                                 <span class="badge badge-info">Requerido por XSD</span>
                                 <i class="fas fa-chevron-down float-right"></i>
                             </h4>
@@ -470,35 +499,43 @@
                                 <div class="grid-row cols-3">
                                     <div class="form-group">
                                         <label>RUC Emisor</label>
-                                        <input type="text" id="emisorRuc" class="form-control" readonly placeholder="Seleccione empresa">
+                                        <input type="text" id="emisorRuc" class="form-control" readonly
+                                            placeholder="Seleccione empresa">
                                     </div>
                                     <div class="form-group">
                                         <label>DV</label>
-                                        <input type="text" id="emisorDv" class="form-control" maxlength="1" placeholder="-">
+                                        <input type="text" id="emisorDv" class="form-control" maxlength="1"
+                                            placeholder="-">
                                     </div>
                                     <div class="form-group span-2">
                                         <label>Razón Social (Mín. 4 carac.)</label>
-                                        <input type="text" id="emisorRazonSocial" placeholder="Nombre completo de la empresa" class="form-control">
+                                        <input type="text" id="emisorRazonSocial"
+                                            placeholder="Nombre completo de la empresa" class="form-control">
                                     </div>
                                     <div class="form-group">
                                         <label>Actividad Económica (gActEco)</label>
-                                        <input type="text" id="emisorActividad" placeholder="Venta de mercaderías" class="form-control">
+                                        <input type="text" id="emisorActividad" placeholder="Venta de mercaderías"
+                                            class="form-control">
                                     </div>
                                     <div class="form-group span-2">
                                         <label>Dirección Comercial</label>
-                                        <input type="text" id="emisorDireccion" placeholder="Calle, Nro, Barrio" class="form-control">
+                                        <input type="text" id="emisorDireccion" placeholder="Calle, Nro, Barrio"
+                                            class="form-control">
                                     </div>
                                     <div class="form-group">
                                         <label>Teléfono (Mín. 6 carac.)</label>
-                                        <input type="text" id="emisorTelefono" placeholder="021xxxxxx" class="form-control">
+                                        <input type="text" id="emisorTelefono" placeholder="021xxxxxx"
+                                            class="form-control">
                                     </div>
                                     <div class="form-group">
                                         <label>Correo Electrónico</label>
-                                        <input type="email" id="emisorEmail" placeholder="emisor@ejemplo.com" class="form-control">
+                                        <input type="email" id="emisorEmail" placeholder="emisor@ejemplo.com"
+                                            class="form-control">
                                     </div>
                                     <div class="form-group">
                                         <label>Departamento</label>
-                                        <select id="emisorCodDepto" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                        <select id="emisorCodDepto" class="form-select dynamic-ref"
+                                            data-ref="DEPARTAMENTO">
                                             <option value="">Cargando...</option>
                                         </select>
                                     </div>
@@ -510,7 +547,8 @@
                                     </div>
                                 </div>
                                 <div class="info-box info">
-                                    <i class="fas fa-info-circle"></i> Estos datos son vitales para la validación del CDC y el esquema XML.
+                                    <i class="fas fa-info-circle"></i> Estos datos son vitales para la validación del
+                                    CDC y el esquema XML.
                                 </div>
                             </div>
                         </div>
@@ -521,7 +559,8 @@
                             <div class="grid-row cols-3">
                                 <div class="form-group">
                                     <label>Tipo de Documento</label>
-                                    <select id="tipoDocumento" name="tipoDocumento" class="form-select dynamic-ref" data-ref="TIPO_DOCUMENTO">
+                                    <select id="tipoDocumento" name="tipoDocumento" class="form-select dynamic-ref"
+                                        data-ref="TIPO_DOCUMENTO">
                                         <option value="">Cargando...</option>
                                     </select>
                                 </div>
@@ -558,7 +597,8 @@
                                     <div class="grid-row cols-4">
                                         <div class="form-group">
                                             <label>Nro. Timbrado</label>
-                                            <input type="text" id="timbrado" name="timbrado" maxlength="8" class="form-control" placeholder="Nro. Timbrado">
+                                            <input type="text" id="timbrado" name="timbrado" maxlength="8"
+                                                class="form-control" placeholder="Nro. Timbrado">
                                         </div>
                                         <div class="form-group">
                                             <label>Inicio Timbrado</label>
@@ -578,22 +618,23 @@
                                     </div>
                                     <div class="grid-row cols-3 mt-12">
                                         <div class="form-group">
-                                            <label title="Código de 3 dígitos del establecimiento">Establecimiento</label>
-                                            <input type="text" id="codEstablecimiento" value="001" maxlength="3" 
-                                                class="form-control text-center highlight-input" 
-                                                onblur="this.value = this.value.padStart(3, '0')"
-                                                placeholder="001">
+                                            <label
+                                                title="Código de 3 dígitos del establecimiento">Establecimiento</label>
+                                            <input type="text" id="codEstablecimiento" value="001" maxlength="3"
+                                                class="form-control text-center highlight-input"
+                                                onblur="this.value = this.value.padStart(3, '0')" placeholder="001">
                                         </div>
                                         <div class="form-group">
-                                            <label title="Código de 3 dígitos del punto de expedición">Punto Expedición</label>
-                                            <input type="text" id="puntoExpedicion" value="001" maxlength="3" 
-                                                class="form-control text-center highlight-input" 
-                                                onblur="this.value = this.value.padStart(3, '0')"
-                                                placeholder="001">
+                                            <label title="Código de 3 dígitos del punto de expedición">Punto
+                                                Expedición</label>
+                                            <input type="text" id="puntoExpedicion" value="001" maxlength="3"
+                                                class="form-control text-center highlight-input"
+                                                onblur="this.value = this.value.padStart(3, '0')" placeholder="001">
                                         </div>
                                         <div class="form-group">
                                             <label>Tipo Contribuyente</label>
-                                            <select id="emisorTipoContribuyente" class="form-select dynamic-ref" data-ref="TIPO_CONTRIBUYENTE">
+                                            <select id="emisorTipoContribuyente" class="form-select dynamic-ref"
+                                                data-ref="TIPO_CONTRIBUYENTE">
                                                 <option value="">Cargando...</option>
                                             </select>
                                         </div>
@@ -605,13 +646,15 @@
                                         </div>
                                         <div class="form-group">
                                             <label>Valor CSC</label>
-                                            <input type="text" id="valorCsc" class="form-control" placeholder="73c9BeeA5AFb8fD17a3fD93a32A07A1a">
+                                            <input type="text" id="valorCsc" class="form-control"
+                                                placeholder="73c9BeeA5AFb8fD17a3fD93a32A07A1a">
                                         </div>
                                     </div>
                                     <!-- Comprobante Correlativo -->
                                     <div class="form-group mt-12">
                                         <label>Nro. Comprobante (Correlativo)</label>
-                                        <input type="text" id="numeroComprobante" placeholder="0000001" maxlength="7" class="form-control" onblur="this.value = this.value.padStart(7, '0')">
+                                        <input type="text" id="numeroComprobante" placeholder="0000001" maxlength="7"
+                                            class="form-control" onblur="this.value = this.value.padStart(7, '0')">
                                     </div>
                                 </div>
                             </div>
@@ -645,29 +688,37 @@
                                 <div class="form-group span-2">
                                     <label>Dirección y Nro. Casa</label>
                                     <div style="display: flex; gap: 10px;">
-                                        <input type="text" id="direccionReceptor" name="direccionReceptor" class="form-control" placeholder="Ej: Avda. Principal" style="flex: 3;">
-                                        <input type="text" id="numeroCasaReceptor" name="numeroCasaReceptor" class="form-control" placeholder="Nro (Ej: 123 o 0)" style="flex: 1;" value="0">
+                                        <input type="text" id="direccionReceptor" name="direccionReceptor"
+                                            class="form-control" placeholder="Ej: Avda. Principal" style="flex: 3;">
+                                        <input type="text" id="numeroCasaReceptor" name="numeroCasaReceptor"
+                                            class="form-control" placeholder="Nro (Ej: 123 o 0)" style="flex: 1;"
+                                            value="0">
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Departamento <span class="text-error" id="reqDeptoRec" style="display:none;">*</span></label>
-                                    <select id="receptorCodDepartamento" name="receptorCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                    <label>Departamento <span class="text-error" id="reqDeptoRec"
+                                            style="display:none;">*</span></label>
+                                    <select id="receptorCodDepartamento" name="receptorCodDepartamento"
+                                        class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
                                         <option value="">Seleccione Departamento...</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Ciudad <span class="text-error" id="reqCiuRec" style="display:none;">*</span></label>
+                                    <label>Ciudad <span class="text-error" id="reqCiuRec"
+                                            style="display:none;">*</span></label>
                                     <select id="receptorCodCiudad" name="receptorCodCiudad" class="form-select">
                                         <option value="">Seleccione Depto. primero</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Teléfono</label>
-                                    <input type="text" id="telefonoReceptor" name="telefonoReceptor" class="form-control" placeholder="09xx xxx xxx">
+                                    <input type="text" id="telefonoReceptor" name="telefonoReceptor"
+                                        class="form-control" placeholder="09xx xxx xxx">
                                 </div>
                                 <div class="form-group">
                                     <label>Email</label>
-                                    <input type="email" id="emailReceptor" name="emailReceptor" class="form-control" placeholder="receptor@ejemplo.com">
+                                    <input type="email" id="emailReceptor" name="emailReceptor" class="form-control"
+                                        placeholder="receptor@ejemplo.com">
                                 </div>
                                 <div class="form-group">
                                     <label>País (Requerido B2F)</label>
@@ -688,7 +739,9 @@
                             <div class="grid-row cols-3">
                                 <div class="form-group">
                                     <label>Condición de Operación</label>
-                                    <select id="condicionOperacion" name="condicionOperacion" class="form-select dynamic-ref" data-ref="CONDICION_OPERACION" onchange="toggleCuotas()">
+                                    <select id="condicionOperacion" name="condicionOperacion"
+                                        class="form-select dynamic-ref" data-ref="CONDICION_OPERACION"
+                                        onchange="toggleCuotas()">
                                         <option value="">Cargando...</option>
                                     </select>
                                 </div>
@@ -740,7 +793,8 @@
                             <div class="section-header">
                                 <h4 class="section-title">Plan de Pagos (Cuotas)</h4>
                                 <div class="cuota-generator-bar">
-                                    <input type="number" id="cantCuotasGen" value="1" min="1" max="36" class="form-control" style="width: 60px;" title="Cantidad de cuotas">
+                                    <input type="number" id="cantCuotasGen" value="1" min="1" max="36"
+                                        class="form-control" style="width: 60px;" title="Cantidad de cuotas">
                                     <button type="button" class="btn btn-sm btn-primary" onclick="generateAutoCuotas()">
                                         <i class="fas fa-magic"></i> Generar
                                     </button>
@@ -830,15 +884,18 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Marca de Vehículo</label>
-                                    <input type="text" id="marcaVehiculo" class="form-control" placeholder="Scania / Toyota">
+                                    <input type="text" id="marcaVehiculo" class="form-control"
+                                        placeholder="Scania / Toyota">
                                 </div>
                                 <div class="form-group">
                                     <label>Tipo de Vehículo</label>
-                                    <input type="text" id="tipoVehiculo" class="form-control" placeholder="Camión / Furgón">
+                                    <input type="text" id="tipoVehiculo" class="form-control"
+                                        placeholder="Camión / Furgón">
                                 </div>
                                 <div class="form-group">
                                     <label>Chasis de Vehículo (Opcional)</label>
-                                    <input type="text" id="chasisVehiculo" class="form-control" placeholder="Nro. de Chasis">
+                                    <input type="text" id="chasisVehiculo" class="form-control"
+                                        placeholder="Nro. de Chasis">
                                 </div>
                                 <div class="form-group">
                                     <label>Naturaleza del Transportista</label>
@@ -849,32 +906,39 @@
                                 </div>
                                 <div class="form-group span-2">
                                     <label>Nombre del Transportista</label>
-                                    <input type="text" id="nombreTransportista" class="form-control" placeholder="Razón social o nombre de la empresa">
+                                    <input type="text" id="nombreTransportista" class="form-control"
+                                        placeholder="Razón social o nombre de la empresa">
                                 </div>
                                 <div class="form-group">
                                     <label>RUC Transportista</label>
                                     <div class="input-with-action">
-                                        <input type="text" id="rucTransportista" class="form-control" placeholder="80000000">
-                                        <button type="button" id="btnLookupRucTransp" class="btn-icon" title="Consultar RUC del transportista">
+                                        <input type="text" id="rucTransportista" class="form-control"
+                                            placeholder="80000000">
+                                        <button type="button" id="btnLookupRucTransp" class="btn-icon"
+                                            title="Consultar RUC del transportista">
                                             <i class="fas fa-search"></i>
                                         </button>
                                     </div>
                                 </div>
                                 <div class="form-group">
                                     <label>DV Transportista</label>
-                                    <input type="text" id="dvTransportista" class="form-control" maxlength="1" placeholder="0">
+                                    <input type="text" id="dvTransportista" class="form-control" maxlength="1"
+                                        placeholder="0">
                                 </div>
                                 <div class="form-group span-2">
                                     <label>Nombre del Chofer <span class="text-error">*</span></label>
-                                    <input type="text" id="nombreChofer" class="form-control" placeholder="Nombre completo del conductor">
+                                    <input type="text" id="nombreChofer" class="form-control"
+                                        placeholder="Nombre completo del conductor">
                                 </div>
                                 <div class="form-group">
                                     <label>Documento del Chofer <span class="text-error">*</span></label>
-                                    <input type="text" id="docChofer" class="form-control" placeholder="Cédula de identidad">
+                                    <input type="text" id="docChofer" class="form-control"
+                                        placeholder="Cédula de identidad">
                                 </div>
                                 <div class="form-group span-2">
                                     <label>Dirección del Chofer</label>
-                                    <input type="text" id="dirChofer" class="form-control" placeholder="Calle y número de la vivienda">
+                                    <input type="text" id="dirChofer" class="form-control"
+                                        placeholder="Calle y número de la vivienda">
                                 </div>
                                 <div class="form-group">
                                     <label>Fecha Inicio Traslado <span class="text-error">*</span></label>
@@ -884,23 +948,29 @@
                                     <label>Fecha Fin Traslado (opcional)</label>
                                     <input type="date" id="fechaFinTraslado" class="form-control">
                                 </div>
-                                
+
                                 <!-- Local de Salida de Mercaderías -->
-                                <div class="form-group span-3" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                                    <h5 style="margin: 0; color: var(--accent-primary);"><i class="fas fa-map-marker-alt"></i> Local de Salida de las Mercaderías</h5>
-                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los datos de dirección del emisor.</small>
+                                <div class="form-group span-3"
+                                    style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                                    <h5 style="margin: 0; color: var(--accent-primary);"><i
+                                            class="fas fa-map-marker-alt"></i> Local de Salida de las Mercaderías</h5>
+                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los
+                                        datos de dirección del emisor.</small>
                                 </div>
                                 <div class="form-group span-2">
                                     <label>Dirección de Salida</label>
-                                    <input type="text" id="localSalidaDireccion" class="form-control" placeholder="Calle y número de salida">
+                                    <input type="text" id="localSalidaDireccion" class="form-control"
+                                        placeholder="Calle y número de salida">
                                 </div>
                                 <div class="form-group">
                                     <label>Nro. Casa Salida</label>
-                                    <input type="number" id="localSalidaNumeroCasa" class="form-control" value="0" placeholder="0 o número">
+                                    <input type="number" id="localSalidaNumeroCasa" class="form-control" value="0"
+                                        placeholder="0 o número">
                                 </div>
                                 <div class="form-group">
                                     <label>Departamento de Salida</label>
-                                    <select id="localSalidaCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                    <select id="localSalidaCodDepartamento" class="form-select dynamic-ref"
+                                        data-ref="DEPARTAMENTO">
                                         <option value="">Seleccione Departamento...</option>
                                     </select>
                                 </div>
@@ -912,21 +982,27 @@
                                 </div>
 
                                 <!-- Local de Entrega de Mercaderías -->
-                                <div class="form-group span-3" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
-                                    <h5 style="margin: 0; color: var(--accent-primary);"><i class="fas fa-map-marker-alt"></i> Local de Entrega de las Mercaderías</h5>
-                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los datos de dirección del receptor.</small>
+                                <div class="form-group span-3"
+                                    style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                                    <h5 style="margin: 0; color: var(--accent-primary);"><i
+                                            class="fas fa-map-marker-alt"></i> Local de Entrega de las Mercaderías</h5>
+                                    <small style="opacity: 0.8;">Si se deja en blanco, se utilizarán por defecto los
+                                        datos de dirección del receptor.</small>
                                 </div>
                                 <div class="form-group span-2">
                                     <label>Dirección de Entrega</label>
-                                    <input type="text" id="localEntregaDireccion" class="form-control" placeholder="Calle y número de entrega">
+                                    <input type="text" id="localEntregaDireccion" class="form-control"
+                                        placeholder="Calle y número de entrega">
                                 </div>
                                 <div class="form-group">
                                     <label>Nro. Casa Entrega</label>
-                                    <input type="number" id="localEntregaNumeroCasa" class="form-control" value="0" placeholder="0 o número">
+                                    <input type="number" id="localEntregaNumeroCasa" class="form-control" value="0"
+                                        placeholder="0 o número">
                                 </div>
                                 <div class="form-group">
                                     <label>Departamento de Entrega</label>
-                                    <select id="localEntregaCodDepartamento" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
+                                    <select id="localEntregaCodDepartamento" class="form-select dynamic-ref"
+                                        data-ref="DEPARTAMENTO">
                                         <option value="">Seleccione Departamento...</option>
                                     </select>
                                 </div>
@@ -971,9 +1047,11 @@
                                 <div class="total-row"><span>Total EXENTA:</span> <span id="totalExenta">0</span></div>
                                 <div class="total-row"><span>Gravada 5%:</span> <span id="totalGravada5">0</span></div>
                                 <div class="total-row"><span>IVA 5%:</span> <span id="totalIva5">0</span></div>
-                                <div class="total-row"><span>Gravada 10%:</span> <span id="totalGravada10">0</span></div>
+                                <div class="total-row"><span>Gravada 10%:</span> <span id="totalGravada10">0</span>
+                                </div>
                                 <div class="total-row"><span>IVA 10%:</span> <span id="totalIva10">0</span></div>
-                                <div class="total-row highlight"><span>TOTAL GENERAL:</span> <span id="totalGral">0</span></div>
+                                <div class="total-row highlight"><span>TOTAL GENERAL:</span> <span
+                                        id="totalGral">0</span></div>
                             </div>
                             <div id="validationErrors" class="validation-errors-container"></div>
                             <div class="action-buttons">
@@ -984,7 +1062,8 @@
                                         <option value="TICKET">Ticket (Térmico)</option>
                                     </select>
                                 </div>
-                                <button type="button" class="btn btn-outline" onclick="switchView('dashboard')">Cancelar</button>
+                                <button type="button" class="btn btn-outline"
+                                    onclick="switchView('dashboard')">Cancelar</button>
                                 <button type="submit" id="btnSubmitDte" class="btn btn-primary">
                                     <i class="fas fa-paper-plane"></i> Emitir a SIFEN
                                 </button>
@@ -993,19 +1072,21 @@
                     </form>
                 </div>
             </div>
-            
+
             <!-- Vista de Gestión de Empresas -->
             <div id="view-empresas" class="content-view">
                 <div class="view-header">
                     <h2>Gestión de Empresas (SIFEN)</h2>
                 </div>
-                
+
                 <section class="content-table glass fade-in">
                     <div class="table-header">
                         <h3>Empresas Registradas</h3>
                         <div class="filter-actions">
-                            <button class="btn btn-primary btn-sm" onclick="abrirFormEmpresa()"><i class="fas fa-plus"></i> Nueva Empresa</button>
-                            <button id="btnRefreshEmpresas" class="btn btn-outline btn-sm"><i class="fas fa-sync-alt"></i></button>
+                            <button class="btn btn-primary btn-sm" onclick="abrirFormEmpresa()"><i
+                                    class="fas fa-plus"></i> Nueva Empresa</button>
+                            <button id="btnRefreshEmpresas" class="btn btn-outline btn-sm"><i
+                                    class="fas fa-sync-alt"></i></button>
                         </div>
                     </div>
                     <div class="table-container">
@@ -1034,13 +1115,15 @@
                 <div class="view-header">
                     <h2><i class="fas fa-users" style="color:var(--accent-primary)"></i> Gestión de Usuarios</h2>
                 </div>
-                
+
                 <section class="content-table glass fade-in">
                     <div class="table-header">
                         <h3>Usuarios de la Empresa</h3>
                         <div class="filter-actions">
-                            <button class="btn btn-primary btn-sm" onclick="abrirModalInvitacion()"><i class="fas fa-user-plus"></i> Invitar Usuario</button>
-                            <button id="btnRefreshUsuarios" class="btn btn-outline btn-sm" onclick="loadUsuarios()"><i class="fas fa-sync-alt"></i></button>
+                            <button class="btn btn-primary btn-sm" onclick="abrirModalInvitacion()"><i
+                                    class="fas fa-user-plus"></i> Invitar Usuario</button>
+                            <button id="btnRefreshUsuarios" class="btn btn-outline btn-sm" onclick="loadUsuarios()"><i
+                                    class="fas fa-sync-alt"></i></button>
                         </div>
                     </div>
                     <div class="table-container">
@@ -1064,7 +1147,8 @@
             </div>
 
             <!-- Modal Invitar Usuario -->
-            <div id="modalInvitarUsuario" class="modal-overlay" style="display:none;" onclick="if(event.target===this) cerrarModalInvitacion()">
+            <div id="modalInvitarUsuario" class="modal-overlay" style="display:none;"
+                onclick="if(event.target===this) cerrarModalInvitacion()">
                 <div class="modal-card glass" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <h2>Invitar Nuevo Usuario</h2>
@@ -1076,21 +1160,44 @@
                         <form id="formInvitarUsuario" onsubmit="invitarUsuario(event)">
                             <div class="form-group">
                                 <label for="invEmail">Correo Electrónico <span class="required">*</span></label>
-                                <input type="email" id="invEmail" class="form-control" placeholder="usuario@empresa.com" required>
+                                <input type="email" id="invEmail" class="form-control" placeholder="usuario@empresa.com"
+                                    required>
                             </div>
                             <div class="form-group">
                                 <label for="invRol">Rol del Usuario <span class="required">*</span></label>
-                                <select id="invRol" class="form-control" required>
+                                <select id="invRol" class="form-control" required onchange="toggleVerSoloSusDtes()">
                                     <option value="ADMIN">Administrador (Acceso total)</option>
                                     <option value="OPERADOR">Operador (Solo emisión)</option>
                                 </select>
                             </div>
-                            <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-secondary);">
-                                Se enviará un enlace mágico al correo indicado con validez de 48 horas para configurar la cuenta.
+                            <div class="form-group" id="groupVerSoloSusDtes" style="display:none; margin-top: 10px;">
+                                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+                                    <input type="checkbox" id="invVerSoloSusDtes" style="width: auto;">
+                                    Restringir al operador para ver solo los documentos que emite él mismo
+                                </label>
                             </div>
-                            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
-                                <button type="button" class="btn btn-outline" onclick="cerrarModalInvitacion()">Cancelar</button>
-                                <button type="submit" class="btn btn-primary" id="btnSubmitInvitar">Enviar Invitación</button>
+                            <script>
+                                function toggleVerSoloSusDtes() {
+                                    const rol = document.getElementById('invRol').value;
+                                    const group = document.getElementById('groupVerSoloSusDtes');
+                                    if (rol === 'OPERADOR') {
+                                        group.style.display = 'block';
+                                    } else {
+                                        group.style.display = 'none';
+                                        document.getElementById('invVerSoloSusDtes').checked = false;
+                                    }
+                                }
+                            </script>
+                            <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-secondary);">
+                                Se enviará un enlace mágico al correo indicado con validez de 48 horas para configurar
+                                la cuenta.
+                            </div>
+                            <div class="modal-footer"
+                                style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                                <button type="button" class="btn btn-outline"
+                                    onclick="cerrarModalInvitacion()">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" id="btnSubmitInvitar">Enviar
+                                    Invitación</button>
                             </div>
                         </form>
                     </div>
@@ -1102,46 +1209,55 @@
                 <div class="view-header">
                     <h2><i class="fas fa-calendar-times" style="color:var(--accent-warning)"></i> Eventos SIFEN</h2>
                     <div class="filter-actions">
-                        <button class="btn btn-warning btn-sm" onclick="abrirFormInutilizacion()" id="btnToggleInutilizacion">
+                        <button class="btn btn-warning btn-sm" onclick="abrirFormInutilizacion()"
+                            id="btnToggleInutilizacion">
                             <i class="fas fa-eraser"></i> Nueva Inutilización
                         </button>
-                        <button id="btnRefreshEventos" class="btn btn-outline btn-sm"><i class="fas fa-sync-alt"></i></button>
+                        <button id="btnRefreshEventos" class="btn btn-outline btn-sm"><i
+                                class="fas fa-sync-alt"></i></button>
                     </div>
                 </div>
 
                 <!-- Formulario de Inutilización (colapsable) -->
-                <section id="sectionInutilizacion" class="content-table glass fade-in" style="display:none; margin-bottom:20px;">
+                <section id="sectionInutilizacion" class="content-table glass fade-in"
+                    style="display:none; margin-bottom:20px;">
                     <div class="table-header">
                         <h3><i class="fas fa-eraser"></i> Inutilización de Numeración</h3>
-                        <button class="btn btn-xs btn-outline" onclick="document.getElementById('sectionInutilizacion').style.display='none'">
+                        <button class="btn btn-xs btn-outline"
+                            onclick="document.getElementById('sectionInutilizacion').style.display='none'">
                             <i class="fas fa-times"></i> Cerrar
                         </button>
                     </div>
                     <div class="form-step-card" style="margin: 16px;">
                         <div class="info-box info" style="margin-bottom:18px;">
                             <i class="fas fa-info-circle"></i>
-                            La inutilización informa a SIFEN que un rango de números de comprobante <strong>no será utilizado</strong>.
+                            La inutilización informa a SIFEN que un rango de números de comprobante <strong>no será
+                                utilizado</strong>.
                             Una vez aprobada, los números no pueden volver a utilizarse.
                         </div>
                         <form id="formInutilizacion" onsubmit="submitInutilizacion(event)">
                             <div class="grid-row cols-3">
                                 <div class="form-group span-3">
                                     <label>Empresa Emisora *</label>
-                                    <select id="inutEmpresaSelect" class="form-select" required onchange="onInutEmpresaChange()">
+                                    <select id="inutEmpresaSelect" class="form-select" required
+                                        onchange="onInutEmpresaChange()">
                                         <option value="">Cargando empresas...</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Nro. Timbrado *</label>
-                                    <input type="text" id="inutTimbrado" class="form-control" maxlength="8" pattern="\d{8}" required placeholder="12345678">
+                                    <input type="text" id="inutTimbrado" class="form-control" maxlength="8"
+                                        pattern="\d{8}" required placeholder="12345678">
                                 </div>
                                 <div class="form-group">
                                     <label>Establecimiento *</label>
-                                    <input type="text" id="inutEstablecimiento" class="form-control" maxlength="3" value="001" required placeholder="001">
+                                    <input type="text" id="inutEstablecimiento" class="form-control" maxlength="3"
+                                        value="001" required placeholder="001">
                                 </div>
                                 <div class="form-group">
                                     <label>Punto Expedición *</label>
-                                    <input type="text" id="inutPuntoExpedicion" class="form-control" maxlength="3" value="001" required placeholder="001">
+                                    <input type="text" id="inutPuntoExpedicion" class="form-control" maxlength="3"
+                                        value="001" required placeholder="001">
                                 </div>
                                 <div class="form-group">
                                     <label>Tipo Documento *</label>
@@ -1155,20 +1271,24 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Nro. Desde *</label>
-                                    <input type="number" id="inutRangoDesde" class="form-control" min="1" required placeholder="1">
+                                    <input type="number" id="inutRangoDesde" class="form-control" min="1" required
+                                        placeholder="1">
                                 </div>
                                 <div class="form-group">
                                     <label>Nro. Hasta *</label>
-                                    <input type="number" id="inutRangoHasta" class="form-control" min="1" required placeholder="10">
+                                    <input type="number" id="inutRangoHasta" class="form-control" min="1" required
+                                        placeholder="10">
                                 </div>
                                 <div class="form-group span-3">
                                     <label>Motivo de Inutilización * (mín. 5 caracteres)</label>
-                                    <textarea id="inutMotivo" class="form-control" rows="2" minlength="5" maxlength="500" required
+                                    <textarea id="inutMotivo" class="form-control" rows="2" minlength="5"
+                                        maxlength="500" required
                                         placeholder="Describe el motivo por el cual se inutiliza este rango de numeración..."></textarea>
                                 </div>
                             </div>
                             <div class="action-buttons" style="margin-top:16px; justify-content: flex-end;">
-                                <button type="button" class="btn btn-outline" onclick="document.getElementById('sectionInutilizacion').style.display='none'">Cancelar</button>
+                                <button type="button" class="btn btn-outline"
+                                    onclick="document.getElementById('sectionInutilizacion').style.display='none'">Cancelar</button>
                                 <button type="submit" id="btnSubmitInutilizacion" class="btn btn-warning">
                                     <i class="fas fa-ban"></i> Enviar Inutilización a SIFEN
                                 </button>
@@ -1196,7 +1316,9 @@
                                 </tr>
                             </thead>
                             <tbody id="tbodyEventos">
-                                <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                                <tr>
+                                    <td colspan="7" class="text-center">Cargando...</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -1208,27 +1330,30 @@
                 <div class="view-header">
                     <h2><i class="fas fa-inbox"></i> Recepción de DTEs (Eventos de Compras)</h2>
                 </div>
-                
+
                 <section class="form-container glass fade-in form-centered">
                     <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-file-signature"></i> Registrar Evento de Comprobante Recibido</div>
-                        
+                        <div class="form-step-title"><i class="fas fa-file-signature"></i> Registrar Evento de
+                            Comprobante Recibido</div>
+
                         <div class="form-group mb-12">
                             <label>Empresa Receptora (Mi Empresa) *</label>
                             <select id="receptorEmpresaId" class="form-select" required>
                                 <option value="">Cargando empresas...</option>
                             </select>
                         </div>
-                        
+
                         <div class="form-group mb-12">
                             <label>CDC del Documento Recibido * (44 dígitos)</label>
-                            <input type="text" id="receptorCdc" class="form-control mono" required maxlength="44" placeholder="01800000000000000000000000000000000000000000">
+                            <input type="text" id="receptorCdc" class="form-control mono" required maxlength="44"
+                                placeholder="01800000000000000000000000000000000000000000">
                         </div>
-                        
+
                         <div class="grid-row cols-2 mb-12">
                             <div class="form-group">
                                 <label>Tipo de Evento a Generar *</label>
-                                <select id="receptorTipoEvento" class="form-select" required onchange="toggleMotivoReceptor()">
+                                <select id="receptorTipoEvento" class="form-select" required
+                                    onchange="toggleMotivoReceptor()">
                                     <option value="">Seleccione evento...</option>
                                     <option value="2">Conformidad (Aceptación)</option>
                                     <option value="4">Disconformidad (Rechazo comercial)</option>
@@ -1239,15 +1364,18 @@
                         </div>
 
                         <div class="form-group mb-12" id="divMotivoReceptor">
-                            <label>Motivo del Evento <span id="reqMotivoReceptor" class="text-error" style="display:none;">* (Obligatorio, mín. 5 caracteres)</span></label>
-                            <textarea id="receptorMotivo" class="form-control" rows="3" maxlength="500" placeholder="Motivo o comentario (obligatorio para disconformidad y desconocimiento)..."></textarea>
+                            <label>Motivo del Evento <span id="reqMotivoReceptor" class="text-error"
+                                    style="display:none;">* (Obligatorio, mín. 5 caracteres)</span></label>
+                            <textarea id="receptorMotivo" class="form-control" rows="3" maxlength="500"
+                                placeholder="Motivo o comentario (obligatorio para disconformidad y desconocimiento)..."></textarea>
                         </div>
-                        
+
                         <div class="form-actions text-right" style="margin-top: 2rem;">
                             <button class="btn btn-outline" onclick="limpiarFormReceptor()">
                                 <i class="fas fa-eraser"></i> Limpiar
                             </button>
-                            <button id="btnEnviarEventoReceptor" class="btn btn-primary" onclick="enviarEventoReceptor()">
+                            <button id="btnEnviarEventoReceptor" class="btn btn-primary"
+                                onclick="enviarEventoReceptor()">
                                 <i class="fas fa-paper-plane"></i> Enviar Evento a SIFEN
                             </button>
                         </div>
@@ -1260,10 +1388,11 @@
                 <div class="view-header">
                     <h2><i class="fas fa-layer-group"></i> Lotes Asíncronos (Batch)</h2>
                     <div class="filter-actions">
-                        <button id="btnRefreshLotes" class="btn btn-outline btn-sm" onclick="cargarLotes()"><i class="fas fa-sync-alt"></i> Actualizar</button>
+                        <button id="btnRefreshLotes" class="btn btn-outline btn-sm" onclick="cargarLotes()"><i
+                                class="fas fa-sync-alt"></i> Actualizar</button>
                     </div>
                 </div>
-                
+
                 <!-- Consulta Manual por CDC (Fase U3) -->
                 <section class="form-container glass fade-in" style="margin-bottom: 20px;">
                     <div class="form-step-card" style="margin: 0; padding: 15px 20px;">
@@ -1273,8 +1402,10 @@
                                     <i class="fas fa-search"></i> Consulta Manual de DTE por CDC
                                 </label>
                                 <div class="cdc-input-row">
-                                    <input type="text" id="manualCdcInput" class="form-control mono" placeholder="Ingrese el CDC de 44 dígitos..." maxlength="44" style="flex: 1;">
-                                    <button class="btn btn-primary" id="btnConsultarManual" onclick="ejecutarConsultaManualCdc()">
+                                    <input type="text" id="manualCdcInput" class="form-control mono"
+                                        placeholder="Ingrese el CDC de 44 dígitos..." maxlength="44" style="flex: 1;">
+                                    <button class="btn btn-primary" id="btnConsultarManual"
+                                        onclick="ejecutarConsultaManualCdc()">
                                         Consultar SIFEN
                                     </button>
                                 </div>
@@ -1283,14 +1414,15 @@
                                 <div class="result-label">Resultado de la consulta:</div>
                                 <div class="result-row">
                                     <span id="manualCdcStatusBadge" class="badge-status pendiente">CARGANDO...</span>
-                                    <span id="manualCdcSifenCode" class="mono small-text" style="color:var(--accent-primary);"></span>
+                                    <span id="manualCdcSifenCode" class="mono small-text"
+                                        style="color:var(--accent-primary);"></span>
                                 </div>
                                 <div id="manualCdcMessage" class="result-message"></div>
                             </div>
                         </div>
                     </div>
                 </section>
-                
+
                 <section class="content-table glass fade-in">
                     <div class="table-container">
                         <table id="tableLotes">
@@ -1315,177 +1447,275 @@
                 </section>
             </div>
 
-            <!-- Vista: Formulario Empresa -->
+            <!-- Vista: Formulario Empresa (WIZARD) -->
             <div id="view-empresa-form" class="content-view">
                 <div class="view-header">
                     <h2 id="modalEmpresaTitle"><i class="fas fa-building"></i> Nueva Empresa</h2>
                     <div class="filter-actions">
-                        <button class="btn btn-outline btn-sm" onclick="cerrarFormEmpresa()"><i class="fas fa-arrow-left"></i> Volver a Lista</button>
+                        <button class="btn btn-outline btn-sm" onclick="cerrarFormEmpresa()"><i
+                                class="fas fa-arrow-left"></i> Volver a Lista</button>
                     </div>
                 </div>
-                <section class="content-form glass fade-in" style="padding: 2rem;">
-                <form id="formEmpresa" class="fade-in">
-                    <input type="hidden" id="empresaId">
-                    
-                    <!-- Sección 1: Identificación -->
-                    <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-id-card"></i> Identificación Fiscal</div>
-                        <div class="grid-row" style="grid-template-columns: 2fr 1fr;">
-                            <div class="form-group">
-                                <label>RUC (sin DV)</label>
-                                <div class="input-with-action">
-                                    <input type="text" id="empresaRuc" class="form-control" required placeholder="Ej: 80000000">
-                                    <button type="button" class="btn btn-primary" onclick="buscarRucEmpresa()" title="Consultar RUC">
-                                        <i class="fas fa-search"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>DV</label>
-                                <div class="input-with-action">
-                                    <input type="text" id="empresaDv" class="form-control text-center" maxlength="1" required placeholder="1">
-                                    <button type="button" class="btn btn-outline" onclick="autoCalcularDv()" title="Calcular DV">
-                                        <i class="fas fa-calculator"></i>
-                                    </button>
-                                </div>
-                            </div>
+
+                <section class="content-form glass fade-in" style="padding: 2rem; position: relative;">
+                    <!-- Wizard Stepper Header -->
+                    <div class="wizard-stepper"
+                        style="display: flex; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                        <div class="wizard-step-indicator active" data-step-indicator="1">
+                            <span class="step-num">1</span> <span class="step-label">Datos Generales</span>
                         </div>
-                        <div class="grid-row cols-2" style="margin-top: 20px;">
-                            <div class="form-group span-2">
-                                <label>Razón Social / Nombre Fantasía</label>
-                                <input type="text" id="empresaRazonSocial" class="form-control" required placeholder="Empresa S.A.">
-                            </div>
-                            <div class="form-group span-2">
-                                <label>Cód. Actividad Económica</label>
-                                <select id="empresaCodActividadEconomica" class="form-select dynamic-ref" data-ref="ACTIVIDAD_ECONOMICA" required>
-                                    <option value="">Seleccione actividad...</option>
-                                </select>
-                            </div>
+                        <div class="wizard-step-indicator" data-step-indicator="2">
+                            <span class="step-num">2</span> <span class="step-label">Configuración SIFEN</span>
+                        </div>
+                        <div class="wizard-step-indicator" data-step-indicator="3">
+                            <span class="step-num">3</span> <span class="step-label">Servidor SMTP</span>
                         </div>
                     </div>
 
-                    <!-- Sección 2: Timbrado y Puntos de Venta -->
-                    <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-file-signature"></i> Timbrado y Puntos de Venta</div>
-                        <div class="grid-row cols-3">
-                            <div class="form-group">
-                                <label>Nro. Timbrado</label>
-                                <input type="text" id="empresaTimbrado" class="form-control" required maxlength="8" placeholder="12345678">
-                            </div>
-                            <div class="form-group">
-                                <label>Inicio Timbrado</label>
-                                <input type="date" id="empresaFechaInicioTimbrado" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Vencimiento Timbrado</label>
-                                <input type="date" id="empresaFechaVencimientoTimbrado" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Ambiente SIFEN</label>
-                                <select id="empresaAmbiente" class="form-select">
-                                    <option value="TEST">Desarrollo / Test</option>
-                                    <option value="PRODUCCION">Producción</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Establecimiento</label>
-                                <input type="text" id="empresaCodEstablecimiento" class="form-control" maxlength="3" value="001" placeholder="001">
-                            </div>
-                            <div class="form-group">
-                                <label>Punto Expedición</label>
-                                <input type="text" id="empresaPuntoExpedicion" class="form-control" maxlength="3" value="001" placeholder="001">
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo Contribuyente</label>
-                                <select id="empresaTipoContribuyente" class="form-select">
-                                    <option value="1">Persona Física</option>
-                                    <option value="2">Persona Jurídica</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid-row cols-2" style="margin-top: 15px;">
-                            <div class="form-group">
-                                <label>ID CSC (Código de Seguridad)</label>
-                                <input type="text" id="empresaIdCsc" class="form-control" maxlength="4" placeholder="0001">
-                            </div>
-                            <div class="form-group">
-                                <label>Valor CSC</label>
-                                <input type="text" id="empresaValorCsc" class="form-control" placeholder="Ej: 73c9BeeA5AFb8fD17a3fD93a32A07A1a">
-                            </div>
-                        </div>
-                    </div>
+                    <form id="formEmpresa" class="fade-in">
+                        <input type="hidden" id="empresaId">
 
-                    <!-- Sección 3: Localización y Contacto -->
-                    <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-map-marker-alt"></i> Localización y Contacto</div>
-                        <div class="grid-row cols-2">
-                            <div class="form-group span-2">
-                                <label>Dirección Comercial</label>
-                                <input type="text" id="empresaDireccion" class="form-control" required placeholder="Calle, Nro, Barrio">
-                            </div>
-                            <div class="form-group">
-                                <label>Departamento</label>
-                                <select id="empresaCodDepto" class="form-select dynamic-ref" data-ref="DEPARTAMENTO">
-                                    <option value="">Cargando...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Ciudad / Distrito</label>
-                                <select id="empresaCodCiudad" class="form-select">
-                                    <option value="">Seleccione Depto.</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Teléfono de Contacto</label>
-                                <input type="text" id="empresaTelefono" class="form-control" placeholder="021xxxxxx">
-                            </div>
-                            <div class="form-group">
-                                <label>Email Administrativo</label>
-                                <input type="email" id="empresaEmail" class="form-control" placeholder="admin@empresa.com.py">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Sección 4: Configuración Lotes Asíncronos (Batch) -->
-                    <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-layer-group"></i> Configuración de Lotes Asíncronos</div>
-                        <div class="grid-row cols-2">
-                            <div class="form-group">
-                                <label>Frecuencia de Armado de Lotes (minutos)</label>
-                                <input type="number" id="empresaFrecuenciaLote" class="form-control" value="15" min="1" placeholder="15">
-                                <small style="color:var(--text-muted); font-size: 0.8rem;">Cada cuánto tiempo el worker agrupa facturas firmadas y las envía.</small>
-                            </div>
-                            <div class="form-group">
-                                <label>Frecuencia de Polling Ticket (minutos)</label>
-                                <input type="number" id="empresaFrecuenciaTicket" class="form-control" value="5" min="1" placeholder="5">
-                                <small style="color:var(--text-muted); font-size: 0.8rem;">Cada cuánto tiempo el worker consulta el estado de los lotes enviados.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Sección 5: Logo y Diseño -->
-                    <div class="form-step-card">
-                        <div class="form-step-title"><i class="fas fa-image"></i> Personalización KuDE</div>
-                        <div class="grid-row cols-2" style="align-items: center;">
-                            <div class="form-group">
-                                <label>Logo para Facturas PDF (KuDE)</label>
-                                <input type="file" id="empresaLogoFile" class="form-control" accept="image/png, image/jpeg, image/jpg">
-                                <small style="color:var(--text-muted); font-size: 0.8rem;">Se convertirá a Base64. Recomendado: PNG/JPG 300x100px máximo 200KB.</small>
-                                <input type="hidden" id="empresaLogoBase64">
-                            </div>
-                            <div class="form-group" style="text-align: center;">
-                                <div id="previewLogoContainer" class="logo-preview-box">
-                                    <span id="previewLogoText" style="color:var(--text-muted)">Sin logo configurado</span>
-                                    <img id="previewLogoImg" style="display:none; max-height: 60px; max-width: 100%;" alt="Logo">
+                        <!-- WIZARD STEP 1: Datos Generales y Localización -->
+                        <div class="wizard-step active" data-step="1">
+                            <div class="form-step-card">
+                                <div class="form-step-title"><i class="fas fa-id-card"></i> Identificación Fiscal</div>
+                                <div class="grid-row" style="grid-template-columns: 2fr 1fr;">
+                                    <div class="form-group">
+                                        <label>RUC (sin DV)</label>
+                                        <div class="input-with-action">
+                                            <input type="text" id="empresaRuc" class="form-control" required
+                                                placeholder="Ej: 80000000">
+                                            <button type="button" class="btn btn-primary" onclick="buscarRucEmpresa()"
+                                                title="Consultar RUC">
+                                                <i class="fas fa-search"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>DV</label>
+                                        <div class="input-with-action">
+                                            <input type="text" id="empresaDv" class="form-control text-center"
+                                                maxlength="1" required placeholder="1">
+                                            <button type="button" class="btn btn-outline" onclick="autoCalcularDv()"
+                                                title="Calcular DV">
+                                                <i class="fas fa-calculator"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <button type="button" id="btnRemoveLogo" class="btn btn-xs btn-outline" style="display:none; margin-top: 5px;" onclick="quitarLogo()"><i class="fas fa-trash"></i> Quitar Logo</button>
+                                <div class="grid-row cols-2" style="margin-top: 20px;">
+                                    <div class="form-group span-2">
+                                        <label>Razón Social / Nombre Fantasía</label>
+                                        <input type="text" id="empresaRazonSocial" class="form-control" required
+                                            placeholder="Empresa S.A.">
+                                    </div>
+                                    <div class="form-group span-2">
+                                        <label>Cód. Actividad Económica</label>
+                                        <select id="empresaCodActividadEconomica" class="form-select dynamic-ref"
+                                            data-ref="ACTIVIDAD_ECONOMICA" required>
+                                            <option value="">Seleccione actividad...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-step-card">
+                                <div class="form-step-title"><i class="fas fa-map-marker-alt"></i> Localización y
+                                    Contacto</div>
+                                <div class="grid-row cols-2">
+                                    <div class="form-group span-2">
+                                        <label>Dirección Comercial</label>
+                                        <input type="text" id="empresaDireccion" class="form-control" required
+                                            placeholder="Calle, Nro, Barrio">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Departamento</label>
+                                        <select id="empresaCodDepto" class="form-select dynamic-ref"
+                                            data-ref="DEPARTAMENTO">
+                                            <option value="">Cargando...</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Ciudad / Distrito</label>
+                                        <select id="empresaCodCiudad" class="form-select">
+                                            <option value="">Seleccione Depto.</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Teléfono de Contacto</label>
+                                        <input type="text" id="empresaTelefono" class="form-control"
+                                            placeholder="021xxxxxx">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email Administrativo</label>
+                                        <input type="email" id="empresaEmail" class="form-control"
+                                            placeholder="admin@empresa.com.py">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </form>
-                    <div class="form-actions text-right" style="margin-top: 2rem;">
-                        <button class="btn btn-outline" onclick="cerrarFormEmpresa()"><i class="fas fa-times"></i> Cancelar</button>
-                        <button class="btn btn-primary" id="btnSaveEmpresa" onclick="submitFormEmpresa()"><i class="fas fa-save"></i> Guardar Cambios</button>
+
+                        <!-- WIZARD STEP 2: Timbrado y Configuración SIFEN -->
+                        <div class="wizard-step" data-step="2" style="display:none;">
+                            <div class="form-step-card">
+                                <div class="form-step-title"><i class="fas fa-file-signature"></i> Timbrado y Puntos de
+                                    Venta</div>
+                                <div class="grid-row cols-3">
+                                    <div class="form-group">
+                                        <label>Nro. Timbrado</label>
+                                        <input type="text" id="empresaTimbrado" class="form-control" required
+                                            maxlength="8" placeholder="12345678">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Inicio Timbrado</label>
+                                        <input type="date" id="empresaFechaInicioTimbrado" class="form-control"
+                                            required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Vencimiento Timbrado</label>
+                                        <input type="date" id="empresaFechaVencimientoTimbrado" class="form-control"
+                                            required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Ambiente SIFEN</label>
+                                        <select id="empresaAmbiente" class="form-select">
+                                            <option value="TEST">Desarrollo / Test</option>
+                                            <option value="PRODUCCION">Producción</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Establecimiento</label>
+                                        <input type="text" id="empresaCodEstablecimiento" class="form-control"
+                                            maxlength="3" value="001" placeholder="001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Punto Expedición</label>
+                                        <input type="text" id="empresaPuntoExpedicion" class="form-control"
+                                            maxlength="3" value="001" placeholder="001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tipo Contribuyente</label>
+                                        <select id="empresaTipoContribuyente" class="form-select">
+                                            <option value="1">Persona Física</option>
+                                            <option value="2">Persona Jurídica</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid-row cols-2" style="margin-top: 15px;">
+                                    <div class="form-group">
+                                        <label>ID CSC (Código de Seguridad)</label>
+                                        <input type="text" id="empresaIdCsc" class="form-control" maxlength="4"
+                                            placeholder="0001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Valor CSC</label>
+                                        <input type="text" id="empresaValorCsc" class="form-control"
+                                            placeholder="Ej: 73c9BeeA5AFb8fD17a3fD93a32A07A1a">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-step-card">
+                                <div class="form-step-title"><i class="fas fa-layer-group"></i> Lotes Asíncronos & KuDE
+                                </div>
+                                <div class="grid-row cols-2">
+                                    <div class="form-group">
+                                        <label>Frecuencia de Lotes (minutos)</label>
+                                        <input type="number" id="empresaFrecuenciaLote" class="form-control" value="15"
+                                            min="1" placeholder="15">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Frecuencia de Polling (minutos)</label>
+                                        <input type="number" id="empresaFrecuenciaTicket" class="form-control" value="5"
+                                            min="1" placeholder="5">
+                                    </div>
+                                </div>
+                                <div class="grid-row cols-2" style="margin-top: 15px; align-items: center;">
+                                    <div class="form-group">
+                                        <label>Logo para Facturas PDF (KuDE)</label>
+                                        <input type="file" id="empresaLogoFile" class="form-control"
+                                            accept="image/png, image/jpeg, image/jpg">
+                                        <input type="hidden" id="empresaLogoBase64">
+                                    </div>
+                                    <div class="form-group" style="text-align: center;">
+                                        <div id="previewLogoContainer" class="logo-preview-box">
+                                            <span id="previewLogoText" style="color:var(--text-muted)">Sin logo
+                                                configurado</span>
+                                            <img id="previewLogoImg"
+                                                style="display:none; max-height: 60px; max-width: 100%;" alt="Logo">
+                                        </div>
+                                        <button type="button" id="btnRemoveLogo" class="btn btn-xs btn-outline"
+                                            style="display:none; margin-top: 5px;" onclick="quitarLogo()"><i
+                                                class="fas fa-trash"></i> Quitar Logo</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WIZARD STEP 3: Configuración SMTP -->
+                        <div class="wizard-step" data-step="3" style="display:none;">
+                            <div class="info-box mb-12">
+                                <i class="fas fa-info-circle"></i>
+                                Si dejas estos campos vacíos, el sistema utilizará el servidor de correo global por
+                                defecto.
+                                Completa estos datos solo si deseas que esta empresa envíe correos desde su propia
+                                cuenta.
+                            </div>
+                            <div class="form-step-card">
+                                <div class="form-step-title"><i class="fas fa-envelope"></i> Servidor de Correo Propio
+                                    (Opcional)</div>
+                                <div class="grid-row cols-2">
+                                    <div class="form-group">
+                                        <label>Host SMTP</label>
+                                        <input type="text" id="empresaSmtpHost" class="form-control"
+                                            placeholder="Ej: smtp.gmail.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Puerto SMTP</label>
+                                        <input type="number" id="empresaSmtpPort" class="form-control"
+                                            placeholder="Ej: 587">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Usuario (Email)</label>
+                                        <input type="email" id="empresaSmtpUsername" class="form-control"
+                                            placeholder="Ej: ventas@empresa.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Contraseña (App Password)</label>
+                                        <input type="password" id="empresaSmtpPassword" class="form-control"
+                                            placeholder="Contraseña o App Password">
+                                    </div>
+                                    <div class="form-group">
+                                        <label
+                                            style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 10px;">
+                                            <input type="checkbox" id="empresaSmtpUseTls" checked>
+                                            Usar TLS / Seguridad
+                                        </label>
+                                    </div>
+                                    <div class="form-group"
+                                        style="display: flex; align-items: flex-end; justify-content: flex-end;">
+                                        <button type="button" class="btn btn-outline" onclick="probarConexionSmtp()"
+                                            id="btnTestSmtp">
+                                            <i class="fas fa-plug"></i> Probar Conexión
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Wizard Actions -->
+                    <div class="wizard-actions text-right"
+                        style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem; display: flex; justify-content: space-between;">
+                        <button class="btn btn-outline" id="btnWizardPrev" onclick="prevWizardStep()"
+                            style="visibility: hidden;"><i class="fas fa-chevron-left"></i> Anterior</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-outline" onclick="cerrarFormEmpresa()">Cancelar</button>
+                            <button class="btn btn-primary" id="btnWizardNext" onclick="nextWizardStep()">Siguiente <i
+                                    class="fas fa-chevron-right"></i></button>
+                            <button class="btn btn-success" id="btnWizardFinish" onclick="submitFormEmpresa()"
+                                style="display:none;"><i class="fas fa-save"></i> Finalizar y Guardar</button>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -1495,51 +1725,59 @@
                 <div class="view-header">
                     <h2><i class="fas fa-upload"></i> Emisión Masiva de DTEs (Batch Ingestion)</h2>
                 </div>
-                
+
                 <section class="form-container glass fade-in form-centered-lg">
                     <div class="form-step-card">
                         <div class="form-step-title"><i class="fas fa-file-import"></i> Cargar Lote de Documentos</div>
                         <div class="info-box info mb-12">
                             <i class="fas fa-info-circle"></i>
-                            Los documentos cargados se validarán, firmarán y encolarán para envío asíncrono en bloques de 50.
-                            Si algún documento falla la validación local, se marcará con error pero no detendrá al resto del lote.
+                            Los documentos cargados se validarán, firmarán y encolarán para envío asíncrono en bloques
+                            de 50.
+                            Si algún documento falla la validación local, se marcará con error pero no detendrá al resto
+                            del lote.
                         </div>
-                        
+
                         <div class="form-group mb-12">
                             <label>Empresa Emisora *</label>
                             <select id="masivoEmpresaId" class="form-select" required>
                                 <option value="">Cargando empresas...</option>
                             </select>
                         </div>
-                        
+
                         <div class="grid-row cols-2 mb-12">
                             <div class="form-group span-2">
                                 <label>Cargar Archivo JSON</label>
-                                <div class="file-drop-zone" onclick="document.getElementById('masivoFile').click()" id="masivoDropZone">
+                                <div class="file-drop-zone" onclick="document.getElementById('masivoFile').click()"
+                                    id="masivoDropZone">
                                     <i class="fas fa-cloud-upload-alt fa-3x upload-icon"></i>
                                     <p id="masivoFileName">Haga clic o arrastre un archivo .json aquí</p>
-                                    <input type="file" id="masivoFile" accept=".json" style="display:none;" onchange="handleMasivoFileSelect(event)">
+                                    <input type="file" id="masivoFile" accept=".json" style="display:none;"
+                                        onchange="handleMasivoFileSelect(event)">
                                 </div>
                             </div>
                         </div>
 
                         <div class="form-group mb-12 text-center">
-                            <span class="text-muted" style="font-size: 0.9em;">--- O pegue el contenido JSON directamente ---</span>
+                            <span class="text-muted" style="font-size: 0.9em;">--- O pegue el contenido JSON
+                                directamente ---</span>
                         </div>
-                        
+
                         <div class="form-group mb-12">
-                            <textarea id="masivoJsonText" class="form-control mono" rows="8" placeholder='[&#10;  {&#10;    "tipoDocumento": "1",&#10;    "establecimiento": "001",&#10;    "punto": "001",&#10;    "numero": "1",&#10;    ...&#10;  }&#10;]'></textarea>
+                            <textarea id="masivoJsonText" class="form-control mono" rows="8"
+                                placeholder='[&#10;  {&#10;    "tipoDocumento": "1",&#10;    "establecimiento": "001",&#10;    "punto": "001",&#10;    "numero": "1",&#10;    ...&#10;  }&#10;]'></textarea>
                         </div>
-                        
+
                         <div class="form-actions-split">
                             <button class="btn btn-outline" onclick="descargarPlantillaMasiva()">
                                 <i class="fas fa-download"></i> Descargar Plantilla JSON
                             </button>
                             <div>
-                                <button class="btn btn-outline" onclick="limpiarFormMasivo()" style="margin-right: 10px;">
+                                <button class="btn btn-outline" onclick="limpiarFormMasivo()"
+                                    style="margin-right: 10px;">
                                     <i class="fas fa-eraser"></i> Limpiar
                                 </button>
-                                <button id="btnProcesarMasivo" class="btn btn-primary" onclick="procesarEmisionMasiva()">
+                                <button id="btnProcesarMasivo" class="btn btn-primary"
+                                    onclick="procesarEmisionMasiva()">
                                     <i class="fas fa-cogs"></i> Procesar Documentos
                                 </button>
                             </div>
@@ -1549,31 +1787,34 @@
                     <!-- Panel de Resultados (oculto por defecto) -->
                     <div id="masivoResultPanel" class="form-step-card" style="display:none; margin-top: 20px;">
                         <div class="form-step-title"><i class="fas fa-chart-bar"></i> Resultados del Procesamiento</div>
-                        
+
                         <div class="dashboard-metrics" style="margin-bottom: 20px;">
                             <div class="metric-card">
-                                <div class="metric-icon" style="color:var(--accent-info)"><i class="fas fa-file-alt"></i></div>
+                                <div class="metric-icon" style="color:var(--accent-info)"><i
+                                        class="fas fa-file-alt"></i></div>
                                 <div class="metric-data">
                                     <h3>Total Recibidos</h3>
                                     <p class="metric-value" id="resMasivoTotal">0</p>
                                 </div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-icon" style="color:var(--accent-success)"><i class="fas fa-check-circle"></i></div>
+                                <div class="metric-icon" style="color:var(--accent-success)"><i
+                                        class="fas fa-check-circle"></i></div>
                                 <div class="metric-data">
                                     <h3>Exitosos (Encolados)</h3>
                                     <p class="metric-value" id="resMasivoExito">0</p>
                                 </div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-icon" style="color:var(--accent-danger)"><i class="fas fa-times-circle"></i></div>
+                                <div class="metric-icon" style="color:var(--accent-danger)"><i
+                                        class="fas fa-times-circle"></i></div>
                                 <div class="metric-data">
                                     <h3>Con Errores</h3>
                                     <p class="metric-value text-error" id="resMasivoError">0</p>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="table-container">
                             <table class="table-dtes-inner" id="tableMasivoResult">
                                 <thead>
@@ -1601,22 +1842,31 @@
 
                 <div class="glass-panel" style="margin-top: 20px;">
                     <h3><i class="fas fa-database"></i> Padrón RUC DNIT</h3>
-                    <p class="text-secondary" style="margin-bottom: 20px;">El sistema mantiene una base de datos local ultra rápida de contribuyentes para validar RUCs sin depender de APIs externas. El archivo original proviene de la DNIT (.zip).</p>
-                    
+                    <p class="text-secondary" style="margin-bottom: 20px;">El sistema mantiene una base de datos local
+                        ultra rápida de contribuyentes para validar RUCs sin depender de APIs externas. El archivo
+                        original proviene de la DNIT (.zip).</p>
+
                     <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                        <div class="card" style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
-                            <h4><i class="fas fa-cloud-download-alt" style="color: var(--accent-primary);"></i> Sincronización Automática</h4>
-                            <p style="font-size: 0.9rem; margin-top: 10px;">Descarga la última versión directamente desde el sitio web de la SET/DNIT (ruc.zip).</p>
-                            <button id="btnSyncPadronUrl" class="btn btn-primary" style="margin-top: 15px; width: 100%;" onclick="syncPadronFromUrl()">
+                        <div class="card"
+                            style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
+                            <h4><i class="fas fa-cloud-download-alt" style="color: var(--accent-primary);"></i>
+                                Sincronización Automática</h4>
+                            <p style="font-size: 0.9rem; margin-top: 10px;">Descarga la última versión directamente
+                                desde el sitio web de la SET/DNIT (ruc.zip).</p>
+                            <button id="btnSyncPadronUrl" class="btn btn-primary" style="margin-top: 15px; width: 100%;"
+                                onclick="syncPadronFromUrl()">
                                 <i class="fas fa-sync-alt"></i> Sincronizar desde DNIT
                             </button>
                         </div>
-                        
-                        <div class="card" style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
+
+                        <div class="card"
+                            style="flex: 1; min-width: 300px; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px;">
                             <h4><i class="fas fa-file-archive text-warning"></i> Carga Manual</h4>
-                            <p style="font-size: 0.9rem; margin-top: 10px;">Útil si la página de la DNIT bloquea la descarga automática. Selecciona el archivo ruc.zip manualmente.</p>
+                            <p style="font-size: 0.9rem; margin-top: 10px;">Útil si la página de la DNIT bloquea la
+                                descarga automática. Selecciona el archivo ruc.zip manualmente.</p>
                             <div style="margin-top: 15px; display: flex; gap: 10px;">
-                                <input type="file" id="padronZipInput" accept=".zip" class="form-control" style="flex: 1;">
+                                <input type="file" id="padronZipInput" accept=".zip" class="form-control"
+                                    style="flex: 1;">
                                 <button id="btnUploadPadronZip" class="btn btn-secondary" onclick="uploadPadronZip()">
                                     <i class="fas fa-upload"></i> Subir
                                 </button>
@@ -1643,17 +1893,20 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="detallePagoRowIndex">
-                
+
                 <div class="safesecure-container">
-                    <div class="safesecure-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                        <span class="font-medium" style="color: var(--accent);"><i class="fas fa-shield-alt"></i> Modo Seguro (SafeSecure)</span>
+                    <div class="safesecure-header"
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                        <span class="font-medium" style="color: var(--accent);"><i class="fas fa-shield-alt"></i> Modo
+                            Seguro (SafeSecure)</span>
                         <label class="switch">
                             <input type="checkbox" id="detallePagoSafeSecure" onchange="toggleSafeSecureFields()">
                             <span class="slider round"></span>
                         </label>
                     </div>
                     <p class="text-muted text-sm" style="margin-bottom: 15px;">
-                        Si está activo, se usarán valores genéricos seguros para evitar rechazos de SIFEN al omitir los campos obligatorios.
+                        Si está activo, se usarán valores genéricos seguros para evitar rechazos de SIFEN al omitir los
+                        campos obligatorios.
                     </p>
                 </div>
 
@@ -1674,7 +1927,8 @@
                     </div>
                     <div class="form-group" id="groupTarjetaDescripcion" style="display: none;">
                         <label>Descripción de Denominación <span class="text-danger">*</span></label>
-                        <input type="text" id="tarjetaDescripcion" class="form-control" placeholder="Ej: TARJETA COOP" minlength="4">
+                        <input type="text" id="tarjetaDescripcion" class="form-control" placeholder="Ej: TARJETA COOP"
+                            minlength="4">
                     </div>
                     <div class="form-group">
                         <label>Forma de Procesamiento <span class="text-danger">*</span></label>
@@ -1690,15 +1944,18 @@
                 <div id="camposCheque" style="display: none; padding-top: 10px; border-top: 1px solid var(--border);">
                     <div class="form-group">
                         <label>Número de Cheque <span class="text-danger">*</span></label>
-                        <input type="text" id="chequeNumero" class="form-control" placeholder="Mínimo 8 caracteres" minlength="8">
+                        <input type="text" id="chequeNumero" class="form-control" placeholder="Mínimo 8 caracteres"
+                            minlength="8">
                     </div>
                     <div class="form-group">
                         <label>Banco Emisor <span class="text-danger">*</span></label>
-                        <input type="text" id="chequeBanco" class="form-control" placeholder="Mínimo 4 caracteres" minlength="4">
+                        <input type="text" id="chequeBanco" class="form-control" placeholder="Mínimo 4 caracteres"
+                            minlength="4">
                     </div>
                 </div>
             </div>
-            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
+            <div class="modal-footer"
+                style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border);">
                 <button class="btn btn-outline" onclick="cerrarModalDetallePago()">Cancelar</button>
                 <button class="btn btn-primary" onclick="guardarDetallePago()">Guardar Detalles</button>
             </div>
@@ -1748,7 +2005,8 @@
 
                 <!-- Sección: Historial de Transacciones con SIFEN -->
                 <div id="mdHistorialSection" style="margin-top: 1rem;">
-                    <button class="btn btn-xs btn-outline" onclick="toggleHistorialSifen()" style="margin-bottom: 0.5rem;">
+                    <button class="btn btn-xs btn-outline" onclick="toggleHistorialSifen()"
+                        style="margin-bottom: 0.5rem;">
                         <i class="fas fa-history"></i> Historial de Transacciones SIFEN
                     </button>
                     <div id="mdHistorialContainer" style="display:none;">
@@ -1762,17 +2020,22 @@
                                 </tr>
                             </thead>
                             <tbody id="mdHistorialBody">
-                                <tr><td colspan="4" style="text-align:center; padding:8px; opacity:0.5;">Sin registros</td></tr>
+                                <tr>
+                                    <td colspan="4" style="text-align:center; padding:8px; opacity:0.5;">Sin registros
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="mdBtnConsultarCdc" class="btn btn-secondary" style="display:none;" onclick="consultarCdcSifenModal()">
+                <button id="mdBtnConsultarCdc" class="btn btn-secondary" style="display:none;"
+                    onclick="consultarCdcSifenModal()">
                     <i class="fas fa-search"></i> Consultar CDC en SIFEN
                 </button>
-                <button id="mdBtnConsultar" class="btn btn-primary" style="display:none;" onclick="consultarLoteSifenModal()">
+                <button id="mdBtnConsultar" class="btn btn-primary" style="display:none;"
+                    onclick="consultarLoteSifenModal()">
                     <i class="fas fa-sync-alt"></i> Consultar Lote en SIFEN
                 </button>
                 <button class="btn btn-outline" onclick="toggleRawXml()">
@@ -1798,8 +2061,10 @@
             <div class="modal-body">
                 <form id="formUploadCert">
                     <input type="hidden" id="uploadCertEmpresaId">
-                    <div id="certLoadedInfo" class="info-box success cert-active-info" style="display:none; margin-bottom: 15px;">
-                        <i class="fas fa-check-circle"></i> <strong>Certificado Activo:</strong> Esta empresa ya tiene un certificado almacenado. Sube uno nuevo solo si deseas reemplazarlo.
+                    <div id="certLoadedInfo" class="info-box success cert-active-info"
+                        style="display:none; margin-bottom: 15px;">
+                        <i class="fas fa-check-circle"></i> <strong>Certificado Activo:</strong> Esta empresa ya tiene
+                        un certificado almacenado. Sube uno nuevo solo si deseas reemplazarlo.
                     </div>
                     <div class="form-group mb-12">
                         <label>Archivo Certificado (.p12 o .pfx)</label>
@@ -1807,11 +2072,13 @@
                     </div>
                     <div class="form-group mb-12">
                         <label>Contraseña del Certificado</label>
-                        <input type="password" id="certPassword" class="form-control" placeholder="Ingrese contraseña" required>
+                        <input type="password" id="certPassword" class="form-control" placeholder="Ingrese contraseña"
+                            required>
                     </div>
                 </form>
                 <div class="info-box info mt-10">
-                    <i class="fas fa-lock"></i> La contraseña será encriptada (AES-256) antes de almacenarse en la base de datos.
+                    <i class="fas fa-lock"></i> La contraseña será encriptada (AES-256) antes de almacenarse en la base
+                    de datos.
                 </div>
             </div>
             <div class="modal-footer">
@@ -1823,7 +2090,8 @@
         </div>
     </div>
     <!-- Modal: Cancelación de DTE -->
-    <div id="modalCancelacion" class="modal-overlay" style="display:none;" onclick="if(event.target===this) cerrarModalCancelacion()">
+    <div id="modalCancelacion" class="modal-overlay" style="display:none;"
+        onclick="if(event.target===this) cerrarModalCancelacion()">
         <div class="modal-card glass" onclick="event.stopPropagation()">
             <div class="modal-header" style="border-bottom:2px solid var(--accent-danger);">
                 <h3><i class="fas fa-ban" style="color:var(--accent-danger)"></i> Cancelar DTE en SIFEN</h3>
@@ -1832,7 +2100,8 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="info-box" style="background:rgba(231,76,60,0.1); border:1px solid var(--accent-danger); color:var(--accent-danger); margin-bottom:18px;">
+                <div class="info-box"
+                    style="background:rgba(231,76,60,0.1); border:1px solid var(--accent-danger); color:var(--accent-danger); margin-bottom:18px;">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Atención:</strong> Esta acción cancela el DTE ante SIFEN. La operación es
                     <strong>irreversible</strong> una vez aprobada por la SET.
@@ -1863,7 +2132,8 @@
     </div>
 
     <!-- Modal: Detalle de Evento -->
-    <div id="modalDetalleEvento" class="modal-overlay" style="display:none;" onclick="if(event.target===this) cerrarDetalleEvento()">
+    <div id="modalDetalleEvento" class="modal-overlay" style="display:none;"
+        onclick="if(event.target===this) cerrarDetalleEvento()">
         <div class="modal-card glass" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <h3><i class="fas fa-calendar-check"></i> Detalle del Evento</h3>
@@ -1940,14 +2210,17 @@
                 <span class="close" onclick="cerrarModalCambio()">&times;</span>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom: 20px; color: var(--text-secondary);">Seleccione la empresa con la que desea trabajar actualmente:</p>
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">Seleccione la empresa con la que desea
+                    trabajar actualmente:</p>
                 <div id="listaEmpresasSelector" class="company-selection-grid">
                     <!-- Dinámico -->
                     <div class="text-center">Cargando empresas...</div>
                 </div>
-                <div class="default-checkbox" style="margin-top: 15px; border-top: 1px solid var(--border-glass); padding-top: 15px;">
+                <div class="default-checkbox"
+                    style="margin-top: 15px; border-top: 1px solid var(--border-glass); padding-top: 15px;">
                     <input type="checkbox" id="chk-switch-default">
-                    <label for="chk-switch-default" style="font-size: 0.85rem; color: var(--text-secondary);">Establecer como empresa predeterminada para el inicio de sesión</label>
+                    <label for="chk-switch-default" style="font-size: 0.85rem; color: var(--text-secondary);">Establecer
+                        como empresa predeterminada para el inicio de sesión</label>
                 </div>
             </div>
         </div>

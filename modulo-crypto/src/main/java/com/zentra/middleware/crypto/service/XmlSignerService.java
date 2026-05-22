@@ -403,7 +403,7 @@ public class XmlSignerService {
      */
     private String resolverPassword(String rawPass) {
         try {
-            return com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+            return com.zentra.middleware.core.util.AesEncryptionUtil.decrypt(rawPass);
         } catch (Exception e) {
             return rawPass;
         }

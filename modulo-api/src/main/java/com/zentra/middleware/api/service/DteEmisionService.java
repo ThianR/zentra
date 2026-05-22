@@ -174,6 +174,7 @@ public class DteEmisionService {
         DocumentoElectronico dte = new DocumentoElectronico();
         dte.setEmisor(emisor);
         dte.setTipoDocumento(String.valueOf(payload.getOrDefault("tipoDocumento", "1")));
+        dte.setUsuarioGenerador(EmpresaContext.getUsername());
 
         dte.setRucEmisor(emisor.getRuc());
         dte.setRazonSocialEmisor(emisor.getRazonSocial());

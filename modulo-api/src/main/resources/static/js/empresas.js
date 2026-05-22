@@ -1,4 +1,4 @@
-// --- Gestión de Empresas ---
+// --- GestiÃ³n de Empresas ---
 
 async function loadEmpresasGrid() {
     const tbody = document.getElementById('tbodyListaEmpresas');
@@ -67,7 +67,7 @@ async function loadEmpresasGrid() {
         });
     } catch (error) {
         console.error('Error cargando empresas:', error);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center error">Error de conexión con el servidor</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center error">Error de conexiÃ³n con el servidor</td></tr>';
     }
 }
 
@@ -81,6 +81,8 @@ if(btnRefreshEmpresas) {
 
 window.abrirFormEmpresa = async function(empresa = null) {
     document.getElementById('formEmpresa').reset();
+    currentWizardStep = 1;
+    updateWizardUI();
     
     // Cargar selectores dinámicos y esperar
     await initReferencias();
@@ -91,7 +93,7 @@ window.abrirFormEmpresa = async function(empresa = null) {
         deptoSelect.onchange = (e) => loadCiudadesModal(e.target.value);
     }
     
-    // Se eliminó el onchange que seteaba la descripción manualmente
+    // Se eliminÃ³ el onchange que seteaba la descripciÃ³n manualmente
 
     if (empresa && empresa.id) {
         document.getElementById('modalEmpresaTitle').innerHTML = '<i class="fas fa-edit"></i> Editar Empresa';
@@ -103,7 +105,7 @@ window.abrirFormEmpresa = async function(empresa = null) {
         document.getElementById('empresaFechaInicioTimbrado').value = empresa.fechaInicioTimbrado || '';
         document.getElementById('empresaFechaVencimientoTimbrado').value = empresa.fechaVencimientoTimbrado || '';
         
-        // Asignar actividad (el select ya cargó por await loadDynamicRefs)
+        // Asignar actividad (el select ya cargÃ³ por await loadDynamicRefs)
         document.getElementById('empresaCodActividadEconomica').value = empresa.codActividadEconomica || '';
         
         document.getElementById('empresaDireccion').value = empresa.direccion || '';
@@ -138,6 +140,14 @@ window.abrirFormEmpresa = async function(empresa = null) {
                 document.getElementById('empresaCodCiudad').value = empresa.codCiudad;
             }
         }
+        
+        // SMTP
+        document.getElementById('empresaSmtpHost').value = empresa.smtpHost || '';
+        document.getElementById('empresaSmtpPort').value = empresa.smtpPort || '';
+        document.getElementById('empresaSmtpUsername').value = empresa.smtpUsername || '';
+        document.getElementById('empresaSmtpPassword').value = ''; // Por seguridad no devolvemos la contraseña
+        document.getElementById('empresaSmtpUseTls').checked = empresa.smtpUseTls !== false; // Por defecto true
+        
     } else {
         document.getElementById('modalEmpresaTitle').innerHTML = '<i class="fas fa-building"></i> Nueva Empresa';
         document.getElementById('empresaId').value = '';
@@ -162,7 +172,7 @@ window.autoCalcularDv = function() {
     showToast(`DV Calculado: ${dv}`, 'info');
 };
 
-// Listener para actualizar descripción de actividad automáticamente
+// Listener para actualizar descripciÃ³n de actividad automÃ¡ticamente
 document.addEventListener('DOMContentLoaded', () => {
     const selectAct = document.getElementById('empresaCodActividadEconomica');
     if (selectAct) {
@@ -228,8 +238,16 @@ window.buscarRucEmpresa = async function() {
 
 window.submitFormEmpresa = async function() {
     const form = document.getElementById('formEmpresa');
-    if (form && !form.reportValidity()) {
-        return; // Detiene si hay campos requeridos vacíos (como la fecha de vencimiento)
+    // Validar solo el paso actual si estamos en un paso
+    const currentStepDiv = document.querySelector(`.wizard-step[data-step="${currentWizardStep}"]`);
+    if (currentStepDiv) {
+        const inputs = currentStepDiv.querySelectorAll("input, select, textarea");
+        for (let input of inputs) {
+            if (!input.checkValidity()) {
+                input.reportValidity();
+                return;
+            }
+        }
     }
 
     const empresaId = document.getElementById('empresaId').value;
@@ -238,7 +256,7 @@ window.submitFormEmpresa = async function() {
     const dv = document.getElementById('empresaDv').value;
 
     if (!ruc || !razonSocial || !dv) {
-        return showToast('Los campos RUC, DV y Razón Social son requeridos', 'warning');
+        return showToast('Los campos RUC, DV y RazÃ³n Social son requeridos', 'warning');
     }
 
     const codActEcon = document.getElementById('empresaCodActividadEconomica').value;
@@ -267,14 +285,19 @@ window.submitFormEmpresa = async function() {
         valorCsc: document.getElementById('empresaValorCsc').value,
         frecuenciaLoteMinutos: parseInt(document.getElementById('empresaFrecuenciaLote').value) || 15,
         frecuenciaConsultaTicketMinutos: parseInt(document.getElementById('empresaFrecuenciaTicket').value) || 5,
-        logoBase64: document.getElementById('empresaLogoBase64').value
+        logoBase64: document.getElementById('empresaLogoBase64').value,
+        smtpHost: document.getElementById('empresaSmtpHost').value,
+        smtpPort: parseInt(document.getElementById('empresaSmtpPort').value) || null,
+        smtpUsername: document.getElementById('empresaSmtpUsername').value,
+        smtpPasswordPlain: document.getElementById('empresaSmtpPassword').value,
+        smtpUseTls: document.getElementById('empresaSmtpUseTls').checked
     };
 
     const isEdit = !!empresaId;
     const url = isEdit ? `/api/v1/empresas/${empresaId}` : '/api/v1/empresas';
     const method = isEdit ? 'PUT' : 'POST';
 
-    const btn = document.getElementById('btnSaveEmpresa');
+    const btn = document.getElementById('btnWizardFinish');
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
     btn.disabled = true;
@@ -287,7 +310,7 @@ window.submitFormEmpresa = async function() {
         });
 
         if (res.ok) {
-            showToast(`✓ Empresa ${isEdit ? 'actualizada' : 'registrada'} correctamente`, 'success');
+            showToast(`Empresa ${isEdit ? 'actualizada' : 'registrada'} correctamente`, 'success');
             cerrarFormEmpresa();
             loadEmpresasGrid();
             // Si hay un selector de emisor en la vista principal, refrescarlo
@@ -297,7 +320,7 @@ window.submitFormEmpresa = async function() {
             showToast(errorMsg || 'Error al procesar la solicitud', 'error');
         }
     } catch (e) {
-        showToast('Error de conexión con el servidor', 'error');
+        showToast('Error de conexiÃ³n con el servidor', 'error');
     } finally {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
@@ -331,7 +354,7 @@ window.submitUploadCert = async function() {
         return showToast('Por favor seleccione el archivo .p12 o .pfx', 'error');
     }
     if (!passwordInput.value) {
-        return showToast('Por favor ingrese la contraseña del certificado', 'error');
+        return showToast('Por favor ingrese la contraseÃ±a del certificado', 'error');
     }
 
     const formData = new FormData();
@@ -351,7 +374,7 @@ window.submitUploadCert = async function() {
 
         const text = await response.text();
         if (response.ok) {
-            showToast('✓ Certificado guardado correctamente', 'success');
+            showToast('Certificado guardado correctamente', 'success');
             cerrarModalUpload();
             loadEmpresasGrid();
         } else {
@@ -373,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = e.target.files[0];
             if (!file) return;
             
-            // Validar tamaño (máximo 500KB)
+            // Validar tamaÃ±o (mÃ¡ximo 500KB)
             if (file.size > 500 * 1024) {
                 showToast('El logo no debe superar los 500KB', 'warning');
                 this.value = '';
@@ -405,3 +428,106 @@ window.quitarLogo = function() {
     document.getElementById('previewLogoText').style.display = 'block';
     document.getElementById('btnRemoveLogo').style.display = 'none';
 };
+
+// --- Navegación del Wizard ---
+let currentWizardStep = 1;
+const totalWizardSteps = 3;
+
+function updateWizardUI() {
+    // Actualizar los indicadores
+    document.querySelectorAll(".wizard-step-indicator").forEach(el => {
+        const step = parseInt(el.getAttribute("data-step-indicator"));
+        if (step === currentWizardStep) el.classList.add("active");
+        else el.classList.remove("active");
+    });
+
+    // Actualizar las vistas
+    document.querySelectorAll(".wizard-step").forEach(el => {
+        const step = parseInt(el.getAttribute("data-step"));
+        if (step === currentWizardStep) el.style.display = "block";
+        else el.style.display = "none";
+    });
+
+    // Actualizar botones
+    const btnPrev = document.getElementById("btnWizardPrev");
+    const btnNext = document.getElementById("btnWizardNext");
+    const btnFinish = document.getElementById("btnWizardFinish");
+
+    if (currentWizardStep === 1) {
+        btnPrev.style.visibility = "hidden";
+    } else {
+        btnPrev.style.visibility = "visible";
+    }
+
+    if (currentWizardStep === totalWizardSteps) {
+        btnNext.style.display = "none";
+        btnFinish.style.display = "inline-block";
+    } else {
+        btnNext.style.display = "inline-block";
+        btnFinish.style.display = "none";
+    }
+}
+
+window.nextWizardStep = function() {
+    const currentStepDiv = document.querySelector(`.wizard-step[data-step="${currentWizardStep}"]`);
+    const inputs = currentStepDiv.querySelectorAll("input, select, textarea");
+    let isValid = true;
+    
+    for (let input of inputs) {
+        if (!input.checkValidity()) {
+            input.reportValidity();
+            isValid = false;
+            break;
+        }
+    }
+
+    if (isValid && currentWizardStep < totalWizardSteps) {
+        currentWizardStep++;
+        updateWizardUI();
+    }
+};
+
+window.prevWizardStep = function() {
+    if (currentWizardStep > 1) {
+        currentWizardStep--;
+        updateWizardUI();
+    }
+};
+
+window.probarConexionSmtp = async function() {
+    const host = document.getElementById("empresaSmtpHost").value;
+    const port = parseInt(document.getElementById("empresaSmtpPort").value);
+    const username = document.getElementById("empresaSmtpUsername").value;
+    const password = document.getElementById("empresaSmtpPassword").value;
+    const useTls = document.getElementById("empresaSmtpUseTls").checked;
+
+    if (!host || !port || !username || !password) {
+        return showToast("Complete Host, Puerto, Usuario y Contraseña para probar", "warning");
+    }
+
+    const btn = document.getElementById("btnTestSmtp");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Probando...`;
+    btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/v1/empresas/test-smtp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ host, port, username, password, useTls })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast("Conexión SMTP exitosa", "success");
+        } else {
+            showToast(data.error || "Fallo en conexión", "error");
+        }
+    } catch (e) {
+        showToast("Error al probar conexión SMTP", "error");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
+

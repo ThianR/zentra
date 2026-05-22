@@ -129,6 +129,9 @@ public class DocumentoElectronico {
     private LocalDateTime fechaCreacion = LocalDateTime.now();
     private String codigoSeguridad; // Código de Seguridad Aleatorio para el CDC (9 dígitos)
 
+    /** Username del usuario que generó este comprobante */
+    private String usuarioGenerador;
+
     public DocumentoElectronico() {}
 
     // Getters y Setters
@@ -260,6 +263,9 @@ public class DocumentoElectronico {
     public void setMensajeUsuario(String mensajeUsuario) { this.mensajeUsuario = mensajeUsuario; }
     public String getCodigoSeguridad() { return codigoSeguridad; }
     public void setCodigoSeguridad(String codigoSeguridad) { this.codigoSeguridad = codigoSeguridad; }
+    
+    public String getUsuarioGenerador() { return usuarioGenerador; }
+    public void setUsuarioGenerador(String usuarioGenerador) { this.usuarioGenerador = usuarioGenerador; }
     
     public Integer getTipoEmision() { return tipoEmision; }
     public void setTipoEmision(Integer tipoEmision) { this.tipoEmision = tipoEmision; }

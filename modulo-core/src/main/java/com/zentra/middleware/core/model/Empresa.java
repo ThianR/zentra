@@ -78,6 +78,19 @@ public class Empresa {
 
     @jakarta.persistence.Column(columnDefinition = "TEXT")
     private String logoBase64;
+    
+    // Configuración SMTP Personalizada (Plan B)
+    private String smtpHost;
+    private Integer smtpPort;
+    private String smtpUsername;
+    @JsonIgnore
+    private String smtpPasswordEncrypted;
+    
+    @jakarta.persistence.Transient
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
+    private String smtpPasswordPlain;
+    
+    private Boolean smtpUseTls = true;
 
     public Empresa() {}
 
@@ -161,8 +174,26 @@ public class Empresa {
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
 
+    public String getSmtpHost() { return smtpHost; }
+    public void setSmtpHost(String smtpHost) { this.smtpHost = smtpHost; }
+    public Integer getSmtpPort() { return smtpPort; }
+    public void setSmtpPort(Integer smtpPort) { this.smtpPort = smtpPort; }
+    public String getSmtpUsername() { return smtpUsername; }
+    public void setSmtpUsername(String smtpUsername) { this.smtpUsername = smtpUsername; }
+    public String getSmtpPasswordEncrypted() { return smtpPasswordEncrypted; }
+    public void setSmtpPasswordEncrypted(String smtpPasswordEncrypted) { this.smtpPasswordEncrypted = smtpPasswordEncrypted; }
+    public String getSmtpPasswordPlain() { return smtpPasswordPlain; }
+    public void setSmtpPasswordPlain(String smtpPasswordPlain) { this.smtpPasswordPlain = smtpPasswordPlain; }
+    public Boolean getSmtpUseTls() { return smtpUseTls; }
+    public void setSmtpUseTls(Boolean smtpUseTls) { this.smtpUseTls = smtpUseTls; }
+
     @com.fasterxml.jackson.annotation.JsonProperty("hasCertificado")
     public boolean hasCertificado() {
         return certificadoFisico != null && certificadoFisico.length > 0;
+    }
+    
+    @com.fasterxml.jackson.annotation.JsonProperty("hasSmtpPassword")
+    public boolean hasSmtpPassword() {
+        return smtpPasswordEncrypted != null && !smtpPasswordEncrypted.trim().isEmpty();
     }
 }

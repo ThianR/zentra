@@ -708,7 +708,7 @@ public class SifenSoapClient {
 
         String p12Pass;
         try {
-            p12Pass = com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+            p12Pass = com.zentra.middleware.core.util.AesEncryptionUtil.decrypt(rawPass);
         } catch (Exception e) {
             p12Pass = rawPass;
         }
@@ -805,7 +805,7 @@ public class SifenSoapClient {
                 String p12Pass;
                 try {
                     // Try to decrypt the password
-                    p12Pass = com.zentra.middleware.crypto.util.AesEncryptionUtil.decrypt(rawPass);
+                    p12Pass = com.zentra.middleware.core.util.AesEncryptionUtil.decrypt(rawPass);
                 } catch (Exception e) {
                     p12Pass = rawPass;
                 }

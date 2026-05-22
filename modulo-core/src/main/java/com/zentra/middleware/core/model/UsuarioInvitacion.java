@@ -27,6 +27,10 @@ public class UsuarioInvitacion {
     @Column(nullable = false)
     private String rol;
 
+    /** Indica si el usuario (rol OPERADOR) solo podrá ver los DTEs emitidos por él mismo */
+    @Column(nullable = false)
+    private Boolean verSoloSusDtes = false;
+
     /** Cliente al que pertenecerá el usuario. Si es nulo, podría ser un error o caso borde. */
     @ManyToOne(optional = false)
     private Cliente cliente;
@@ -50,6 +54,9 @@ public class UsuarioInvitacion {
 
     public String getRol() { return rol; }
     public void setRol(String rol) { this.rol = rol; }
+
+    public Boolean getVerSoloSusDtes() { return verSoloSusDtes; }
+    public void setVerSoloSusDtes(Boolean verSoloSusDtes) { this.verSoloSusDtes = verSoloSusDtes; }
 
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }

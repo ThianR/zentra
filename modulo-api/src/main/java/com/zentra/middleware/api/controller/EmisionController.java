@@ -44,6 +44,7 @@ public class EmisionController {
     private final DocumentoElectronicoRepository dteRepository;
     private final HistorialSifenService historialSifenService;
     private final EventoService eventoService;
+    private final com.zentra.middleware.core.repository.UsuarioRepository usuarioRepository;
 
     public EmisionController(
             DteEmisionService dteEmisionService,
@@ -52,7 +53,8 @@ public class EmisionController {
             EmpresaRepository empresaRepository,
             DocumentoElectronicoRepository dteRepository,
             HistorialSifenService historialSifenService,
-            EventoService eventoService) {
+            EventoService eventoService,
+            com.zentra.middleware.core.repository.UsuarioRepository usuarioRepository) {
         this.dteEmisionService = dteEmisionService;
         this.kudeGenerator = kudeGenerator;
         this.documentoService = documentoService;
@@ -60,6 +62,7 @@ public class EmisionController {
         this.dteRepository = dteRepository;
         this.historialSifenService = historialSifenService;
         this.eventoService = eventoService;
+        this.usuarioRepository = usuarioRepository;
     }
 
     public DocumentoElectronico procesarDteLocal(Map<String, Object> payload) throws Exception {
@@ -174,6 +177,17 @@ public class EmisionController {
             if (empresaId == null) {
                 return ResponseEntity.status(403).body(Map.of("error", "Debe seleccionar una empresa"));
             }
+            
+            String username = EmpresaContext.getUsername();
+            boolean verSoloSusDtes = false;
+            if (username != null) {
+                var uOpt = usuarioRepository.findByUsername(username);
+                if (uOpt.isPresent() && Boolean.TRUE.equals(uOpt.get().getVerSoloSusDtes())) {
+                    verSoloSusDtes = true;
+                }
+            }
+
+            final boolean finalVerSoloSusDtes = verSoloSusDtes;
 
             // 1. Construir filtros dinámicos mediante JPA Specification
             Specification<DocumentoElectronico> spec = (root, query, cb) -> {
@@ -181,6 +195,10 @@ public class EmisionController {
                 
                 // Filtrar siempre por la empresa actual
                 predicates.add(cb.equal(root.get("emisor").get("id"), empresaId));
+                
+                if (finalVerSoloSusDtes && username != null) {
+                    predicates.add(cb.equal(root.get("usuarioGenerador"), username));
+                }
 
                 // Filtro de Ambiente (TEST / PRODUCCION)
                 if (ambiente != null && !ambiente.isBlank()) {

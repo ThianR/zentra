@@ -3,6 +3,7 @@ package com.zentra.middleware.api.config;
 import com.zentra.middleware.api.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -53,7 +54,16 @@ public class SecurityConfig {
                         "/api/v1/usuarios/aceptar-invitacion",
                         "/error"
                 ).permitAll()
-                // Todo lo demás requiere autenticación
+                // Proteger rutas de empresas (Solo ADMIN puede modificar o crear)
+                .requestMatchers(HttpMethod.POST, "/api/v1/empresas/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/empresas/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/empresas/**").hasRole("ADMIN")
+                // Proteger gestión de usuarios (Solo ADMIN puede invitar/listar todos)
+                // Permitimos que GET /api/v1/usuarios sea ADMIN por ahora.
+                .requestMatchers("/api/v1/usuarios/**").hasRole("ADMIN")
+                // Configuración e Inutilización también exclusivas de ADMIN
+                .requestMatchers("/api/v1/eventos/inutilizacion/**").hasRole("ADMIN")
+                // Todo lo demás requiere autenticación general (OPERADOR o ADMIN)
                 .anyRequest().authenticated()
             )
             // Registrar filtro JWT antes del filtro de autenticación de Spring

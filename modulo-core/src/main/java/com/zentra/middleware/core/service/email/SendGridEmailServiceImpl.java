@@ -18,4 +18,10 @@ public class SendGridEmailServiceImpl implements ZentraEmailService {
         // Lógica de llamada a la API de SendGrid
         logger.info("[SendGrid] Email enviado exitosamente a {}", to);
     }
+
+    @Override
+    public void sendEmail(com.zentra.middleware.core.model.Empresa empresa, String to, String subject, String body) {
+        // En SendGrid, tal vez se use el mismo Sender, o una API key dinámica.
+        sendEmail(to, subject, body);
+    }
 }

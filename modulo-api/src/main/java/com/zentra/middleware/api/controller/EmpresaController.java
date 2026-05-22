@@ -2,7 +2,7 @@ package com.zentra.middleware.api.controller;
 
 import com.zentra.middleware.core.model.Empresa;
 import com.zentra.middleware.core.repository.EmpresaRepository;
-import com.zentra.middleware.crypto.util.AesEncryptionUtil;
+import com.zentra.middleware.core.util.AesEncryptionUtil;
 import com.zentra.middleware.api.security.EmpresaContext;
 import com.zentra.middleware.core.model.Cliente;
 import com.zentra.middleware.core.repository.ClienteRepository;
@@ -122,6 +122,10 @@ public class EmpresaController {
             return ResponseEntity.status(404).body("Cliente no encontrado.");
         }
         
+        if (empresa.getSmtpPasswordPlain() != null && !empresa.getSmtpPasswordPlain().isEmpty()) {
+            empresa.setSmtpPasswordEncrypted(AesEncryptionUtil.encrypt(empresa.getSmtpPasswordPlain()));
+        }
+        
         return ResponseEntity.ok(empresaRepository.save(empresa));
     }
 
@@ -176,6 +180,15 @@ public class EmpresaController {
             empresa.setIdCsc(empresaDetalles.getIdCsc());
             empresa.setValorCsc(empresaDetalles.getValorCsc());
             
+            // SMTP
+            empresa.setSmtpHost(empresaDetalles.getSmtpHost());
+            empresa.setSmtpPort(empresaDetalles.getSmtpPort());
+            empresa.setSmtpUsername(empresaDetalles.getSmtpUsername());
+            empresa.setSmtpUseTls(empresaDetalles.getSmtpUseTls());
+            if (empresaDetalles.getSmtpPasswordPlain() != null && !empresaDetalles.getSmtpPasswordPlain().isEmpty()) {
+                empresa.setSmtpPasswordEncrypted(AesEncryptionUtil.encrypt(empresaDetalles.getSmtpPasswordPlain()));
+            }
+            
             // Lotes y Personalización
             if (empresaDetalles.getFrecuenciaLoteMinutos() != null) {
                 empresa.setFrecuenciaLoteMinutos(empresaDetalles.getFrecuenciaLoteMinutos());
@@ -200,5 +213,34 @@ public class EmpresaController {
             empresaRepository.delete(empresa);
             return ResponseEntity.ok().build();
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/test-smtp")
+    public ResponseEntity<?> testSmtp(@RequestBody java.util.Map<String, Object> body) {
+        try {
+            String host = (String) body.get("host");
+            Integer port = (Integer) body.get("port");
+            String username = (String) body.get("username");
+            String password = (String) body.get("password");
+            Boolean useTls = body.get("useTls") != null ? (Boolean) body.get("useTls") : true;
+
+            org.springframework.mail.javamail.JavaMailSenderImpl mailSender = new org.springframework.mail.javamail.JavaMailSenderImpl();
+            mailSender.setHost(host);
+            mailSender.setPort(port);
+            mailSender.setUsername(username);
+            mailSender.setPassword(password);
+
+            java.util.Properties props = mailSender.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", useTls.toString());
+            props.put("mail.debug", "false");
+
+            mailSender.testConnection();
+
+            return ResponseEntity.ok(java.util.Map.of("success", true, "message", "Conexión exitosa"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("success", false, "error", "Error de conexión: " + e.getMessage()));
+        }
     }
 }

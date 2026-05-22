@@ -132,6 +132,19 @@ body {
 .sidebar-nav {
     flex: 1;
     padding: 20px;
+    overflow-y: auto;
+}
+
+/* Custom scrollbar para el nav */
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
 }
 
 .nav-item {
@@ -172,27 +185,40 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 100%;
+    overflow: hidden;
 }
 
 .user-profile img {
     width: 40px;
     height: 40px;
     border-radius: 50%;
+    flex-shrink: 0;
 }
 
 .user-info {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    flex: 1;
 }
 
 .user-name {
     font-weight: 600;
-    font-size: 14px;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
 }
 
 .user-role {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
 }
 
 /* Main Content Area */
