@@ -42,10 +42,15 @@ public class SecurityConfig {
                         "/",
                         "/login.html",
                         "/index.html",
+                        "/superadmin.html",
+                        "/aceptar-invitacion.html",
                         "/css/**",
                         "/js/**",
                         "/favicon.ico",
                         "/api/v1/auth/**",
+                        "/api/v1/superadmin/**",
+                        "/api/v1/usuarios/invitacion/**",
+                        "/api/v1/usuarios/aceptar-invitacion",
                         "/error"
                 ).permitAll()
                 // Todo lo demás requiere autenticación

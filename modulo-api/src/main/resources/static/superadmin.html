@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin - Zentra</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            padding: 40px;
+        }
+        .admin-panel {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: white;
+            box-sizing: border-box;
+        }
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        #result-msg {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="admin-panel">
+        <h2 style="margin-top: 0;">Zentra SuperAdmin</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">Dar de alta un nuevo Cliente (Tenant) y enviar invitación al primer Administrador.</p>
+        
+        <form id="createClientForm" onsubmit="createClient(event)">
+            <div class="form-group">
+                <label>RUC o Identificador Único del Cliente (ej. 80000000-1)</label>
+                <input type="text" id="identificador" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Nombre Comercial o Razón Social</label>
+                <input type="text" id="nombre" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Correo del Administrador Principal (Recibirá la invitación)</label>
+                <input type="email" id="emailAdmin" class="form-control" required>
+            </div>
+            
+            <button type="submit" class="btn-primary" id="btn-submit">Crear Cliente y Enviar Invitación</button>
+        </form>
+
+        <div id="result-msg"></div>
+    </div>
+
+    <script>
+        async function createClient(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            const resultMsg = document.getElementById('result-msg');
+            
+            const payload = {
+                identificador: document.getElementById('identificador').value,
+                nombre: document.getElementById('nombre').value,
+                emailAdmin: document.getElementById('emailAdmin').value
+            };
+
+            btn.disabled = true;
+            btn.innerText = 'Crear...';
+            resultMsg.style.display = 'none';
+
+            try {
+                // TODO: En un caso real, pasar token de Auth si este endpoint está protegido
+                const response = await fetch('/api/v1/superadmin/clientes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                resultMsg.style.display = 'block';
+                if (response.ok) {
+                    resultMsg.style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                    resultMsg.style.color = '#28a745';
+                    resultMsg.style.border = '1px solid #28a745';
+                    resultMsg.innerText = data.message;
+                    document.getElementById('createClientForm').reset();
+                } else {
+                    resultMsg.style.backgroundColor = 'rgba(220, 53, 69, 0.2)';
+                    resultMsg.style.color = '#dc3545';
+                    resultMsg.style.border = '1px solid #dc3545';
+                    resultMsg.innerText = data.error || 'Ocurrió un error';
+                }
+            } catch (err) {
+                resultMsg.style.display = 'block';
+                resultMsg.style.backgroundColor = 'rgba(220, 53, 69, 0.2)';
+                resultMsg.style.color = '#dc3545';
+                resultMsg.innerText = 'Error de red';
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Crear Cliente y Enviar Invitación';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -42,8 +42,8 @@ window.fetch = async function () {
     try {
         const response = await originalFetch(resource, config);
         
-        // Si el token expiró o es inválido
-        if (response.status === 401 || response.status === 403) {
+        // Si el token expiró o es inválido (401 Unauthorized)
+        if (response.status === 401) {
             localStorage.removeItem('jwt_token');
             localStorage.removeItem('empresa_activa');
             if (!window.location.pathname.includes('login.html')) {

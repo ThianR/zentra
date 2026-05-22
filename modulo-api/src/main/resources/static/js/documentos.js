@@ -600,9 +600,10 @@ window.aplicarFiltrosManual = function(filtros) {
 window.loadUltimosComprobantesPorTipo = async function() {
     try {
         const response = await fetch(API.emision + '/documentos');
-        let docs = await response.json();
+        let data = await response.json();
+        let docs = data.content || data || [];
         
-        // Filtrar por ambiente activo en sesi�n
+        // Filtrar por ambiente activo en sesión
         const savedEnv = sessionStorage.getItem('zentra-env') || 'dev';
         const expectedAmbiente = savedEnv === 'dev' ? 'TEST' : 'PRODUCCION';
         if (docs && docs.length > 0) docs = docs.filter(doc => doc.ambiente === expectedAmbiente);

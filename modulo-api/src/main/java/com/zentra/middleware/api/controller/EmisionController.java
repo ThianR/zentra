@@ -102,8 +102,11 @@ public class EmisionController {
             return ResponseEntity.status(422).body(Map.of("message", mensajeUsuario));
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error interno inesperado en emisión DTE", e);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.toString();
             return ResponseEntity.status(500).body(Map.of(
-                    "message", "Ocurrió un error interno en el sistema. Por favor contacte al soporte técnico."));
+                    "error", "Ocurrió un error en el sistema.",
+                    "detalleTecnico", errorMsg
+            ));
         }
     }
 

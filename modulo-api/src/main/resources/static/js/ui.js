@@ -124,6 +124,7 @@ function initNavigation() {
             if (viewId === 'emision') resetForm();
             if (viewId === 'dashboard') loadDocumentos();
             if (viewId === 'empresas') loadEmpresasGrid();
+            if (viewId === 'usuarios' && typeof loadUsuarios === 'function') loadUsuarios();
             if (viewId === 'eventos') initEventos();
             if (viewId === 'receptor') {
                 if(typeof cargarEmpresasEnEvento === 'function') cargarEmpresasEnEvento();

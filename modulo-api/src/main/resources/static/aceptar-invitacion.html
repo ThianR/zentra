@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aceptar Invitación - Zentra</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: var(--bg-dark);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+        }
+        .invite-box {
+            background: var(--bg-card);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: white;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+        .error-msg {
+            color: var(--danger-color);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        .success-msg {
+            color: var(--success-color);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="invite-box" id="step-loading">
+        <h3>Cargando invitación...</h3>
+    </div>
+
+    <div class="invite-box" id="step-form" style="display: none;">
+        <h2>Bienvenido a Zentra</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Has sido invitado como <strong id="lbl-rol"></strong> para la cuenta <strong id="lbl-cliente"></strong>.
+        </p>
+        
+        <div id="msg-container"></div>
+
+        <form id="inviteForm" onsubmit="acceptInvite(event)">
+            <div class="form-group">
+                <label>Correo Electrónico (Tu usuario)</label>
+                <input type="text" id="email" class="form-control" disabled>
+            </div>
+            <div class="form-group">
+                <label>Nombre Completo</label>
+                <input type="text" id="nombreCompleto" class="form-control" required placeholder="Ej. Juan Pérez">
+            </div>
+            <div class="form-group">
+                <label>Define tu Contraseña</label>
+                <input type="password" id="password" class="form-control" required placeholder="Mínimo 6 caracteres" minlength="6">
+            </div>
+            <button type="submit" class="btn-primary" id="btn-submit">Activar mi cuenta</button>
+        </form>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        if (!token) {
+            document.getElementById('step-loading').innerHTML = '<h3 style="color:red;">Error: No se proporcionó un token de invitación válido.</h3>';
+        } else {
+            // Verificar token
+            fetch(`/api/v1/usuarios/invitacion/${token}`)
+                .then(res => res.json().then(data => ({ status: res.status, body: data })))
+                .then(res => {
+                    if (res.status === 200) {
+                        document.getElementById('step-loading').style.display = 'none';
+                        document.getElementById('step-form').style.display = 'block';
+                        
+                        document.getElementById('lbl-rol').innerText = res.body.rol;
+                        document.getElementById('lbl-cliente').innerText = res.body.clienteNombre;
+                        document.getElementById('email').value = res.body.email;
+                    } else {
+                        document.getElementById('step-loading').innerHTML = `<h3 style="color:red;">${res.body.error || 'Invitación inválida o expirada.'}</h3>`;
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('step-loading').innerHTML = '<h3 style="color:red;">Error de conexión. Intente más tarde.</h3>';
+                });
+        }
+
+        async function acceptInvite(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            const msgContainer = document.getElementById('msg-container');
+            
+            const payload = {
+                token: token,
+                nombreCompleto: document.getElementById('nombreCompleto').value,
+                password: document.getElementById('password').value
+            };
+
+            btn.disabled = true;
+            btn.innerText = 'Procesando...';
+            msgContainer.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/v1/usuarios/aceptar-invitacion', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('inviteForm').style.display = 'none';
+                    msgContainer.innerHTML = `<div class="success-msg"><h3>¡Cuenta activada!</h3><p>${data.message}</p><br><a href="/login.html" class="btn-primary" style="display:inline-block; text-decoration:none;">Ir al Login</a></div>`;
+                } else {
+                    msgContainer.innerHTML = `<div class="error-msg">${data.error || 'Error al procesar la solicitud'}</div>`;
+                    btn.disabled = false;
+                    btn.innerText = 'Activar mi cuenta';
+                }
+            } catch (err) {
+                msgContainer.innerHTML = `<div class="error-msg">Error de conexión. Intente más tarde.</div>`;
+                btn.disabled = false;
+                btn.innerText = 'Activar mi cuenta';
+            }
+        }
+    </script>
+</body>
+</html>
