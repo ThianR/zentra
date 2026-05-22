@@ -145,6 +145,7 @@ public class DatabaseMigrationConfig {
         logger.info("[DB Init] Verificando/Cargando catálogos SIFEN v150 desde data.sql...");
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
         populator.addScript(new ClassPathResource("data.sql"));
+        populator.addScript(new ClassPathResource("data_sifen_diccionario.sql"));
         populator.setSeparator(";");
         populator.setIgnoreFailedDrops(true);
         populator.setContinueOnError(false);

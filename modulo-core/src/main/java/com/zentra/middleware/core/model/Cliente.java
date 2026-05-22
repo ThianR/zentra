@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,14 @@ public class Cliente {
 
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
+    /** Estado de la suscripción: AL_DIA, MES_1_AVISO, MES_2_LIMITADO, MES_3_BLOQUEADO */
+    private String estadoSuscripcion = "AL_DIA";
+
+    private LocalDate fechaVencimientoPago;
+
+    /** Límite diario de emisiones (-1 = sin límite) */
+    private Integer limiteDiarioEmisiones = -1;
+
     @OneToMany(mappedBy = "cliente")
     private List<Empresa> empresas = new ArrayList<>();
 
@@ -53,4 +62,13 @@ public class Cliente {
 
     public List<Empresa> getEmpresas() { return empresas; }
     public void setEmpresas(List<Empresa> empresas) { this.empresas = empresas; }
+
+    public String getEstadoSuscripcion() { return estadoSuscripcion; }
+    public void setEstadoSuscripcion(String estadoSuscripcion) { this.estadoSuscripcion = estadoSuscripcion; }
+
+    public LocalDate getFechaVencimientoPago() { return fechaVencimientoPago; }
+    public void setFechaVencimientoPago(LocalDate fechaVencimientoPago) { this.fechaVencimientoPago = fechaVencimientoPago; }
+
+    public Integer getLimiteDiarioEmisiones() { return limiteDiarioEmisiones; }
+    public void setLimiteDiarioEmisiones(Integer limiteDiarioEmisiones) { this.limiteDiarioEmisiones = limiteDiarioEmisiones; }
 }

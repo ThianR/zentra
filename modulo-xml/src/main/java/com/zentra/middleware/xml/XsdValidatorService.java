@@ -8,11 +8,16 @@ import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 import java.io.StringReader;
 import java.util.logging.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.zentra.middleware.core.service.SifenDictionaryProvider;
 
 @Service
 public class XsdValidatorService {
 
     private static final Logger logger = Logger.getLogger(XsdValidatorService.class.getName());
+
+    @Autowired(required = false)
+    private SifenDictionaryProvider dictionaryProvider;
 
     /**
      * Valida un XML contra los esquemas oficiales de SIFEN.
@@ -71,7 +76,30 @@ public class XsdValidatorService {
             // Inyectar xmlns en Signature para validación
             xmlParaValidar = xmlParaValidar.replace("<Signature>", "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\">");
 
+            // Capturar todos los errores (para que no se pierda el nombre del elemento)
+            StringBuilder errorMessages = new StringBuilder();
+            validator.setErrorHandler(new org.xml.sax.ErrorHandler() {
+                @Override
+                public void warning(org.xml.sax.SAXParseException exception) { }
+
+                @Override
+                public void error(org.xml.sax.SAXParseException exception) {
+                    errorMessages.append(exception.getMessage()).append(" | ");
+                }
+
+                @Override
+                public void fatalError(org.xml.sax.SAXParseException exception) {
+                    errorMessages.append(exception.getMessage()).append(" | ");
+                }
+            });
+
             validator.validate(new StreamSource(new StringReader(xmlParaValidar)));
+
+            if (errorMessages.length() > 0) {
+                // Eliminar el último " | "
+                String errorCompleto = errorMessages.substring(0, errorMessages.length() - 3);
+                throw new RuntimeException(errorCompleto);
+            }
 
             logger.info("VALIDACIÓN XSD EXITOSA contra " + xsdFileName);
 
@@ -81,8 +109,12 @@ public class XsdValidatorService {
             logger.severe("RECHAZO XSD INTERNO (" + xsdFileName + "): " + errorTecnico);
 
             // Traducir a mensaje amigable para el usuario
-            String mensajeUsuario = XsdErrorTranslator.traducir(errorTecnico, tipoDocumento);
-            throw new RuntimeException(mensajeUsuario, e);
+            String mensajeUsuario = XsdErrorTranslator.traducir(
+                errorTecnico, 
+                tipoDocumento, 
+                dictionaryProvider != null ? dictionaryProvider.getDictionary() : null
+            );
+            throw new XsdValidationException(mensajeUsuario, errorTecnico, e);
         }
     }
 }

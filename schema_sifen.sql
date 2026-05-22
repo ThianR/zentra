@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS clientes (
     nombre                      VARCHAR(255),
     identificador               VARCHAR(100) UNIQUE,
     activo                      BOOLEAN      DEFAULT TRUE,
-    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    fecha_creacion              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    estado_suscripcion          VARCHAR(50)  DEFAULT 'AL_DIA',
+    fecha_vencimiento_pago      DATE,
+    limite_diario_emisiones     INTEGER      DEFAULT -1
 );
 
 CREATE TABLE IF NOT EXISTS empresas (
@@ -68,6 +71,21 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 -- -----------------------------------------------------------------------------
+-- 1.5. Control de Suscripciones
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS suscripciones_historial (
+    id                      VARCHAR(36)  PRIMARY KEY,
+    cliente_id              VARCHAR(36)  REFERENCES clientes(id),
+    fecha_pago              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    monto_pagado            NUMERIC(18,2),
+    periodo_desde           DATE,
+    periodo_hasta           DATE,
+    metodo_pago             VARCHAR(100),
+    observaciones           VARCHAR(500),
+    usuario_registro_id     VARCHAR(36)  REFERENCES usuarios(id)
+);
+
+-- -----------------------------------------------------------------------------
 -- 2. Catálogos SIFEN y Datos Maestros
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sifen_referencia (
@@ -87,6 +105,28 @@ CREATE TABLE IF NOT EXISTS padron_ruc (
     dv                          VARCHAR(1),
     razon_social                VARCHAR(255),
     estado                      VARCHAR(50)
+);
+
+-- -----------------------------------------------------------------------------
+-- 2.5. Diccionario de Errores y Soporte (Centro de Eventos)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sifen_diccionario_errores (
+    id                      VARCHAR(36)  PRIMARY KEY,
+    codigo_sifen            VARCHAR(100) UNIQUE NOT NULL,
+    etiqueta_humana         VARCHAR(255) NOT NULL,
+    descripcion             TEXT,
+    activo                  BOOLEAN      DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS centro_eventos_logs (
+    id                      VARCHAR(36)  PRIMARY KEY,
+    empresa_id              VARCHAR(36)  REFERENCES empresas(id),
+    usuario_id              VARCHAR(36)  REFERENCES usuarios(id),
+    fecha_hora              TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    mensaje_amigable        TEXT,
+    detalle_tecnico         TEXT,
+    datos_contexto          TEXT,
+    estado                  VARCHAR(50)  DEFAULT 'PENDIENTE'
 );
 
 -- -----------------------------------------------------------------------------

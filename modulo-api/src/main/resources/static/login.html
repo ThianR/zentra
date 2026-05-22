@@ -222,8 +222,11 @@
                     throw new Error(data.error || 'Error al iniciar sesión');
                 }
 
-                // Guardar token temporal
+                // Guardar token temporal y estado de suscripcion
                 localStorage.setItem('jwt_token_temp', data.token);
+                if (data.estadoSuscripcion) {
+                    localStorage.setItem('estado_suscripcion', data.estadoSuscripcion);
+                }
 
                 // Evaluar si tiene empresa por defecto y empresas cargadas
                 if (data.empresaDefaultId && data.empresas.some(e => e.id === data.empresaDefaultId)) {

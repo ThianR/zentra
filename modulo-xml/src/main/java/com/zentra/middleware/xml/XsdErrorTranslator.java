@@ -118,14 +118,20 @@ public class XsdErrorTranslator {
                 "Es posible que falte un campo obligatorio o haya uno que no corresponde a este tipo de documento.");
     }
 
+    public static String traducir(String mensajeXsdCrudo, String tipoDocumento) {
+        return traducir(mensajeXsdCrudo, tipoDocumento, null);
+    }
+
     /**
-     * Traduce un mensaje de error XSD crudo a un mensaje comprensible para el usuario.
+     * Traduce un mensaje de error XSD crudo a un mensaje comprensible para el usuario,
+     * utilizando opcionalmente un diccionario dinámico externo.
      *
      * @param mensajeXsdCrudo El mensaje original del parser XSD.
-     * @param tipoDocumento   Código del tipo de documento (1=FE, 5=NC, 6=ND, 7=NR, etc.) para contexto.
+     * @param tipoDocumento   Código del tipo de documento.
+     * @param diccionarioExterno Mapa de código a etiqueta humana.
      * @return Mensaje en español claro para mostrar al usuario.
      */
-    public static String traducir(String mensajeXsdCrudo, String tipoDocumento) {
+    public static String traducir(String mensajeXsdCrudo, String tipoDocumento, Map<String, String> diccionarioExterno) {
         if (mensajeXsdCrudo == null || mensajeXsdCrudo.isBlank()) {
             return "El documento contiene un error de formato no identificado.";
         }
@@ -143,7 +149,7 @@ public class XsdErrorTranslator {
 
         // Fallback: extraer la parte más legible del mensaje XSD y mostrarlo con contexto
         logger.warning("Mensaje XSD no mapeado, mostrando simplificado: " + mensajeXsdCrudo);
-        return generarMensajeFallback(mensajeXsdCrudo, tipoDocumento);
+        return generarMensajeFallback(mensajeXsdCrudo, tipoDocumento, diccionarioExterno);
     }
 
     /**
@@ -187,15 +193,18 @@ public class XsdErrorTranslator {
 
     /**
      * Genera un mensaje de fallback cuando no se encuentra una traducción específica.
-     * Intenta extraer la parte más informativa del mensaje técnico.
+     * Intenta extraer la parte más informativa del mensaje técnico y usar el diccionario.
      */
-    private static String generarMensajeFallback(String mensajeXsd, String tipoDocumento) {
+    private static String generarMensajeFallback(String mensajeXsd, String tipoDocumento, Map<String, String> diccionarioExterno) {
         String contexto = resolverContextoTipoDoc(tipoDocumento);
 
         // Intentar extraer el nombre del campo del mensaje XSD (formato: 'valor' ... 'campo')
         String campoPosible = extraerCampo(mensajeXsd);
         if (campoPosible != null) {
-            return contexto + "El campo '" + campoPosible + "' contiene un valor inválido según las reglas de SIFEN. " +
+            String etiqueta = (diccionarioExterno != null && diccionarioExterno.containsKey(campoPosible)) 
+                ? diccionarioExterno.get(campoPosible) 
+                : campoPosible;
+            return contexto + "El campo '" + etiqueta + "' contiene un valor inválido según las reglas de SIFEN. " +
                    "Por favor verifique el dato ingresado o contacte al soporte técnico.";
         }
 

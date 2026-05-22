@@ -11,6 +11,7 @@ import com.zentra.middleware.core.service.HistorialSifenService;
 import com.zentra.middleware.core.service.EventoService;
 import com.zentra.middleware.api.service.DteEmisionService;
 import com.zentra.middleware.api.service.DteValidationException;
+import com.zentra.middleware.xml.XsdValidationException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -86,6 +87,12 @@ public class EmisionController {
             logger.warning("Validación DTE fallida: " + e.getMessage());
             return ResponseEntity.unprocessableEntity().body(
                     Map.of("message", "El documento no cumple con las validaciones SIFEN.", "errores", e.getErrores()));
+        } catch (XsdValidationException e) {
+            logger.warning("Error de validación XSD SIFEN: " + e.getMessage());
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("error", e.getMessage());
+            resp.put("detalleTecnico", e.getDetalleTecnico());
+            return ResponseEntity.status(422).body(resp);
         } catch (RuntimeException e) {
             String mensajeUsuario = e.getMessage();
             if (mensajeUsuario == null || mensajeUsuario.isBlank()) {

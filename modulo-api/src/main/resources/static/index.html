@@ -15,6 +15,28 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="js/auth.js?v=1.8.0"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const estadoSuscripcion = localStorage.getItem('estado_suscripcion');
+            const banner = document.getElementById('subscriptionAlertBanner');
+            if (estadoSuscripcion && estadoSuscripcion !== 'AL_DIA' && banner) {
+                banner.style.display = 'block';
+                if (estadoSuscripcion === 'MES_1_AVISO') {
+                    banner.style.backgroundColor = 'var(--warning-color, #ffc107)';
+                    banner.style.color = '#000';
+                    banner.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Su suscripción presenta un atraso leve o está por vencer. Por favor, regularice su pago.';
+                } else if (estadoSuscripcion === 'MES_2_LIMITADO') {
+                    banner.style.backgroundColor = 'var(--danger-color, #dc3545)';
+                    banner.style.color = '#fff';
+                    banner.innerHTML = '<i class="fas fa-ban"></i> Su suscripción tiene un atraso considerable. Sus operaciones están temporalmente limitadas.';
+                } else if (estadoSuscripcion === 'MES_3_BLOQUEADO') {
+                    banner.style.backgroundColor = 'var(--danger-color, #dc3545)';
+                    banner.style.color = '#fff';
+                    banner.innerHTML = '<i class="fas fa-lock"></i> Su cuenta ha sido bloqueada por falta de pago. Regularice su situación para continuar operando.';
+                }
+            }
+        });
+    </script>
 </head>
 
 <body class="dark-theme">
@@ -91,6 +113,9 @@
                     </div>
                 </div>
             </header>
+
+            <!-- Subscription Alert Banner -->
+            <div id="subscriptionAlertBanner" class="fade-in" style="display:none; padding: 15px; margin: 15px; border-radius: 8px; font-weight: bold; text-align: center;"></div>
 
             <!-- Dashboard View -->
             <div id="view-dashboard" class="content-view active">

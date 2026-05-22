@@ -108,6 +108,7 @@ public class AuthController {
         ));
         response.put("empresas", empresas);
         response.put("empresaDefaultId", empresaDefaultId);
+        response.put("estadoSuscripcion", usuario.getCliente() != null ? usuario.getCliente().getEstadoSuscripcion() : "AL_DIA");
 
         return ResponseEntity.ok(response);
     }
@@ -186,6 +187,7 @@ public class AuthController {
                 perfil.put("email", user.getEmail());
                 perfil.put("rol", user.getRol());
                 perfil.put("empresaDefaultId", user.getEmpresaDefault() != null ? user.getEmpresaDefault().getId() : null);
+                perfil.put("estadoSuscripcion", user.getCliente() != null ? user.getCliente().getEstadoSuscripcion() : "AL_DIA");
                 return ResponseEntity.ok(perfil);
             })
             .orElse(ResponseEntity.notFound().build());

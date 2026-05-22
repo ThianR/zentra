@@ -244,13 +244,12 @@ async function loadCiudades(codDepto, targetId = 'emisorCodCiudad') {
         console.error('Error cargando ciudades:', error);
         ciudadSelect.innerHTML = '<option value="">Error ciudades</option>';
     }
-}
-
-function toggleSections(type) {
+}function toggleSections(type) {
     const sectionFactura = document.getElementById('sectionFactura');
     const sectionAsociado = document.getElementById('sectionAsociado');
     const sectionTransporte = document.getElementById('sectionTransporte');
     const groupNatVen = document.getElementById('groupNatVen');
+    const condicionOperacionGroup = document.getElementById('condicionOperacion').closest('.form-group');
 
     sectionAsociado.classList.add('hidden');
     sectionTransporte.classList.add('hidden');
@@ -283,6 +282,13 @@ function toggleSections(type) {
         sectionFactura.classList.add('hidden');
     }
 
+    // Condicion de operación solo obligatoria y visible para Factura (1) y Autofactura (4)
+    if (type === '1' || type === '4') {
+        if(condicionOperacionGroup) condicionOperacionGroup.style.display = 'block';
+    } else {
+        if(condicionOperacionGroup) condicionOperacionGroup.style.display = 'none';
+    }
+
     // Validaciones UI dinámicas
     if (type === '7') {
         if(document.getElementById('reqDeptoRec')) document.getElementById('reqDeptoRec').style.display = 'inline';
@@ -300,6 +306,15 @@ function toggleCuotas() {
     const sectionPagos = document.getElementById('sectionPagos');
     const condicion = document.getElementById('condicionOperacion');
     const isCredito = condicion && condicion.value === '2';
+    
+    const tipoDoc = document.getElementById('tipoDocumento') ? document.getElementById('tipoDocumento').value : '';
+    const requiresPago = (tipoDoc === '1' || tipoDoc === '4');
+
+    if (!requiresPago) {
+        if (sectionPagos) sectionPagos.classList.add('hidden');
+        if (sectionCuotas) sectionCuotas.classList.add('hidden');
+        return;
+    }
 
     if (isCredito) {
         if (sectionPagos) sectionPagos.classList.add('hidden');
@@ -313,7 +328,8 @@ function toggleCuotas() {
             sectionPagos.classList.remove('hidden');
             if (document.getElementById('tbodyPagos').children.length === 0) {
                 // Agregar por defecto 1 fila con el total en Efectivo si no hay pagos
-                const totalGral = document.getElementById('totalGral').innerText.replace(/\./g, '');
+                const totalGralElement = document.getElementById('totalGral');
+                const totalGral = totalGralElement ? totalGralElement.innerText.replace(/\./g, '') : '0';
                 addPagoRow(1, parseFloat(totalGral) || 0);
             }
         }
@@ -1001,13 +1017,27 @@ async function submitDte() {
                     showToast(`Validación: ${err.errores[0]}`, 'error');
                 }
                 showToast(`${err.errores.length} error(es) de validación. Ver detalles arriba.`, 'error');
+            } else if (err.error && err.detalleTecnico) {
+                const contenedor = document.getElementById('validationErrors');
+                if (contenedor) {
+                    contenedor.innerHTML = `
+                        <div class="validation-error-box">
+                            <strong><i class="fas fa-exclamation-triangle"></i> Error de validación:</strong>
+                            <p>${err.error}</p>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="toggleDetalleTecnico()">Ver detalles</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-2 ml-2" onclick="reportarErrorSoporte(this, '${err.error.replace(/'/g, "\\'")}', '${err.detalleTecnico.replace(/'/g, "\\'")}')">Reportar a Soporte</button>
+                            <div id="detalleTecnicoBox" class="mt-2 text-muted" style="display: none; font-size: 0.85em; white-space: pre-wrap;">${err.detalleTecnico}</div>
+                        </div>`;
+                    contenedor.scrollIntoView({ behavior: 'smooth' });
+                }
+                showToast("Error de validación SIFEN", 'error');
             } else {
                 if (err.mensajeUsuario) {
                     showToast(err.mensajeUsuario, 'error');
                 } else if (err.codigoSifen) {
                     showToast(`SIFEN Rechazo [${err.codigoSifen}]: ${err.message}`, 'error');
                 } else {
-                    showToast(`Error: ${err.message || 'Fallo en la emisión'}`, 'error');
+                    showToast(`Error: ${err.message || err.error || 'Fallo en la emisión'}`, 'error');
                 }
             }
         }
@@ -1088,3 +1118,39 @@ function resetForm() {
     }
 }
 
+window.toggleDetalleTecnico = function() {
+    const box = document.getElementById('detalleTecnicoBox');
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+window.reportarErrorSoporte = async function(btn, mensajeAmigable, detalleTecnico) {
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reportando...';
+    btn.disabled = true;
+    try {
+        const payload = {
+            mensajeAmigable: mensajeAmigable,
+            detalleTecnico: detalleTecnico,
+            datosContexto: "Se produjo en la interfaz de emision de comprobantes"
+        };
+        const res = await fetch('/api/v1/eventos-log/reportar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            showToast('El error ha sido reportado a nuestro equipo técnico', 'success');
+            btn.innerHTML = '<i class="fas fa-check"></i> Reportado';
+        } else {
+            showToast('No se pudo reportar el error en este momento.', 'warning');
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+        }
+    } catch (e) {
+        showToast('Error de conexión al reportar el evento', 'error');
+        btn.innerHTML = oldHtml;
+        btn.disabled = false;
+    }
+};
